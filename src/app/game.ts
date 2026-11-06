@@ -18,7 +18,7 @@ import {
   HERO_EV_RELEASED,
   newHeroState,
 } from '../core/hero';
-import { HOOK_FLYING, HOOK_IDLE, NO_ANCHOR, AimResult, pickAnchorAssisted } from '../core/hook';
+import { HOOK_FLYING, HOOK_IDLE, NO_ANCHOR, AimResult, aimReason, pickAnchorAssisted } from '../core/hook';
 import { BTN_ACTION, BTN_HOOK, BTN_REEL, BTN_RESTART, newInputFrame } from '../core/input';
 import { aabbContainsPoint } from '../core/math/aabb';
 import { PreviewResult, PREVIEW_NONE, previewShot } from '../core/preview';
@@ -34,6 +34,7 @@ import { updateLevelView } from '../adapters/render/levelView';
 import { createGameScene } from '../adapters/render/scene';
 import { DebugHud } from '../adapters/ui/debugHud';
 import { Hud } from '../adapters/ui/hud';
+import { aimReasonText } from '../adapters/ui/aimReasonText';
 import { AimPreviewView } from '../adapters/render/aimPreviewView';
 import { WaypointView } from '../adapters/render/waypointView';
 import {
@@ -256,6 +257,7 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
     animImpact = 0;
     previewTarget = NO_ANCHOR;
     previewId = NO_ANCHOR;
+    hudUi.setAimReason('');
     cameraFx.reset();
     hudUi.hideToast();
     hudUi.hideWin();
@@ -372,6 +374,7 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
     previewTarget = NO_ANCHOR;
     if (phase !== 'play' || cur.mode === HERO_ATTACHED || cur.hook.state !== HOOK_IDLE) {
       hudUi.setReticle(0);
+      hudUi.setAimReason('');
       return;
     }
     const cp = Math.cos(cur.camPitch);
@@ -391,6 +394,29 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
       coarse ? cfg.aim.magnetDegTouch : cfg.aim.magnetDegDesktop,
       aim,
     );
+    if (aim.anchorId !== NO_ANCHOR) {
+      hudUi.setAimReason('');
+    } else {
+      hudUi.setAimReason(
+        aimReasonText(
+          aimReason(
+            world,
+            cfg,
+            cur.px,
+            cur.py + cfg.rope.handToFeet,
+            cur.pz,
+            cur.px,
+            cur.py + cfg.hero.height * HEAD_FRAC,
+            cur.pz,
+            Math.sin(cur.camYaw) * cp,
+            Math.sin(cur.camPitch),
+            Math.cos(cur.camYaw) * cp,
+            cfg.rope.maxLen,
+            coarse ? cfg.aim.magnetDegTouch : cfg.aim.magnetDegDesktop,
+          ),
+        ),
+      );
+    }
     hudUi.setReticle(aim.anchorId !== NO_ANCHOR ? 2 : 1);
     previewTarget = aim.anchorId;
   }
@@ -540,7 +566,10 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
     }
     updateLevelView(level, performance.now() / 1000, nextRouteIndex);
     hudUi.setTime(runT);
-    if (phase === 'pan') hudUi.setReticle(0);
+    if (phase === 'pan') {
+      hudUi.setReticle(0);
+      hudUi.setAimReason('');
+    }
 
     // Lerp the camera pose with the same alpha as the hero (m1-review F3).
     let camX = prevRig.pos.x + (curRig.pos.x - prevRig.pos.x) * alpha;

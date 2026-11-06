@@ -25,6 +25,7 @@ export class Hud {
   private readonly pause: HTMLElement;
   private readonly hint: HTMLElement;
   private readonly reticle: HTMLElement;
+  private readonly reason: HTMLElement;
   private readonly toastEl: HTMLElement;
   private readonly win: HTMLElement;
   private readonly winTime: HTMLElement;
@@ -33,6 +34,7 @@ export class Hud {
   private timerText = '';
   private actionText = '';
   private reticleState = -1;
+  private reasonText = '';
   private readonly wp: HTMLElement;
   private readonly wpLabel: HTMLElement;
   private readonly wpArrow: HTMLElement;
@@ -72,6 +74,7 @@ export class Hud {
     this.hint = el(root, 'div', 'hud-hint');
     this.hint.textContent = 'Aim at a glowing anchor and hook';
     this.reticle = el(root, 'div', 'hud-reticle');
+    this.reason = el(root, 'div', 'hud-reason', 'off');
     this.toastEl = el(root, 'div', 'hud-toast', 'off');
     this.win = el(root, 'div', 'hud-win', 'off');
     const h = document.createElement('h1');
@@ -128,6 +131,14 @@ export class Hud {
     this.reticleState = state;
     this.reticle.classList.toggle('off', state === 0);
     this.reticle.classList.toggle('lock', state === 2);
+  }
+
+  /** Why the aimed anchor cannot be hooked; empty hides it. */
+  setAimReason(text: string): void {
+    if (text === this.reasonText) return;
+    this.reasonText = text;
+    this.reason.textContent = text;
+    this.reason.classList.toggle('off', text === '');
   }
 
   /** Waypoint marker: screen position in px, edge = clamped (shows arrow, no stem). */
@@ -204,6 +215,7 @@ export class Hud {
     this.timer.remove();
     this.hint.remove();
     this.reticle.remove();
+    this.reason.remove();
     this.wp.remove();
     this.toastEl.remove();
     this.win.remove();

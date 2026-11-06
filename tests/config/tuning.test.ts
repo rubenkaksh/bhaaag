@@ -26,6 +26,8 @@ const schema = z.strictObject({
     magnetDegDesktop: num,
     magnetDegTouch: num,
     routeAssistDeg: num,
+    routeAssistLateDeg: num,
+    routeAssistEarlyHops: num,
     snapRadius: num,
     previewHz: num,
     previewMaxSec: num,

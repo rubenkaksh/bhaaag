@@ -1,18 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_TUNING } from '../../src/core/config';
 import {
+  AIM_BLOCKED,
+  AIM_NONE,
+  AIM_OK,
+  AIM_OUT_OF_RANGE,
+  AIM_TOO_CLOSE,
+  AIM_TOO_FLAT,
+  AIM_TOO_STEEP,
+  AIM_UPHILL,
   AimResult,
   HOOK_AT_END,
   HOOK_ATTACHED,
   HOOK_FLYING,
   HOOK_IDLE,
   NO_ANCHOR,
+  aimReason,
   hookFire,
   hookRelease,
   hookStep,
   hookTrolleyPos,
   newHook,
   pickAnchor,
+  pickAnchorAssisted,
   resetHook,
   type Hook,
 } from '../../src/core/hook';
@@ -490,5 +500,210 @@ describe('determinism', () => {
       expect([out1.anchorId, out1.dist, out1.angleDeg]).toEqual([out2.anchorId, out2.dist, out2.angleDeg]);
     }
     expect(out1.anchorId).toBe(0); // 1 degree off beats 4 and 8
+  });
+});
+
+describe('aimReason', () => {
+  // aimReason verdict + pickAnchor's pick for the identical inputs.
+  function verdict(
+    w: World,
+    bearingDeg: number,
+    slopeDeg: number,
+    magnetDeg = DEFAULT_TUNING.aim.magnetDegDesktop,
+  ): [number, number] {
+    const d = rayDir(bearingDeg, slopeDeg);
+    const reason = aimReason(
+      w,
+      DEFAULT_TUNING,
+      HAND.x,
+      HAND.y,
+      HAND.z,
+      HAND.x,
+      HAND.y,
+      HAND.z,
+      d.x,
+      d.y,
+      d.z,
+      ROPE.maxLen,
+      magnetDeg,
+    );
+    const out = new AimResult();
+    pickAnchor(
+      w,
+      DEFAULT_TUNING,
+      HAND.x,
+      HAND.y,
+      HAND.z,
+      HAND.x,
+      HAND.y,
+      HAND.z,
+      d.x,
+      d.y,
+      d.z,
+      ROPE.maxLen,
+      magnetDeg,
+      out,
+    );
+    return [reason, out.anchorId];
+  }
+
+  it('AIM_NONE when the only anchor is outside the cone (pickAnchor agrees)', () => {
+    expect(verdict(hopWorld(), 30, HOP_SLOPE)).toEqual([AIM_NONE, NO_ANCHOR]);
+  });
+
+  it('AIM_TOO_CLOSE below rope.minLen (pickAnchor agrees)', () => {
+    const w = new World();
+    addAt(w, 0, HOP_SLOPE, ROPE.minLen - 1);
+    expect(verdict(w, 0, HOP_SLOPE)).toEqual([AIM_TOO_CLOSE, NO_ANCHOR]);
+  });
+
+  it('AIM_OUT_OF_RANGE beyond maxLen (pickAnchor agrees)', () => {
+    const w = new World();
+    addAt(w, 0, HOP_SLOPE, ROPE.maxLen + 5);
+    expect(verdict(w, 0, HOP_SLOPE)).toEqual([AIM_OUT_OF_RANGE, NO_ANCHOR]);
+  });
+
+  it('AIM_UPHILL for an anchor above the hand (pickAnchor agrees)', () => {
+    const w = new World();
+    addAt(w, 0, -20, HOP_LEN);
+    expect(verdict(w, 0, -20)).toEqual([AIM_UPHILL, NO_ANCHOR]);
+  });
+
+  it('AIM_TOO_FLAT below rope.minSlopeDeg (pickAnchor agrees)', () => {
+    const w = new World();
+    addAt(w, 0, ROPE.minSlopeDeg - 5, HOP_LEN);
+    expect(verdict(w, 0, ROPE.minSlopeDeg - 5)).toEqual([AIM_TOO_FLAT, NO_ANCHOR]);
+  });
+
+  it('AIM_TOO_STEEP above rope.maxSlopeDeg (pickAnchor agrees)', () => {
+    const w = new World();
+    addAt(w, 0, ROPE.maxSlopeDeg + 5, HOP_LEN);
+    expect(verdict(w, 0, ROPE.maxSlopeDeg + 5)).toEqual([AIM_TOO_STEEP, NO_ANCHOR]);
+  });
+
+  it('AIM_BLOCKED when a solid sits across the chord (pickAnchor agrees)', () => {
+    const w = hopWorld();
+    expect(verdict(w, 0, HOP_SLOPE)).toEqual([AIM_OK, 0]);
+    addSolid(w, new AABB(new Vec3(-1, 4, 8.5), new Vec3(1, 8, 10)));
+    expect(verdict(w, 0, HOP_SLOPE)).toEqual([AIM_BLOCKED, NO_ANCHOR]);
+  });
+
+  it('AIM_OK when the anchor is valid (pickAnchor finds it)', () => {
+    expect(verdict(hopWorld(), 0, HOP_SLOPE)).toEqual([AIM_OK, 0]);
+  });
+
+  it('route anchors get the wider cone, off-route ones do not', () => {
+    const w = new World();
+    const id = addAt(w, 12, HOP_SLOPE, HOP_LEN); // ~11 degrees off the ray
+    const magnet = DEFAULT_TUNING.aim.magnetDegDesktop; // 4 < 11
+    const d = rayDir(0, HOP_SLOPE);
+    const call = (world: World): number =>
+      aimReason(
+        world,
+        DEFAULT_TUNING,
+        HAND.x,
+        HAND.y,
+        HAND.z,
+        HAND.x,
+        HAND.y,
+        HAND.z,
+        d.x,
+        d.y,
+        d.z,
+        ROPE.maxLen,
+        magnet,
+      );
+    expect(call(w)).toBe(AIM_NONE); // off the route: outside the 4 degree cone
+    w.route.push(id);
+    expect(call(w)).toBe(AIM_OK); // on the route: routeAssistDeg 16 covers it
+    w.route.length = 0;
+    expect(call(w)).toBe(AIM_NONE);
+  });
+});
+
+describe('route assist split', () => {
+  // Early route entries keep the 16 degree routeAssistDeg cone; the rest drop to the 6
+  // degree routeAssistLateDeg cone. magnetDeg 2 so neither route cone is the magnet cone.
+  const cfg = { ...DEFAULT_TUNING, aim: { ...DEFAULT_TUNING.aim, routeAssistLateDeg: 6, routeAssistDeg: 16 } };
+  const MAGNET = 2;
+
+  function assisted(w: World, bearingDeg: number): AimResult {
+    const d = rayDir(bearingDeg, HOP_SLOPE);
+    const out = new AimResult();
+    pickAnchorAssisted(
+      w,
+      cfg,
+      HAND.x,
+      HAND.y,
+      HAND.z,
+      HAND.x,
+      HAND.y,
+      HAND.z,
+      d.x,
+      d.y,
+      d.z,
+      ROPE.maxLen,
+      MAGNET,
+      out,
+    );
+    return out;
+  }
+
+  function reason(w: World, bearingDeg: number): number {
+    const d = rayDir(bearingDeg, HOP_SLOPE);
+    return aimReason(
+      w,
+      cfg,
+      HAND.x,
+      HAND.y,
+      HAND.z,
+      HAND.x,
+      HAND.y,
+      HAND.z,
+      d.x,
+      d.y,
+      d.z,
+      ROPE.maxLen,
+      MAGNET,
+    );
+  }
+
+  it('picks a route index 0 anchor aimed 12 degrees off (early cone)', () => {
+    const w = new World();
+    const id = addAt(w, 12, HOP_SLOPE, HOP_LEN); // ~11 degrees off a bearing 0 ray
+    w.route.push(id); // index 0 < routeAssistEarlyHops 2
+    expect(assisted(w, 0).anchorId).toBe(id);
+    expect(reason(w, 0)).toBe(AIM_OK);
+  });
+
+  it('skips a route index 2 anchor aimed 12 degrees off (late cone)', () => {
+    const w = new World();
+    addAt(w, 60, HOP_SLOPE, HOP_LEN); // id 0, early decoy: far outside the 16 degree cone
+    addAt(w, -60, HOP_SLOPE, HOP_LEN); // id 1, early decoy
+    const target = addAt(w, 12, HOP_SLOPE, HOP_LEN); // id 2, ~11 degrees off a bearing 0 ray
+    w.route.push(0, 1, target);
+    expect(assisted(w, 0).anchorId).toBe(NO_ANCHOR);
+    expect(reason(w, 0)).toBe(AIM_NONE);
+    expect(target).toBe(2); // sanity: the target really sits at route index 2
+  });
+
+  it('picks the same index 2 anchor at 4 degrees off (late cone, magnet 2 does not)', () => {
+    const w = new World();
+    addAt(w, 60, HOP_SLOPE, HOP_LEN); // id 0
+    addAt(w, -60, HOP_SLOPE, HOP_LEN); // id 1
+    const target = addAt(w, 12, HOP_SLOPE, HOP_LEN); // id 2
+    w.route.push(0, 1, target);
+    const hit = assisted(w, 8); // 4 degrees of bearing off the anchor at 12, ~3.7 of angle: inside routeAssistLateDeg 6, outside magnet 2
+    expect(hit.anchorId).toBe(target);
+    expect(hit.angleDeg).toBeGreaterThan(3);
+    expect(hit.angleDeg).toBeLessThan(4);
+    expect(reason(w, 8)).toBe(AIM_OK);
+  });
+
+  it('does not pick a non-route anchor aimed 12 degrees off', () => {
+    const w = new World();
+    addAt(w, 12, HOP_SLOPE, HOP_LEN); // ~11 degrees off: outside magnet 2, never on the route
+    expect(assisted(w, 0).anchorId).toBe(NO_ANCHOR);
+    expect(reason(w, 0)).toBe(AIM_NONE);
   });
 });

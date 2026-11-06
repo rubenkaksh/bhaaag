@@ -22,6 +22,8 @@ export type Tuning = {
     magnetDegDesktop: number;
     magnetDegTouch: number;
     routeAssistDeg: number;
+    routeAssistLateDeg: number;
+    routeAssistEarlyHops: number;
     snapRadius: number;
     previewHz: number;
     previewMaxSec: number;
@@ -119,6 +121,8 @@ export const DEFAULT_TUNING: Tuning = {
     magnetDegDesktop: 4,
     magnetDegTouch: 6,
     routeAssistDeg: 16,
+    routeAssistLateDeg: 16,
+    routeAssistEarlyHops: 2,
     snapRadius: 1.2,
     previewHz: 15,
     previewMaxSec: 8,
