@@ -26,6 +26,7 @@ import { Vec3 } from '../core/math/vec3';
 import { loadWorldFromJson } from '../content/load';
 import { DesktopInput } from '../adapters/input/desktop';
 import { TouchInput } from '../adapters/input/touch';
+import { Sfx } from '../adapters/audio/sfx';
 import { CameraRig, updateCamera } from '../adapters/render/cameraRig';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
@@ -167,6 +168,7 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
   const cameraFx = new CameraFx();
   const dust = new DustPuff();
   gs.scene.add(dust.mesh);
+  const sfx = new Sfx();
   let animEv = 0;
   let animImpact = 0;
   // Debug HUD is opt-in via ?debug (plan section 8, m1-review F6).
@@ -476,6 +478,10 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
       dust.trigger(gp.x, gp.y, gp.z, landAmp(animImpact));
     }
     if ((animEv & AE_JUMP) !== 0) dust.trigger(gp.x, gp.y, gp.z, 0.2);
+    if ((animEv & AE_FIRE) !== 0) sfx.fire();
+    if ((animEv & AE_ATTACH) !== 0) sfx.attach();
+    if ((animEv & AE_LAND) !== 0) sfx.land(landAmp(animImpact));
+    if ((animEv & AE_DIE) !== 0) sfx.die();
     if ((animEv & AE_DIE) !== 0 && cur.deadCause === 3) dust.trigger(gp.x, gp.y, gp.z, 1);
     dust.update(frameDt);
     if ((animEv & AE_ATTACH) !== 0) {
@@ -536,11 +542,17 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
 
   // Any key / pointer: skips the opening flyover and accepts the death restart.
   const onAnyInput = (): void => {
+    sfx.unlock();
     anyInput = true;
     if (phase === 'pan') panSkip = true;
   };
   window.addEventListener('keydown', onAnyInput, true);
   window.addEventListener('pointerdown', onAnyInput, true);
+  // pointerup (not pointerdown) is the user activation on touch browsers.
+  const onUnlockGesture = (): void => {
+    sfx.unlock();
+  };
+  window.addEventListener('pointerup', onUnlockGesture, true);
 
   resetHero();
   tickCamera();
@@ -583,10 +595,12 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
       window.removeEventListener('resize', gs.resize);
       window.removeEventListener('keydown', onAnyInput, true);
       window.removeEventListener('pointerdown', onAnyInput, true);
+      window.removeEventListener('pointerup', onUnlockGesture, true);
       portrait.removeEventListener('change', onOrientation);
       input.dispose();
       hudUi.destroy();
       ropeView.dispose();
+      sfx.dispose();
       waypointView.dispose();
       gs.scene.remove(waypointView.group);
       gs.scene.remove(heroView.group);
