@@ -21,6 +21,7 @@ import {
 import { HOOK_FLYING, HOOK_IDLE, NO_ANCHOR, AimResult, pickAnchorAssisted } from '../core/hook';
 import { BTN_ACTION, BTN_HOOK, BTN_REEL, BTN_RESTART, newInputFrame } from '../core/input';
 import { aabbContainsPoint } from '../core/math/aabb';
+import { PreviewResult, PREVIEW_NONE, previewShot } from '../core/preview';
 import { step } from '../core/sim';
 import { Vec3 } from '../core/math/vec3';
 import { loadWorldFromJson } from '../content/load';
@@ -33,6 +34,7 @@ import { updateLevelView } from '../adapters/render/levelView';
 import { createGameScene } from '../adapters/render/scene';
 import { DebugHud } from '../adapters/ui/debugHud';
 import { Hud } from '../adapters/ui/hud';
+import { AimPreviewView } from '../adapters/render/aimPreviewView';
 import { WaypointView } from '../adapters/render/waypointView';
 import {
   formatDistance,
@@ -165,6 +167,8 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
   const wpView = new Vector3();
   const ropeView = new RopeView();
   gs.scene.add(ropeView.group);
+  const previewView = new AimPreviewView();
+  gs.scene.add(previewView.group);
   const cameraFx = new CameraFx();
   const dust = new DustPuff();
   gs.scene.add(dust.mesh);
@@ -189,6 +193,11 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
   const feet = new Vec3(0, 0, 0);
   const stepDt = 1 / cfg.fixedHz;
   const aim = new AimResult();
+  const previewOut = new PreviewResult();
+  const previewStep = 1 / cfg.aim.previewHz;
+  let previewTarget = NO_ANCHOR; // anchor the reticle found this step (NO_ANCHOR = none)
+  let previewId = NO_ANCHOR; // anchor the current previewOut belongs to
+  let previewAcc = 0;
 
   let phase: Phase = 'pan';
   let panT = 0;
@@ -245,6 +254,8 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
     brakeLatch = false;
     animEv = 0;
     animImpact = 0;
+    previewTarget = NO_ANCHOR;
+    previewId = NO_ANCHOR;
     cameraFx.reset();
     hudUi.hideToast();
     hudUi.hideWin();
@@ -347,6 +358,9 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
         if (document.pointerLockElement !== null) document.exitPointerLock();
       }
       updateReticle();
+      updatePreview();
+    } else {
+      previewTarget = NO_ANCHOR;
     }
 
     copyRig(prevRig, curRig);
@@ -355,6 +369,7 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
 
   /** Gold + big when pickAnchor (same args the sim uses on press) finds a target. */
   function updateReticle(): void {
+    previewTarget = NO_ANCHOR;
     if (phase !== 'play' || cur.mode === HERO_ATTACHED || cur.hook.state !== HOOK_IDLE) {
       hudUi.setReticle(0);
       return;
@@ -377,6 +392,25 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
       aim,
     );
     hudUi.setReticle(aim.anchorId !== NO_ANCHOR ? 2 : 1);
+    previewTarget = aim.anchorId;
+  }
+
+  /**
+   * Re-predicts the shot at aim.previewHz (and at once when the target changes) while an anchor is
+   * targeted and the hero may fire. Runs on scratch state inside previewShot: no events, no sim
+   * writes, so nothing here can reach the AE_ mapping or the sfx.
+   */
+  function updatePreview(): void {
+    if (previewTarget === NO_ANCHOR || cur.hookCd > 0 || cur.dead === 1) {
+      previewId = NO_ANCHOR;
+      return;
+    }
+    previewAcc += stepDt;
+    if (previewTarget !== previewId || previewAcc >= previewStep) {
+      previewAcc = 0;
+      previewId = previewTarget;
+      previewShot(cur, previewId, world, cfg, previewOut);
+    }
   }
 
   // Pan camera scratch.
@@ -498,6 +532,12 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
       Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz),
       cur.deadCause,
     );
+    const pa = previewId !== NO_ANCHOR && phase === 'play' ? world.anchors[previewId] : undefined;
+    if (pa !== undefined && previewOut.outcome !== PREVIEW_NONE) {
+      previewView.update(previewOut.outcome, hx, hy, hz, pa.px, pa.py, pa.pz, previewOut.x, previewOut.y, previewOut.z);
+    } else {
+      previewView.hide();
+    }
     updateLevelView(level, performance.now() / 1000, nextRouteIndex);
     hudUi.setTime(runT);
     if (phase === 'pan') hudUi.setReticle(0);
@@ -601,11 +641,13 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
       input.dispose();
       hudUi.destroy();
       ropeView.dispose();
+      previewView.dispose();
       sfx.dispose();
       waypointView.dispose();
       gs.scene.remove(waypointView.group);
       gs.scene.remove(heroView.group);
       gs.scene.remove(ropeView.group);
+      gs.scene.remove(previewView.group);
       gs.scene.remove(dust.mesh);
       gs.dispose();
     },

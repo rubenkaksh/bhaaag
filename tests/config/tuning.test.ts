@@ -28,6 +28,8 @@ const schema = z.strictObject({
     routeAssistDeg: num,
     snapRadius: num,
     previewHz: num,
+    previewMaxSec: num,
+    previewReleaseSamples: num,
   }),
   release: z.strictObject({
     inputBufferMs: num,

@@ -64,7 +64,7 @@ const scratchAim = new AimResult();
 const scratchVel = new Vec3(0, 0, 0);
 const scratchFeet = new Vec3(0, 0, 0);
 
-const HEAD_FRAC = 0.9; // aim ray starts at this fraction of the hero height
+export const HEAD_FRAC = 0.9; // aim ray starts at this fraction of the hero height
 const LAND_TOL = 2 * SKIN; // feet this close above a surface count as touching it
 const AT_END_PROBE = 0.1; // extra reach past the rope stop when checking for a wall
 const RUNOUT_TOL = 0.05; // launch-surface match tolerance, metres

@@ -24,6 +24,8 @@ export type Tuning = {
     routeAssistDeg: number;
     snapRadius: number;
     previewHz: number;
+    previewMaxSec: number;
+    previewReleaseSamples: number;
   };
   release: {
     inputBufferMs: number;
@@ -119,6 +121,8 @@ export const DEFAULT_TUNING: Tuning = {
     routeAssistDeg: 16,
     snapRadius: 1.2,
     previewHz: 15,
+    previewMaxSec: 8,
+    previewReleaseSamples: 12,
   },
   release: {
     inputBufferMs: 100,
