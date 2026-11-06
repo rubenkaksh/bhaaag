@@ -1,0 +1,6 @@
+node_modules
+dist
+pnpm-lock.yaml
+docs
+CLAUDE.md
+claude-code-first-prompt.md

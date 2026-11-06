@@ -1,0 +1,75 @@
+// Pure projection maths for the HUD waypoint marker (ADR 0005 D8). No DOM, no three.
+
+export type WaypointScreen = {
+  x: number;
+  y: number;
+  /** True when the marker is clamped to the screen edge (off-screen or behind). */
+  edge: boolean;
+  /** Arrow angle in radians (atan2(dy, dx), screen space); only meaningful when edge. */
+  angle: number;
+};
+
+export function newWaypointScreen(): WaypointScreen {
+  return { x: 0, y: 0, edge: false, angle: 0 };
+}
+
+/**
+ * Projects a view-space point (camera looks down -z) to screen pixels.
+ * tanHalfFov = tan(vertical fov / 2). `top` is the lowest-y the marker may take
+ * (below the HUD timer), `m` the edge inset. Writes into `out`, allocates nothing.
+ */
+export function projectWaypoint(
+  out: WaypointScreen,
+  vx: number,
+  vy: number,
+  vz: number,
+  tanHalfFov: number,
+  near: number,
+  w: number,
+  h: number,
+  top: number,
+  m: number,
+): WaypointScreen {
+  const behind = vz > -near;
+  let sx: number;
+  let sy: number;
+  if (behind) {
+    // Direction only: mirror through the screen centre so the arrow points the way to turn.
+    sx = w / 2 - vx * w;
+    sy = h / 2 + vy * w;
+  } else {
+    const d = -vz;
+    const nx = vx / d / (tanHalfFov * (w / h));
+    const ny = vy / d / tanHalfFov;
+    sx = (nx * 0.5 + 0.5) * w;
+    sy = (0.5 - ny * 0.5) * h;
+  }
+  const inside = !behind && sx >= m && sx <= w - m && sy >= top && sy <= h - m;
+  out.edge = !inside;
+  if (inside) {
+    out.x = sx;
+    out.y = sy;
+    out.angle = 0;
+    return out;
+  }
+  const dx = sx - w / 2;
+  let dy = sy - h / 2;
+  if (dx === 0 && dy === 0) dy = 1;
+  const adx = Math.abs(dx);
+  const ady = Math.abs(dy);
+  const kx = adx > 0 ? (w / 2 - m) / adx : Infinity;
+  const ky = ady > 0 ? (h / 2 - m) / ady : Infinity;
+  const k = Math.min(kx, ky);
+  out.x = w / 2 + dx * k;
+  out.y = Math.max(top, h / 2 + dy * k);
+  out.angle = Math.atan2(dy, dx);
+  return out;
+}
+
+/** Rounded whole metres, formatted for the label. */
+export function formatDistance(metres: number): string {
+  return Math.round(metres) + ' m';
+}
+
+/** The marker hides when the target is closer than this (metres). */
+export const WAYPOINT_HIDE_M = 3;

@@ -1,0 +1,438 @@
+/* Minimal in-game HUD: timer, hint, reticle, toast, win overlay.
+   All non-interactive except the win overlay. z-index sits above the touch
+   zones (10) and buttons (20), below the rotate overlay (100). */
+.hud {
+  position: fixed;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: var(--font);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  text-shadow: 0 1px 3px rgba(40, 20, 20, 0.7);
+}
+.hud svg {
+  display: block;
+  flex: none;
+}
+#hud-objective {
+  top: calc(var(--pad) + env(safe-area-inset-top, 0px));
+  left: calc(var(--pad) + env(safe-area-inset-left, 0px));
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  height: clamp(28px, 4.6vh, 50px);
+  font-size: clamp(13px, 2.3vh, 25px);
+  padding: 0 3em 0 0.1em;
+  background: linear-gradient(90deg, var(--panel) 0 70%, transparent);
+  white-space: nowrap;
+}
+#hud-objective svg {
+  height: 100%;
+  width: auto;
+  aspect-ratio: 1;
+}
+#hud-objective span {
+  color: var(--gold);
+}
+#hud-timer {
+  top: calc(var(--pad) + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  box-sizing: border-box;
+  height: clamp(32px, 5.4vh, 58px);
+  min-width: 5.6em;
+  padding: 0 1em;
+  font-size: clamp(18px, 3.3vh, 36px);
+  background: var(--panel);
+  clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%);
+}
+#hud-timer svg {
+  height: 0.95em;
+  width: 0.95em;
+}
+#hud-timer.debug {
+  top: 64px;
+}
+#hud-pause {
+  top: calc(var(--pad) + env(safe-area-inset-top, 0px));
+  right: calc(var(--pad) + env(safe-area-inset-right, 0px));
+  z-index: 31;
+  pointer-events: auto;
+  cursor: pointer;
+  box-sizing: border-box;
+  width: clamp(44px, 6vh, 64px);
+  height: clamp(44px, 6vh, 64px);
+  padding: 0;
+  border: 0;
+  border-radius: 18%;
+  background: var(--panel);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+#hud-pause svg {
+  width: 62%;
+  height: 62%;
+}
+#hud-pause:active {
+  background: rgba(255, 200, 58, 0.35);
+}
+#hud-hint {
+  top: calc(var(--pad) + clamp(32px, 5.4vh, 58px) + 8px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  font-size: clamp(13px, 1.9vh, 20px);
+  padding: 0.4em 0.9em;
+  border-radius: 14px;
+  background: var(--panel);
+  white-space: nowrap;
+  transition: opacity 0.8s ease;
+}
+#hud-hint.gone {
+  opacity: 0;
+}
+#hud-reticle {
+  top: 50%;
+  left: 50%;
+  z-index: 30;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(255, 246, 228, 0.75);
+  box-shadow: 0 0 0 1px rgba(40, 20, 20, 0.35);
+  transition:
+    width 0.1s ease,
+    height 0.1s ease,
+    margin 0.1s ease,
+    background 0.1s ease;
+}
+#hud-reticle.lock {
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  background: #ffc83a;
+  box-shadow: 0 0 10px 2px rgba(255, 200, 58, 0.8);
+}
+#hud-reticle.off {
+  display: none;
+}
+#hud-waypoint {
+  --dia: clamp(22px, 5.5vh, 40px);
+  --stem: calc(var(--dia) * 0.6);
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  z-index: 29;
+  will-change: transform;
+}
+#hud-waypoint.off {
+  display: none;
+}
+#hud-waypoint .wp-stem {
+  position: absolute;
+  left: -0.75px;
+  bottom: 0;
+  width: 1.5px;
+  height: var(--stem);
+  background: var(--gold);
+}
+#hud-waypoint .wp-dia {
+  position: absolute;
+  left: calc(var(--dia) / -2);
+  bottom: var(--stem);
+  width: var(--dia);
+  height: var(--dia);
+  filter: drop-shadow(0 0 6px rgba(255, 200, 58, 0.7));
+}
+#hud-waypoint .wp-label {
+  position: absolute;
+  left: calc(var(--dia) / 2 + 6px);
+  bottom: calc(var(--stem) + var(--dia) / 2);
+  transform: translateY(50%);
+  padding: 0.15em 0.5em;
+  border-radius: 0.35em;
+  background: var(--panel);
+  font-size: clamp(12px, 2.2vh, 22px);
+  white-space: nowrap;
+}
+#hud-waypoint.flip .wp-label {
+  left: auto;
+  right: calc(var(--dia) / 2 + 6px);
+}
+#hud-waypoint .wp-arrow {
+  display: none;
+  position: absolute;
+  left: calc(var(--dia) * -0.5);
+  top: calc(var(--dia) * -0.5);
+  width: var(--dia);
+  height: var(--dia);
+}
+#hud-waypoint .wp-arrow svg {
+  width: 100%;
+  height: 100%;
+  transform: translateY(calc(var(--dia) * -0.75)) scale(1.1);
+}
+#hud-waypoint.edge .wp-stem {
+  display: none;
+}
+#hud-waypoint.edge .wp-arrow {
+  display: block;
+}
+#hud-waypoint.edge .wp-dia {
+  bottom: auto;
+  top: calc(var(--dia) / -2);
+}
+#hud-waypoint.edge .wp-label {
+  bottom: auto;
+  top: 0;
+}
+#hud-toast {
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  max-width: 80vw;
+  text-align: center;
+  font: 700 20px/1.3 var(--font);
+  padding: 10px 18px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 2px solid #c4472a;
+  color: #fff6e4;
+}
+#hud-toast.off {
+  display: none;
+}
+#hud-win {
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: auto;
+  background: rgba(28, 20, 16, 0.6);
+  text-align: center;
+}
+#hud-win.off {
+  display: none;
+}
+#hud-win h1 {
+  margin: 0;
+  font-size: 32px;
+}
+#hud-win p {
+  margin: 0;
+  font-size: 18px;
+}
+#hud-win button {
+  margin-top: 12px;
+  padding: 12px 28px;
+  font: 700 18px/1 var(--font);
+  letter-spacing: 0.06em;
+  color: #2a1a0e;
+  background: var(--gold);
+  border: 0;
+  border-radius: 28px;
+  cursor: pointer;
+}
+
+/* --- Micro-animations (ADR 0007 §6). Compositor-friendly only; no per-frame
+   JS. Restartable ones alternate -a/-b classes with identical keyframes, so a
+   replay restarts by class toggle alone (no forced reflow). --- */
+
+/* Objective pill: hud.objectiveIn() toggles in-a/in-b on #hud-objective. */
+@keyframes obj-in-a {
+  from {
+    transform: translateX(-110%);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes obj-in-b {
+  from {
+    transform: translateX(-110%);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+#hud-objective.in-a {
+  animation: obj-in-a 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both;
+}
+#hud-objective.in-b {
+  animation: obj-in-b 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both;
+}
+/* Gold glow on the label, timed after the slide-in. Fill stays none so the
+   inherited drop shadow returns once the glow is done. */
+@keyframes obj-glow-a {
+  0% {
+    text-shadow: none;
+  }
+  50% {
+    text-shadow: 0 0 12px rgba(255, 200, 58, 0.9);
+  }
+  100% {
+    text-shadow: none;
+  }
+}
+@keyframes obj-glow-b {
+  0% {
+    text-shadow: none;
+  }
+  50% {
+    text-shadow: 0 0 12px rgba(255, 200, 58, 0.9);
+  }
+  100% {
+    text-shadow: none;
+  }
+}
+#hud-objective.in-a span {
+  animation: obj-glow-a 0.6s ease-out 0.6s;
+}
+#hud-objective.in-b span {
+  animation: obj-glow-b 0.6s ease-out 0.6s;
+}
+
+/* Timer pulse: hud.pulseTimer() toggles pulse-a/pulse-b on the inner span,
+   because #hud-timer itself owns translateX(-50%). */
+#hud-timer span {
+  display: inline-block;
+}
+@keyframes pulse-a {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.14);
+    color: var(--gold);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes pulse-b {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.14);
+    color: var(--gold);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+#hud-timer span.pulse-a {
+  animation: pulse-a 0.32s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+#hud-timer span.pulse-b {
+  animation: pulse-b 0.32s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+/* Waypoint bob: constant; never on the clamped edge marker. */
+@keyframes wp-bob {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-5px);
+  }
+}
+#hud-waypoint .wp-dia {
+  animation: wp-bob 1.4s ease-in-out infinite alternate;
+}
+#hud-waypoint.edge .wp-dia {
+  animation: none;
+}
+
+/* Toast in: plays whenever .off is removed (display:none restarts it). */
+@keyframes toast-in {
+  from {
+    transform: translate(-50%, -8px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+#hud-toast:not(.off) {
+  animation: toast-in 0.2s ease-out both;
+}
+
+/* Win overlay: h1, p and button drop in, staggered. */
+@keyframes win-drop {
+  from {
+    transform: translateY(-16px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+#hud-win:not(.off) h1 {
+  animation: win-drop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0s both;
+}
+#hud-win:not(.off) p {
+  animation: win-drop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both;
+}
+#hud-win:not(.off) button {
+  animation: win-drop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.2s both;
+}
+
+/* Reticle lock pop: runs when .lock is (re)applied. */
+@keyframes lock-pop {
+  from {
+    transform: scale(1.35);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+#hud-reticle.lock {
+  animation: lock-pop 0.18s ease-out;
+}
+
+/* The HUD pause button replaces the lobby's floating MENU pill (same onMenu path). */
+#menu-btn {
+  display: none !important;
+}
+
+/* Reduced motion: every animation above off; static end states remain. */
+@media (prefers-reduced-motion: reduce) {
+  #hud-objective.in-a,
+  #hud-objective.in-b,
+  #hud-objective.in-a span,
+  #hud-objective.in-b span,
+  #hud-timer span.pulse-a,
+  #hud-timer span.pulse-b,
+  #hud-waypoint .wp-dia,
+  #hud-toast:not(.off),
+  #hud-win:not(.off) h1,
+  #hud-win:not(.off) p,
+  #hud-win:not(.off) button,
+  #hud-reticle.lock {
+    animation: none;
+  }
+}

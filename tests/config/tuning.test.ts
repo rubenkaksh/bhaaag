@@ -1,0 +1,115 @@
+import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
+import { DEFAULT_TUNING } from '../../src/core/config';
+import tuningText from '../../content/config/tuning.json?raw';
+
+const raw: unknown = JSON.parse(tuningText);
+
+const num = z.number();
+const schema = z.strictObject({
+  physics: z.strictObject({ g: num, airDrag: num, killPlaneBelowMin: num }),
+  rope: z.strictObject({
+    gravityFactor: num,
+    drag: num,
+    terminal: num,
+    launchSpeed: num,
+    minLen: num,
+    maxLen: num,
+    minSlopeDeg: num,
+    maxSlopeDeg: num,
+    trolleyStop: num,
+    handToFeet: num,
+    hookSpeed: num,
+    brakeDecel: num,
+  }),
+  aim: z.strictObject({
+    magnetDegDesktop: num,
+    magnetDegTouch: num,
+    routeAssistDeg: num,
+    snapRadius: num,
+    previewHz: num,
+  }),
+  release: z.strictObject({
+    inputBufferMs: num,
+    coyoteMs: num,
+    jumpUp: num,
+    jumpFwd: num,
+    carry: num,
+    hookCooldownSec: num,
+    hookIntentSec: num,
+  }),
+  landing: z.strictObject({
+    vyClean: num,
+    vyRoll: num,
+    skidDecel: num,
+    vhStumble: num,
+    pad: num,
+    carryCap: num,
+    rollSec: num,
+    chainWindowMs: num,
+    edgeGrabH: num,
+    edgeGrabBelowMin: num,
+    edgeGrabBelowMax: num,
+    edgeGrabVyMax: num,
+  }),
+  wall: z.strictObject({ vCling: num }),
+  hero: z.strictObject({
+    walk: num,
+    run: num,
+    radius: num,
+    stepUp: num,
+    jump: num,
+    height: num,
+    accel: num,
+    friction: num,
+  }),
+  camera: z.strictObject({
+    dist: num,
+    distSlide: num,
+    fov: num,
+    fovMax: num,
+    shoulder: num,
+    pitchMin: num,
+    pitchMax: num,
+    height: num,
+    probeRadius: num,
+    smooth: num,
+    armRelease: num,
+    downhillBias: num,
+    fovSpeed: num,
+  }),
+  validator: z.strictObject({
+    minReleaseWindowTicks: num,
+    minAimBand: num,
+    aimSamples: num,
+    releaseStride: num,
+  }),
+  assist: z.strictObject({ slowmoScale: num, slowmoSec: num }),
+  fixedHz: num,
+});
+
+describe('tuning.json', () => {
+  it('parses with zod', () => {
+    expect(schema.safeParse(raw).success).toBe(true);
+  });
+  it('has the ADR 0001 defaults', () => {
+    const t = schema.parse(raw);
+    expect(t.rope.gravityFactor).toBe(1.0);
+    expect(t.rope.drag).toBe(0.05);
+    expect(t.rope.launchSpeed).toBe(6);
+    expect(t.rope.brakeDecel).toBe(10);
+    expect(t.wall.vCling).toBe(7.5);
+    expect(t.landing.carryCap).toBe(8);
+    expect(t.landing.chainWindowMs).toBe(400);
+    expect(t.landing.vhStumble).toBe(16);
+    expect(t.fixedHz).toBe(60);
+  });
+  it('matches DEFAULT_TUNING', () => {
+    expect(DEFAULT_TUNING).toEqual(raw);
+  });
+  it('has no vLethal or pipsAt keys', () => {
+    const text = tuningText;
+    expect(text).not.toContain('vLethal');
+    expect(text).not.toContain('pipsAt');
+  });
+});

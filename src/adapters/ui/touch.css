@@ -1,0 +1,211 @@
+/*
+ * Touch UI shell (M1-T09b) — landscape-first.
+ *
+ * The touch layer exists only on coarse-pointer devices (phones/tablets).
+ * On a desktop mouse it stays display:none, so the canvas keeps every event.
+ * The rotate overlay is the one exception: it is also coarse-only, and it
+ * appears only while the device is in portrait (ADR: pause the sim there).
+ */
+
+:root {
+  --pad: clamp(10px, 2.8vh, 28px);
+  --panel: rgba(28, 20, 16, 0.74);
+  --ink: #fff6e4;
+  --gold: #ffc83a;
+  --ring: rgba(255, 246, 228, 0.85);
+  --font: 'Avenir Next', 'Segoe UI', Roboto, system-ui, sans-serif;
+}
+
+/* ------------------------------------------------------------------ *
+ * Hidden by default; the coarse-pointer query below opts in.
+ * ------------------------------------------------------------------ */
+#stick-zone,
+#look-zone,
+#btn-action,
+#btn-jump {
+  display: none;
+  position: fixed;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ------------------------------------------------------------------ *
+ * Left 40% — floating movement stick zone. Transparent: it only claims
+ * pointer ids, the stick visual is drawn by the adapter later.
+ * ------------------------------------------------------------------ */
+#stick-zone {
+  top: 0;
+  left: 0;
+  width: 40vw;
+  height: 100%;
+  background: transparent;
+  z-index: 10;
+}
+
+/* ------------------------------------------------------------------ *
+ * Right 60% — look-drag + tap-to-aim zone.
+ * ------------------------------------------------------------------ */
+#look-zone {
+  top: 0;
+  left: 40vw;
+  width: 60vw;
+  height: 100%;
+  background: transparent;
+  z-index: 10;
+}
+
+/* ------------------------------------------------------------------ *
+ * Floating stick visuals — created and positioned by TouchInput.render()
+ * each frame from stickActive/stickX/stickY (m1-review F10).
+ * ------------------------------------------------------------------ */
+#stick-base,
+#stick-knob {
+  position: absolute;
+  display: none;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+#stick-base {
+  width: 128px; /* 2 x STICK_RADIUS_PX */
+  height: 128px;
+  box-sizing: border-box;
+  border: 2px solid var(--ring);
+  background: rgba(28, 20, 16, 0.28);
+}
+#stick-knob {
+  width: 52px;
+  height: 52px;
+  background: rgba(255, 246, 228, 0.75);
+}
+/* Resting ghost, bottom-left; render() clears inline left/top for it. */
+#stick-base.ghost,
+#stick-knob.ghost {
+  opacity: 0.45;
+  left: calc(var(--pad) + 64px + env(safe-area-inset-left, 0px));
+  top: auto;
+  bottom: calc(var(--pad) + 64px + env(safe-area-inset-bottom, 0px));
+  transform: translate(-50%, 50%);
+}
+#stick-base .chev {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  color: var(--ring);
+  left: calc(50% - 10px);
+  top: calc(50% - 10px);
+}
+#stick-base .chev svg {
+  width: 100%;
+  height: 100%;
+}
+#stick-base .chev.up {
+  transform: translateY(-52px);
+}
+#stick-base .chev.down {
+  transform: translateY(52px) rotate(180deg);
+}
+#stick-base .chev.left {
+  transform: translateX(-52px) rotate(-90deg);
+}
+#stick-base .chev.right {
+  transform: translateX(52px) rotate(90deg);
+}
+
+/* ------------------------------------------------------------------ *
+ * ACTION (hook / brake): round, bottom-right. JUMP sits directly above,
+ * centres aligned, gap 10px (ADR 0005 D8). Icons are inline SVG in
+ * index.html; data-mode picks hook or brake.
+ * ------------------------------------------------------------------ */
+#btn-action,
+#btn-jump {
+  box-sizing: border-box;
+  border: 2px solid var(--ring);
+  border-radius: 50%;
+  padding: 0;
+  color: var(--ink);
+  z-index: 20;
+}
+#btn-action {
+  --a: clamp(68px, 21vh, 96px);
+  --j: clamp(56px, 16vh, 76px);
+  right: calc(var(--pad) + env(safe-area-inset-right, 0px));
+  bottom: calc(var(--pad) + env(safe-area-inset-bottom, 0px));
+  width: var(--a);
+  height: var(--a);
+  background: rgba(28, 20, 16, 0.55);
+}
+#btn-jump {
+  --a: clamp(68px, 21vh, 96px);
+  --j: clamp(56px, 16vh, 76px);
+  width: var(--j);
+  height: var(--j);
+  right: calc(var(--pad) + (var(--a) - var(--j)) / 2 + env(safe-area-inset-right, 0px));
+  bottom: calc(var(--pad) + var(--a) + 10px + env(safe-area-inset-bottom, 0px));
+  background: rgba(28, 20, 16, 0.55);
+}
+#btn-action svg,
+#btn-jump svg {
+  width: 56%;
+  height: 56%;
+  pointer-events: none;
+}
+#btn-action[data-mode='hook'] .ic-brake,
+#btn-action[data-mode='brake'] .ic-hook {
+  display: none;
+}
+#btn-action:active,
+#btn-jump:active {
+  background: rgba(255, 200, 58, 0.35);
+  border-color: var(--gold);
+}
+
+/* Coarse pointers only: the whole touch layer disappears on desktop. */
+@media (pointer: coarse) {
+  #stick-zone,
+  #look-zone,
+  #btn-action,
+  #btn-jump {
+    display: block;
+  }
+  /* Centre the text glyphs inside the round buttons. */
+  #btn-action,
+  #btn-jump {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Rotate overlay — shown ONLY in portrait on a touch device.
+ * Dark sunset gradient, high z-index so it covers canvas + buttons.
+ * ------------------------------------------------------------------ */
+#rotate {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  background: linear-gradient(180deg, #1d3a5c 0%, #5b2b53 45%, #a8443f 75%, #e08a4e 100%);
+  color: #fff;
+  font: 600 20px/1.4 system-ui, -apple-system, sans-serif;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  overscroll-behavior: none;
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+  #rotate {
+    display: flex;
+  }
+}
