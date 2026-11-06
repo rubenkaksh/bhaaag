@@ -512,6 +512,23 @@ describe('heroPose animation layer', () => {
     for (let i = 0; i < soft.length; i++) expect(Math.abs(soft[i] - base[i])).toBeLessThan(1e-9);
   });
 
+  it('H6b a long rope kicks the swing harder than a short one', () => {
+    const kick = (ropeLen: number): number => {
+      const inp = newHeroPoseInput();
+      inp.state = ATTACHED;
+      inp.speed = 10;
+      inp.ropeLen = ropeLen;
+      inp.dt = 0;
+      const st = settle(inp, 0);
+      const before = st.swingVel;
+      inp.events = AE_ATTACH;
+      stepHeroPose(st, inp, 0);
+      return st.swingVel - before;
+    };
+    expect(kick(34)).toBeGreaterThan(kick(20));
+    expect(kick(20)).toBeGreaterThan(kick(6));
+  });
+
   it('H6 attach kicks the swing velocity', () => {
     const inp = newHeroPoseInput();
     inp.state = ATTACHED;

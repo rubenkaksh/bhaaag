@@ -448,6 +448,7 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
     hv.brake = cur.mode === HERO_ATTACHED && (frame.buttons & BTN_REEL) !== 0;
     hv.rolling = cur.rollT > 0;
     hv.events = animEv;
+    hv.ropeLen = cur.hook.len;
     hv.impact = animImpact;
     hv.win = phase === 'won' ? 1 : 0;
     hv.hookFlying = cur.hook.state === HOOK_FLYING ? 1 : 0;

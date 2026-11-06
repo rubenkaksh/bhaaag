@@ -22,6 +22,7 @@ export interface HeroPoseInput {
   ropeDirZ: number;
   dt: number; // render frame time, s
   events: number; // AE_* bits latched since the last render frame
+  ropeLen: number; // current rope length, m (a long rope swings harder on attach)
   impact: number; // downward landing speed, m/s (for AE_LAND)
   deadCause: number; // core deadCause (1 fell, 2 wall, 3 hard landing, 4 hazard)
   win: number; // 1 = level complete
@@ -40,6 +41,7 @@ export function newHeroPoseInput(): HeroPoseInput {
     ropeDirZ: 0,
     dt: 0,
     events: 0,
+    ropeLen: ATTACH_LEN_REF,
     impact: 0,
     deadCause: 0,
     win: 0,
@@ -118,6 +120,10 @@ const SWING_ZETA = 0.3; // under-damped: overshoots like a pendulum
 const SWING_ACCEL_GAIN = 0.035; // rad per m/s^2 of horizontal acceleration
 const SWING_DRAG_GAIN = 0.012; // rad per m/s of speed (feet trail)
 const SWING_MAX = 0.45;
+const ATTACH_KICK = 1.2; // rad/s of swing velocity at the reference rope length
+const ATTACH_LEN_REF = 20; // m
+const ATTACH_LEN_MIN = 0.6; // kick scale on a short rope
+const ATTACH_LEN_MAX = 1.6; // kick scale on a long rope
 const LEAN_MAX = 0.7;
 const ACCEL_TAU = 0.08;
 const SCARF_TAU = 0.15;
@@ -857,7 +863,10 @@ export function stepHeroPose(st: HeroPoseState, inp: HeroPoseInput, yaw: number)
   st.prevSpeed = speed;
   stepSwing(st, inp, dt);
   startOverlays(st, inp);
-  if ((inp.events & EV_ATTACH) !== 0) st.swingVel += 1.2 * st.attachS;
+  if ((inp.events & EV_ATTACH) !== 0) {
+    const lenK = clamp(inp.ropeLen / ATTACH_LEN_REF, ATTACH_LEN_MIN, ATTACH_LEN_MAX);
+    st.swingVel += ATTACH_KICK * lenK * st.attachS;
+  }
 
   // Weights: exponential approach to one-hot. Sum stays 1.
   const k = 1 - Math.exp(-dt / FADE_TAU[target]);
