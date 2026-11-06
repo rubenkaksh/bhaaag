@@ -283,8 +283,10 @@ describe('pickAnchor', () => {
 });
 
 describe('hookStep slide physics (§4.2)', () => {
-  it('a 20 m hop at 22 degrees reaches the end in 2.1-2.5 s at 11-16 m/s', () => {
-    const r = ride(hopWorld());
+  it('a 20 m hop at 22 degrees reaches the end in 2.1-2.5 s at 11-16 m/s (6 m/s run-up start)', () => {
+    // The ADR 0001 band assumed a 6 m/s start; a standing start (launchSpeed 3) is slower,
+    // a run-up seeds the rope from the chord-projected run speed.
+    const r = ride(hopWorld(), { speedAlong: 6 });
     expect(r.state).toBe(HOOK_AT_END);
     expect(r.time).toBeGreaterThanOrEqual(2.1);
     expect(r.time).toBeLessThanOrEqual(2.5);
@@ -299,21 +301,36 @@ describe('hookStep slide physics (§4.2)', () => {
     const w = hopWorld();
     const h = newHook();
     hookFire(h, 0, HAND.x, HAND.y, HAND.z, w, DEFAULT_TUNING, 0);
-    // flyT = 20 / 150 s = 8 ticks at 60 Hz (9 if float error leaves a sliver).
-    for (let i = 0; i < 6; i++) hookStep(h, DT, w, DEFAULT_TUNING, false);
+    // flyT = 20 / 320 s = 4 ticks at 60 Hz (5 if float error leaves a sliver).
+    for (let i = 0; i < 2; i++) hookStep(h, DT, w, DEFAULT_TUNING, false);
     expect(h.state).toBe(HOOK_FLYING);
     expect(h.s).toBe(0);
-    let ticks = 6;
+    let ticks = 2;
     while (h.state === HOOK_FLYING && ticks < 20) {
       hookStep(h, DT, w, DEFAULT_TUNING, false);
       ticks++;
     }
-    expect(ticks).toBeGreaterThanOrEqual(8);
-    expect(ticks).toBeLessThanOrEqual(9);
+    expect(ticks).toBeGreaterThanOrEqual(4);
+    expect(ticks).toBeLessThanOrEqual(5);
     expect(h.state).toBe(HOOK_ATTACHED);
     expect(h.s).toBe(0); // the attach tick does not integrate
     hookStep(h, DT, w, DEFAULT_TUNING, false);
     expect(h.s).toBeGreaterThan(0);
+  });
+
+  it('a 30 m shot attaches within 0.1 s', () => {
+    const w = new World();
+    addAt(w, 0, HOP_SLOPE, 30);
+    const h = newHook();
+    expect(hookFire(h, 0, HAND.x, HAND.y, HAND.z, w, DEFAULT_TUNING, 0)).toBe(true);
+    expect(h.len).toBeCloseTo(30, 9);
+    let ticks = 0;
+    while (h.state === HOOK_FLYING && ticks < 60) {
+      hookStep(h, DT, w, DEFAULT_TUNING, false);
+      ticks++;
+    }
+    expect(h.state).toBe(HOOK_ATTACHED);
+    expect(ticks * DT).toBeLessThanOrEqual(0.1 + 1e-9);
   });
 
   it('hand-brake lowers the arrival speed', () => {

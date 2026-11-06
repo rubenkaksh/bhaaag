@@ -24,6 +24,7 @@ import {
   HERO_EV_DIED,
   HERO_EV_HOOKED,
   HERO_EV_LANDED,
+  HERO_EV_PERFECT,
   HERO_EV_RELEASED,
   HERO_EV_ROLLED,
   HERO_GROUNDED,
@@ -247,6 +248,7 @@ function killHero(s: HeroState, cause: number): void {
   s.vy = 0;
   s.vz = 0;
   s.grounded = 0;
+  s.perfect = 0;
   resetHook(s.hook);
 }
 
@@ -263,8 +265,10 @@ function landHero(s: HeroState, cfg: Tuning): void {
     s.eventBits |= HERO_EV_ROLLED;
   }
   const hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
-  if (hs > cfg.landing.carryCap) {
-    const k = cfg.landing.carryCap / hs;
+  const cap = cfg.landing.carryCap + (s.perfect === 1 ? cfg.release.perfectBoost : 0);
+  s.perfect = 0;
+  if (hs > cap) {
+    const k = cap / hs;
     s.vx *= k;
     s.vz *= k;
   }
@@ -336,7 +340,9 @@ function tryFire(s: HeroState, input: InputFrame, world: World, cfg: Tuning): vo
   if (scratchAim.anchorId === NO_ANCHOR) return;
   s.hookIntentT = 0;
   let speedAlong = 0;
-  if (s.chainT > 0) {
+  // Momentum seeds the rope whenever the hero is on the ground (a run-up pays) or still inside
+  // the chain window (carried speed above run speed survives there).
+  if (s.grounded === 1 || s.chainT > 0) {
     const a = world.anchors[scratchAim.anchorId];
     const cx = a.px - s.px;
     const cy = a.py - handY;
@@ -346,19 +352,38 @@ function tryFire(s: HeroState, input: InputFrame, world: World, cfg: Tuning): vo
   }
   if (hookFire(s.hook, scratchAim.anchorId, s.px, handY, s.pz, world, cfg, speedAlong)) {
     s.eventBits |= HERO_EV_HOOKED;
+    s.perfect = 0; // a new rope forfeits the timed-release carry
   }
 }
 
 function rideStep(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt: number): void {
+  const h = s.hook;
   if (wasPressed(input, BTN_JUMP)) {
+    // Timed release: JUMP late on the rope adds a forward boost along the horizontal chord.
+    const span = h.len - cfg.rope.trolleyStop;
+    const frac = span > 0 ? h.s / span : 0;
+    const hl = Math.sqrt(h.dirX * h.dirX + h.dirZ * h.dirZ);
+    const bx = hl > 1e-6 ? h.dirX / hl : 0;
+    const bz = hl > 1e-6 ? h.dirZ / hl : 0;
+    const timed =
+      h.state === HOOK_ATTACHED &&
+      hl > 1e-6 &&
+      frac >= cfg.release.perfectLo &&
+      frac <= cfg.release.perfectHi;
     releaseHero(s, cfg, true);
+    if (timed) {
+      s.vx += bx * cfg.release.perfectBoost;
+      s.vz += bz * cfg.release.perfectBoost;
+      s.vy += cfg.release.perfectUp - cfg.release.jumpUp; // a flatter, faster exit than a plain jump
+      s.perfect = 1;
+      s.eventBits |= HERO_EV_PERFECT;
+    }
     return;
   }
   if (wasPressed(input, BTN_DROP)) {
     releaseHero(s, cfg, false);
     return;
   }
-  const h = s.hook;
   const st = hookStep(h, dt, world, cfg, hasButton(input, BTN_REEL));
   hookTrolleyPos(h, scratchFeet);
   const r = cfg.hero.radius;
@@ -536,7 +561,11 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
       const dx = wantX - s.vx;
       const dz = wantZ - s.vz;
       const dl = Math.sqrt(dx * dx + dz * dz);
-      const maxD = cfg.hero.accel * dt;
+      // Holding the way you are already going keeps a landing's carry through the chain window.
+      const wantSq = wantX * wantX + wantZ * wantZ;
+      const carrying =
+        s.chainT > 0 && s.vx * s.vx + s.vz * s.vz > wantSq && s.vx * wantX + s.vz * wantZ > 0;
+      const maxD = (carrying ? cfg.landing.skidDecel : cfg.hero.accel) * dt;
       if (dl <= maxD) {
         s.vx = wantX;
         s.vz = wantZ;
@@ -544,10 +573,10 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
         s.vx += (dx / dl) * maxD;
         s.vz += (dz / dl) * maxD;
       }
-    } else if (s.chainT <= 0) {
-      // Momentum survives the chain window after a landing.
+    } else {
+      // A landing skids through the chain window, then full friction stops the hero.
       const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
-      const drop = cfg.hero.friction * dt;
+      const drop = (s.chainT > 0 ? cfg.landing.skidDecel : cfg.hero.friction) * dt;
       if (sp <= drop) {
         s.vx = 0;
         s.vz = 0;

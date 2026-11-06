@@ -14,6 +14,7 @@ import {
   HERO_EV_DIED,
   HERO_EV_HOOKED,
   HERO_EV_LANDED,
+  HERO_EV_PERFECT,
   HERO_EV_RELEASED,
   newHeroState,
 } from '../core/hero';
@@ -47,6 +48,7 @@ import {
   AE_FIRE,
   AE_JUMP,
   AE_LAND,
+  AE_PERFECT,
   AE_RELEASE,
   landAmp,
 } from '../adapters/render/animEvents';
@@ -298,6 +300,10 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
       }
       if ((ev & HERO_EV_RELEASED) !== 0) animEv |= AE_RELEASE;
       if ((ev & HERO_EV_HOOKED) !== 0) animEv |= AE_FIRE;
+      if ((ev & HERO_EV_PERFECT) !== 0) {
+        animEv |= AE_PERFECT; // the release camera kick (AE_RELEASE) fires too
+        hudUi.pulseTimer();
+      }
       if ((ev & HERO_EV_CLING) !== 0) animEv |= AE_CLING;
       if ((ev & HERO_EV_DIED) !== 0) animEv |= AE_DIE;
       if (prev.mode !== HERO_ATTACHED && cur.mode === HERO_ATTACHED) animEv |= AE_ATTACH;

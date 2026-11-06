@@ -33,6 +33,10 @@ export type Tuning = {
     carry: number;
     hookCooldownSec: number;
     hookIntentSec: number;
+    perfectLo: number;
+    perfectHi: number;
+    perfectBoost: number;
+    perfectUp: number;
   };
   landing: {
     vyClean: number;
@@ -99,14 +103,14 @@ export const DEFAULT_TUNING: Tuning = {
     gravityFactor: 1.0,
     drag: 0.05,
     terminal: 20,
-    launchSpeed: 6,
+    launchSpeed: 3,
     minLen: 4,
     maxLen: 35,
     minSlopeDeg: 10,
     maxSlopeDeg: 55,
     trolleyStop: 0.6,
     handToFeet: 2.0,
-    hookSpeed: 150,
+    hookSpeed: 320,
     brakeDecel: 10,
   },
   aim: {
@@ -124,14 +128,18 @@ export const DEFAULT_TUNING: Tuning = {
     carry: 1.0,
     hookCooldownSec: 0.15,
     hookIntentSec: 0.5,
+    perfectLo: 0.7,
+    perfectHi: 1.0,
+    perfectBoost: 2,
+    perfectUp: 2,
   },
   landing: {
     vyClean: 7,
     vyRoll: 13,
-    skidDecel: 9,
+    skidDecel: 7,
     vhStumble: 16,
     pad: 0.5,
-    carryCap: 8,
+    carryCap: 12,
     rollSec: 0.35,
     chainWindowMs: 400,
     edgeGrabH: 0.6,
