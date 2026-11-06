@@ -121,7 +121,7 @@ export const DEFAULT_TUNING: Tuning = {
     magnetDegDesktop: 4,
     magnetDegTouch: 6,
     routeAssistDeg: 16,
-    routeAssistLateDeg: 16,
+    routeAssistLateDeg: 10,
     routeAssistEarlyHops: 2,
     snapRadius: 1.2,
     previewHz: 15,

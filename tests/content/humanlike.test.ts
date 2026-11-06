@@ -135,7 +135,13 @@ const STYLES: Record<string, Style> = {
 
 describe('l1 casual-human playthrough', () => {
   for (const name of Object.keys(STYLES)) {
-    it(`${name}: survives each hop >= 90% and finishes >= 70% of variants`, () => {
+    // A player who never re-aims gets the wide assist on the opening hops only (fun-pass 2.4):
+    // past them aim has to matter, so that style is gated on hops 1-2 and need not finish.
+    const openingOnly = STYLES[name].frozenAim;
+    const gate = openingOnly
+      ? 'survives hops 1-2 >= 90%'
+      : 'survives each hop >= 90% and finishes >= 70% of variants';
+    it(`${name}: ${gate}`, () => {
       const results: Outcome[] = [];
       for (let v = 0; v < VARIANTS; v++) results.push(play(v, STYLES[name]));
       const rows: string[] = [];
@@ -148,8 +154,9 @@ describe('l1 casual-human playthrough', () => {
       }
       const finished = results.filter((o) => o.finished).length;
       const report = `[${name}] ${rows.join('  ')}  finished ${finished}/${VARIANTS}\n  failures: ${results.flatMap((o) => o.cause).join(' ')}\n`;
-      for (const rate of hopRate) expect(rate, report).toBeGreaterThanOrEqual(0.9);
-      expect(finished / VARIANTS, report).toBeGreaterThanOrEqual(0.7);
+      const gatedHops = openingOnly ? cfg.aim.routeAssistEarlyHops : hopRate.length;
+      for (let h = 0; h < gatedHops; h++) expect(hopRate[h], report).toBeGreaterThanOrEqual(0.9);
+      if (!openingOnly) expect(finished / VARIANTS, report).toBeGreaterThanOrEqual(0.7);
     });
   }
 });

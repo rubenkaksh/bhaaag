@@ -67,6 +67,8 @@ Built before the new level, because authoring depends on it.
 
 **Engine:** Sonnet for 2.1, hunter for the rest.
 
+**Status (2026-11-06):** 2.1-2.4 built and tested, awaiting your play check. 2.4 uses a 10 degree cone after hop 2 (`routeAssistLateDeg`); a player who never re-aims is now gated on hops 1-2 only. The 2.2 screenshot pass is not done: the Chrome extension was not connected.
+
 ### 3. Level design (3-4 days)
 
 Replaces the staircase with about 45 s of authored beats, all in `tools/genLevel.mjs`.
