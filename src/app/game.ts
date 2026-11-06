@@ -40,6 +40,7 @@ import { WaypointView } from '../adapters/render/waypointView';
 import {
   formatDistance,
   newWaypointScreen,
+  padHeightBelow,
   projectWaypoint,
   WAYPOINT_HIDE_M,
 } from '../adapters/ui/waypointMath';
@@ -468,7 +469,14 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
     const dz = tz - fz;
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
     const show = have && phase === 'play' && dist >= WAYPOINT_HIDE_M;
-    waypointView.update(show, tx, ty, tz, performance.now() / 1000);
+    waypointView.update(
+      show,
+      tx,
+      ty,
+      tz,
+      padHeightBelow(world.solids, tx, ty, tz),
+      performance.now() / 1000,
+    );
     if (!show) {
       hudUi.setWaypoint(false, 0, 0, false, 0, '', false);
       return;

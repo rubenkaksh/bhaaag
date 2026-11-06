@@ -63,11 +63,12 @@ export class WaypointView {
     this.group.visible = false;
   }
 
-  /** Places the beam base at (x, y, z) and pulses the ring. */
-  update(visible: boolean, x: number, y: number, z: number, t: number): void {
+  /** Places the beam base at (x, y, z), the ring on the pad at padY, and pulses the ring. */
+  update(visible: boolean, x: number, y: number, z: number, padY: number, t: number): void {
     this.group.visible = visible;
     if (!visible) return;
     this.group.position.set(x, y, z);
+    this.ring.position.y = padY - y + 0.05;
     this.ring.scale.setScalar(1 + 0.25 * Math.sin(6 * t));
   }
 

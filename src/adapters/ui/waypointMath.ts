@@ -73,3 +73,29 @@ export function formatDistance(metres: number): string {
 
 /** The marker hides when the target is closer than this (metres). */
 export const WAYPOINT_HIDE_M = 3;
+
+/**
+ * Roof height under (x, z): the largest max.y among solids whose x/z ranges
+ * contain the point and whose top is at or below y. Falls back to y when
+ * nothing is below. Plain for-loop, no allocation.
+ */
+export function padHeightBelow(
+  solids: readonly { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } }[],
+  x: number,
+  y: number,
+  z: number,
+): number {
+  let best = y;
+  let found = false;
+  for (let i = 0; i < solids.length; i++) {
+    const s = solids[i];
+    if (s.max.y > y) continue;
+    if (x < s.min.x || x > s.max.x) continue;
+    if (z < s.min.z || z > s.max.z) continue;
+    if (!found || s.max.y > best) {
+      best = s.max.y;
+      found = true;
+    }
+  }
+  return best;
+}
