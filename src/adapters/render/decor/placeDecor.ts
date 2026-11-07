@@ -19,6 +19,7 @@ import {
   DecorKit,
   RAIL_LEN,
   RAIL_POST_H,
+  PIECE_CAP,
   PIECE_IDS,
   ROOF_UNIT_H,
   ROOF_UNIT_W,
@@ -48,6 +49,7 @@ const WOOD = ['#4a2c1c', '#5a3622'];
 const TILE = ['#8a4532', '#7c3e2e', '#96503a'];
 const CONCRETE = '#a99a88';
 const TANKS = ['#26282c', '#2e6b47'];
+const SOLAR = '#2b4a73';
 const SHUTTERS = ['#4a2c1c', '#5a3622', '#7c3e2e', '#2e6b47'];
 const PAVING = '#8e7a66';
 const WIN_D = 0.118; // window depth unit: sticks out 1.6 x this = 0.19 m
@@ -186,6 +188,8 @@ class Builder {
   boxes: DecorBox[] = [];
   strings: number[] = [];
   private tmp = new Color();
+  /** Detail stream: extras draw from it so the base layout (and its budgets) stays unchanged. */
+  readonly fx = mulberry32(0x7a11);
   constructor(
     readonly world: World,
     readonly rng: () => number,
@@ -193,6 +197,10 @@ class Builder {
     this.lots = lotParams(world);
   }
 
+  /** True when `n` more instances of `piece` still fit under its cap, with the budget test's 90 % margin. */
+  room(piece: PieceId, n: number): boolean {
+    return this.kit.used[piece] + n <= 0.9 * PIECE_CAP[piece];
+  }
   U(a: number, b: number): number {
     return a + (b - a) * this.rng();
   }
@@ -447,12 +455,17 @@ function house(
     }
   }
 
-  // wooden balcony on the lane face, top-storey floor, 60 % of the face width, 1 m deep
+  // wooden balcony on the lane face, top-storey floor, 85 % of the face width (reference b06/b08:
+  // balconies run nearly the full facade), 1 m deep
   if (balcony) {
-    const fy = baseY + (n - 1) * STOREY;
-    const len = 0.6 * d;
+    const wide = B.room('rail', Math.ceil((0.85 * d) / RAIL_LEN));
+    const len = (wide ? 0.85 : 0.6) * d;
     const zc = (z0 + z1) / 2;
     const dx0 = out < 0 ? laneFaceX - 1.0 : laneFaceX;
+    const rx = out < 0 ? laneFaceX - 0.95 : laneFaceX + 0.95;
+    const m = Math.ceil(len / RAIL_LEN);
+    const seg = len / m;
+    const fy = baseY + (n - 1) * STOREY;
     B.box(
       'deck',
       'deck',
@@ -464,9 +477,6 @@ function house(
       zc + len / 2,
       B.colRaw(WOOD[1]),
     );
-    const m = Math.ceil(len / RAIL_LEN);
-    const seg = len / m;
-    const rx = out < 0 ? laneFaceX - 0.95 : laneFaceX + 0.95;
     for (let j = 0; j < m; j++) {
       B.rail(rx, fy + 0.15, zc - len / 2 + seg * (j + 0.5), seg, true, B.colRaw(WOOD[0]));
     }
@@ -549,6 +559,47 @@ function buildCluster(B: Builder, plan: ClusterPlan): void {
       const px = s * (h.x0 + 0.8);
       B.pot(px, h.roofY, h.z0 + 0.4);
       B.pot(px, h.roofY, h.z1 - 0.4);
+    }
+    // terrace furniture from the flat-roof references (r02, r07, r10): stair hatch, solar heater
+    if (h.x1 - h.x0 >= 3.5 && d >= 4 && B.room('parapet', 1) && B.fx() < 0.5) {
+      const hx = (xa + xb) / 2;
+      B.box(
+        'parapet',
+        'parapet',
+        hx - 0.55,
+        h.roofY,
+        h.z0 + 0.5,
+        hx + 0.55,
+        h.roofY + 1.1,
+        h.z0 + 1.5,
+        B.colRaw(CONCRETE),
+      );
+    }
+    if (h.x1 - h.x0 >= 4 && d >= 4 && B.room('parapet', 1) && B.room('deck', 1) && B.fx() < 0.4) {
+      const sx = s * (h.x0 + 1.6);
+      const zc = (h.z0 + h.z1) / 2;
+      B.box(
+        'parapet',
+        'parapet',
+        sx - 0.5,
+        h.roofY,
+        zc - 0.4,
+        sx + 0.5,
+        h.roofY + 0.35,
+        zc + 0.4,
+        B.colRaw(CONCRETE),
+      );
+      B.box(
+        'deck',
+        'deck',
+        sx - 0.7,
+        h.roofY + 0.35,
+        zc - 0.55,
+        sx + 0.7,
+        h.roofY + 0.45,
+        zc + 0.55,
+        B.colRaw(SOLAR),
+      );
     }
   }
   if (hs.length >= 2 && B.rng() < 0.3) {
