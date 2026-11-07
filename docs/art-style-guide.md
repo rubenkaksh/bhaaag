@@ -44,3 +44,19 @@ Drafted by Sonnet from the contact sheets (A, A2, C, D2, G, H) and the reference
 - FLUX schnell outputs: usable as textures; record the model and licence in the repo notes before shipping.
 - Source photos in `assets-src/` stay local (GPS data, unknown provenance); do not publish.
 - Any free 3D pack needs its licence recorded in a `SOURCES.tsv` before use.
+
+## Steps 5-7: models, pilot block, decision (2026-11-08)
+**Textures wired.** `src/adapters/render/levelView.ts` now gives style-0 ground `stone_warm`, style-2 roofs `terracotta_a` and the brick dressing `brick_a` (256 px JPEGs in `public/assets/textures/`, about 48 KB total, made from the atlas tiles). Each box face has its own world-space planar UVs (one tile per 4 m), so tiles line up across boxes; stock `MeshLambertMaterial` with a map and `RepeatWrapping`, no shaders. Node tests (no DOM) keep the flat colours. Walls (style 1) stay flat plaster on purpose: the style guide wants cream plaster only.
+
+**Base house models (step 5): none adopted.** The local packs (`workspaces/vidanta3d/assets/models`, see its `SOURCES.tsv`) hold no houses. The only relevant file is `pagoda.glb` (Poly by Google, CC-BY, 1.6 MB), far over the decor triangle budget and redundant with the procedural `pagoda()`. The ratha is project-owned but a chariot. No download was made; any external house pack needs explicit permission and a `SOURCES.tsv` line first. The instanced kit (`decor/kit.ts`) stays the house source, steered by the FLUX modelling set.
+
+**Pilot block (step 6).** Before: `pilot-before-flat-roof.png` (flat brown roof plane). After: `pilot-block-textured.png` (tiled roof, brick plinth, cobbled lane). Both are local in `docs/reference/` (gitignored, like `ui-reference.webp`). Compare with `ui-reference.webp`.
+
+| Reference | Pilot after textures | Still missing |
+|---|---|---|
+| Glazed red tile and brick read at once | Roof tile grid, brick courses and cobbles read as materials | Lit/shadow depth (no shadows, stock Lambert) |
+| Carved eaves, lattice windows | Plain boxed windows | Eave brackets, lattice (kit pieces 1-2) |
+| Planters, trees, tanks on stilts | Trees and tanks present, sparse | Planters, stilts (kit pieces 3-4) |
+| Golden-hour haze | Sky and hills already close | none |
+
+**Decision (step 7): keep.** The textured look beats the flat one clearly for roofs, brick and paving at near-zero cost (3 small textures, no triangles added). Walls and facade detail are the next gap. Not Opus-reviewed.

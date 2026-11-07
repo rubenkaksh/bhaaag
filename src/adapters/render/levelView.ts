@@ -6,7 +6,11 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshLambertMaterial,
+  RepeatWrapping,
+  SRGBColorSpace,
   SphereGeometry,
+  Texture,
+  TextureLoader,
 } from 'three';
 import { AABB } from '../../core/math/aabb';
 import { Vec3 } from '../../core/math/vec3';
@@ -19,6 +23,7 @@ import { buildDecor, groundAt } from './decor/placeDecor';
 // ADR 0005 D3: terrace paving, whitewash walls, walkable roof, hot terracotta danger.
 const COLOR_STYLE = ['#8e7a66', '#d9c6aa', '#b9a68c', '#c4472a']; // ground, wall, roof, danger
 const DANGER_STYLE = 3;
+const STYLE_TEXTURE = ['stone_warm', '', 'terracotta_a', '']; // per style; '' keeps the flat colour
 const COLOR_BRICK = '#9c5640';
 const COLOR_WOOD = '#4a2c1c';
 const COLOR_PAD = '#f1e9d2';
@@ -27,57 +32,68 @@ const COLOR_ANCHOR = '#ffc83a';
 const ANCHOR_R = 0.35;
 const PAD_LIFT = 0.03;
 
-// Appends the 12 triangles of an axis-aligned box to flat position/index arrays.
-function pushBox(pos: number[], idx: number[], b: AABB): void {
-  const x0 = b.min.x;
-  const y0 = b.min.y;
-  const z0 = b.min.z;
-  const x1 = b.max.x;
-  const y1 = b.max.y;
-  const z1 = b.max.z;
-  const base = pos.length / 3;
-  pos.push(
-    x0,
-    y0,
-    z0,
-    x1,
-    y0,
-    z0,
-    x1,
-    y1,
-    z0,
-    x0,
-    y1,
-    z0,
-    x0,
-    y0,
-    z1,
-    x1,
-    y0,
-    z1,
-    x1,
-    y1,
-    z1,
-    x0,
-    y1,
-    z1,
-  );
-  const f = [
-    0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 4, 7, 0, 7, 3, 1, 2, 6, 1, 6, 5, 3, 7, 6, 3, 6, 2, 0, 1,
-    5, 0, 5, 4,
-  ];
-  for (let i = 0; i < f.length; i++) idx.push(base + f[i]);
+const TILE_M = 4; // one texture tile covers this many metres
+const TEXTURE_BASE = import.meta.env.BASE_URL + 'assets/textures/';
+const textureCache = new Map<string, Texture>();
+
+// Tileable ground textures (FLUX-generated, tools/makeTextureAtlas.py). Browser only: tests run in
+// node with no DOM, where the flat colour is used.
+function tileTexture(name: string): Texture | null {
+  if (typeof document === 'undefined') return null;
+  let t = textureCache.get(name);
+  if (!t) {
+    t = new TextureLoader().load(TEXTURE_BASE + name + '.jpg');
+    t.wrapS = RepeatWrapping;
+    t.wrapT = RepeatWrapping;
+    t.colorSpace = SRGBColorSpace;
+    t.anisotropy = 4;
+    textureCache.set(name, t);
+  }
+  return t;
 }
 
-function mergedMesh(boxes: AABB[], color: string, emissiveScale = 0): Mesh {
+// Appends the 12 triangles of an axis-aligned box (24 vertices, so each face keeps its own
+// world-space planar UVs: tiles line up across neighbouring boxes with no stretching).
+function pushBox(pos: number[], idx: number[], uv: number[], b: AABB): void {
+  const lo = [b.min.x, b.min.y, b.min.z];
+  const hi = [b.max.x, b.max.y, b.max.z];
+  for (let axis = 0; axis < 3; axis++) {
+    const ua = axis === 0 ? 2 : 0; // texture axes: top uses (x, z), z faces (x, y), x faces (z, y)
+    const va = axis === 1 ? 2 : 1;
+    for (let side = 0; side < 2; side++) {
+      const c = side === 0 ? lo[axis] : hi[axis];
+      const base = pos.length / 3;
+      for (let k = 0; k < 4; k++) {
+        const p = [0, 0, 0];
+        p[axis] = c;
+        p[ua] = k === 0 || k === 3 ? lo[ua] : hi[ua];
+        p[va] = k < 2 ? lo[va] : hi[va];
+        pos.push(p[0], p[1], p[2]);
+        uv.push(p[ua] / TILE_M, p[va] / TILE_M);
+      }
+      // wind so the face looks outward: flip by axis parity and side
+      const flip = (axis === 2 ? side === 0 : side === 1) ? 1 : 0;
+      if (flip === 0) idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      else idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+    }
+  }
+}
+
+function mergedMesh(boxes: AABB[], color: string, emissiveScale = 0, texture = ''): Mesh {
   const pos: number[] = [];
   const idx: number[] = [];
-  for (let i = 0; i < boxes.length; i++) pushBox(pos, idx, boxes[i]);
+  const uv: number[] = [];
+  for (let i = 0; i < boxes.length; i++) pushBox(pos, idx, uv, boxes[i]);
   const geo = new BufferGeometry();
   geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new Float32BufferAttribute(uv, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
-  const mat = new MeshLambertMaterial({ color: new Color(color), flatShading: true });
+  const map = texture ? tileTexture(texture) : null;
+  // the map multiplies the colour, so a textured mesh gets a lightened tint of its palette colour
+  const tint = new Color(color);
+  if (map) tint.lerp(new Color('#ffffff'), 0.55);
+  const mat = new MeshLambertMaterial({ color: tint, flatShading: true, map });
   if (emissiveScale > 0) mat.emissive = new Color(color).multiplyScalar(emissiveScale);
   return new Mesh(geo, mat);
 }
@@ -175,7 +191,7 @@ function dressingMeshes(world: World): Mesh[] {
       );
     }
   }
-  if (brick.length > 0) out.push(mergedMesh(brick, COLOR_BRICK));
+  if (brick.length > 0) out.push(mergedMesh(brick, COLOR_BRICK, 0, 'brick_a'));
   if (wood.length > 0) out.push(mergedMesh(wood, COLOR_WOOD));
   return out;
 }
@@ -192,7 +208,7 @@ export function buildLevelMeshes(world: World): Group {
       if (s === st) boxes.push(world.solids[i]);
     }
     if (boxes.length > 0) {
-      g.add(mergedMesh(boxes, COLOR_STYLE[st], st === DANGER_STYLE ? 0.2 : 0));
+      g.add(mergedMesh(boxes, COLOR_STYLE[st], st === DANGER_STYLE ? 0.2 : 0, STYLE_TEXTURE[st]));
     }
   }
   if (world.pads.length > 0) {
