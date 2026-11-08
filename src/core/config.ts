@@ -59,6 +59,12 @@ export type Tuning = {
   wall: {
     vCling: number;
   };
+  roof: {
+    slipDeg: number;
+    mu: number;
+    control: number;
+    uphillRun: number;
+  };
   hero: {
     walk: number;
     run: number;
@@ -157,6 +163,12 @@ export const DEFAULT_TUNING: Tuning = {
   },
   wall: {
     vCling: 7.5,
+  },
+  roof: {
+    slipDeg: 15,
+    mu: 0.2,
+    control: 0.3,
+    uphillRun: 0.4,
   },
   hero: {
     walk: 3.5,

@@ -61,6 +61,7 @@ const schema = z.strictObject({
     edgeGrabVyMax: num,
   }),
   wall: z.strictObject({ vCling: num }),
+  roof: z.strictObject({ slipDeg: num, mu: num, control: num, uphillRun: num }),
   hero: z.strictObject({
     walk: num,
     run: num,
