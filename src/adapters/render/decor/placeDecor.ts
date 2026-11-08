@@ -40,8 +40,8 @@ export const LOT_OUTER_X = 60;
 const LOT_COLOR = '#7d4a3a'; // RETAIN
 const LOT_CAP = 0.15;
 const MARGIN = 0.5; // collider clearance
-const SLOPE = 0.35;
-const SLOPE_BASE = -12;
+const SLOPE = 0.22; // far plane follows the plot staircase (4 m down per 18 m, docs/level-layout.md)
+const SLOPE_BASE = -10;
 
 const BRICK = ['#9c5640', '#8c4a38', '#a8634a'];
 const LIME = ['#d9c6aa', '#cfb99a', '#e0cfb4'];
@@ -109,7 +109,10 @@ export interface LotParams {
   zMax: number;
 }
 
-/** ADR 0007 section 7 constants, derived from the style-0 terraces. */
+/**
+ * ADR 0007 section 7 constants, derived from the style-0 hill plots: one lot slice per plot, at
+ * the plot's own height (the packed-village plots are the ground; there is no half step any more).
+ */
 export function lotParams(world: World): LotParams {
   const t = terraceBoxes(world);
   let floor = Infinity;
@@ -121,8 +124,8 @@ export function lotParams(world: World): LotParams {
     zMax = Math.max(zMax, t[i].max.z);
   }
   return {
-    step: (t[0].max.y - t[1].max.y) / 2,
-    sliceZ: (t[0].min.z - t[1].min.z) / 2,
+    step: t[0].max.y - t[1].max.y,
+    sliceZ: t[0].min.z - t[1].min.z,
     z0: t[0].min.z,
     y0: t[0].max.y,
     floor,
@@ -131,7 +134,7 @@ export function lotParams(world: World): LotParams {
   };
 }
 
-/** Global staircase: each terrace's downhill half sits at T, its uphill half at T + step. */
+/** Global staircase: lot k sits at the top of the plot it lies beside. */
 export function lotY(p: LotParams, z: number): number {
   return Math.max(p.floor, p.y0 + p.step * Math.floor((z - p.z0) / p.sliceZ));
 }
@@ -837,48 +840,6 @@ function flagString(
   }
 }
 
-/** Steps between consecutive terraces, in the lane's x 8..15.5 band (ADR 0006 D1 exception). */
-function terraceSteps(B: Builder, terraces: AABB[]): void {
-  for (let p = 0; p + 1 < terraces.length; p++) {
-    const U = terraces[p];
-    const L = terraces[p + 1];
-    const delta = U.max.y - L.max.y;
-    if (delta <= 0.6) continue;
-    const side = p % 2 === 0 ? 1 : -1;
-    const n = Math.min(24, Math.ceil(delta / 0.5));
-    const r = delta / n;
-    const t = Math.min(0.45, 7.5 / n);
-    const z0 = U.min.z - 2.1;
-    const z1 = U.min.z - 0.55;
-    let ok = true;
-    for (let k = 0; k < n && ok; k++) {
-      const xa = side * (8 + k * t);
-      const xb = side * (8 + (k + 1) * t);
-      ok = B.allowed(
-        'stair',
-        [Math.min(xa, xb), L.max.y, z0],
-        [Math.max(xa, xb), L.max.y + (k + 1) * r, z1],
-      );
-    }
-    if (!ok) continue;
-    for (let k = 0; k < n; k++) {
-      const xa = side * (8 + k * t);
-      const xb = side * (8 + (k + 1) * t);
-      B.box(
-        'body',
-        'stair',
-        Math.min(xa, xb),
-        L.max.y,
-        z0,
-        Math.max(xa, xb),
-        L.max.y + (k + 1) * r,
-        z1,
-        B.col(PAVING),
-      );
-    }
-  }
-}
-
 function treeAt(
   B: Builder,
   cx: number,
@@ -961,7 +922,7 @@ function dressHouses(B: Builder): void {
   for (let i = 1; i + 1 < w.solids.length; i++) {
     const st = i < w.style.length ? w.style[i] : 1;
     const r = w.solids[i];
-    if (st !== 2 || r.max.x - r.min.x < 12) continue;
+    if (st !== 2 || r.max.x - r.min.x < 6) continue; // house footprints are 6-9 m
     const body = wallUnder(w, r);
     if (body === null) continue;
     const x0 = r.min.x;
@@ -1221,7 +1182,7 @@ export function buildDecor(world: World, seed = 1729): Group {
     const pi = pagoda(B, pagodas[i][0], pagodas[i][1], pagodas[i][2], pagodas[i][3]);
     if (pi) built.push(pi);
   }
-  terraceSteps(B, terraces);
+  // no decor steps between hill plots: the plots are fenced, each has its own collider stair
   dressHouses(B);
 
   const nearHouses: HouseInfo[] = [];
@@ -1271,10 +1232,11 @@ export function buildDecor(world: World, seed = 1729): Group {
       const top = groundAt(world, s * 23, zm);
       const inLo = s > 0 ? 16 : -30;
       const inHi = s > 0 ? 30 : -16;
+      // inner lots only where the hill plot is lower than the lot (the plot is the ground otherwise)
       if (ly > top + 1e-6) {
         B.box('body', 'lot', inLo, top, sz0, inHi, ly, sz1 - 0.6, B.colRaw(LOT_COLOR));
+        B.box('body', 'lot', inLo, ly, sz0, inHi, ly + LOT_CAP, sz1, B.colRaw(HILL));
       }
-      B.box('body', 'lot', inLo, ly, sz0, inHi, ly + LOT_CAP, sz1, B.colRaw(HILL));
       const outLo = s > 0 ? 30 : -LOT_OUTER_X;
       const outHi = s > 0 ? LOT_OUTER_X : -30;
       const yb = Math.max(farPlaneY(sz0) - 0.5, -89);

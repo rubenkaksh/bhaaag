@@ -78,7 +78,7 @@ describe('city decor (ADR 0005 D5)', () => {
         houses.some((b) => b.kind === k),
         k,
       ).toBe(true);
-    // 7 hops: every house has a brick base reaching down to its hill terrace, 3 steps each
+    // 7 hops: every house has a brick base reaching down to its hill plot, 3 steps each
     expect(houses.filter((b) => b.kind === 'base').length).toBe(21);
     // no body, roof or cluster outside the dressed houses beyond the three pagodas
     expect((decor.userData.clusters as ClusterPlan[]).length).toBe(0);
@@ -105,7 +105,7 @@ describe('city decor (ADR 0005 D5)', () => {
     expect(buried).toEqual([]);
     // the brick base wraps its wall at most 0.12 m proud
     const walls = solids.filter(
-      (_, i) => world.style[i] === 1 && solids[i].max.y - solids[i].min.y > 10,
+      (_, i) => world.style[i] === 1 && solids[i].max.y - solids[i].min.y > 5,
     );
     for (const b of houses.filter((h) => h.kind === 'base')) {
       const wall = walls.find(
@@ -203,22 +203,24 @@ describe('city decor (ADR 0005 D5)', () => {
     expect(stats.drawCalls).toBeLessThanOrEqual(24);
   });
 
-  it('D1: lot constants derive from the terraces', () => {
+  // D1/D2/D5 were written for the 12 m terraces (half-step lots of 3.5 m every 10 m); since
+  // 2026-11-08 a lot is one hill plot: 4 m down every 18 m (docs/level-layout.md).
+  it('D1: lot constants derive from the hill plots', () => {
     const p = lotParams(world);
-    expect(p.step).toBeCloseTo(3.5, 2);
-    expect(p.sliceZ).toBe(10);
-    expect(p.z0).toBe(-13);
-    expect(p.y0).toBe(-12);
-    expect(p.floor).toBe(-61);
+    expect(p.step).toBeCloseTo(4, 2);
+    expect(p.sliceZ).toBe(18);
+    expect(p.z0).toBe(-9);
+    expect(p.y0).toBe(-8);
+    expect(p.floor).toBe(-36);
   });
 
-  it('D2: lotY is a monotone staircase of 3.5 or 0', () => {
+  it('D2: lotY is a monotone staircase of one plot step or 0', () => {
     const p = lotParams(world);
     let prev = lotY(p, p.zMax - 0.01);
     for (let k = 0; k < 20; k++) {
-      const y = lotY(p, p.zMax - 0.01 - 10 * (k + 1));
+      const y = lotY(p, p.zMax - 0.01 - p.sliceZ * (k + 1));
       const dy = prev - y;
-      expect(dy === 0 || Math.abs(dy - 3.5) < 1e-6 || y === p.floor).toBe(true);
+      expect(dy === 0 || Math.abs(dy - p.step) < 1e-6 || y === p.floor).toBe(true);
       expect(y).toBeLessThanOrEqual(prev);
       prev = y;
     }
@@ -244,14 +246,17 @@ describe('city decor (ADR 0005 D5)', () => {
       (b) => b.kind === 'stair' && Math.abs(b.min[0] + b.max[0]) / 2 > 30.5,
     );
     expect(steps.length % 10).toBe(0);
-    expect(steps.length / 10).toBeGreaterThanOrEqual(15);
+    expect(steps.length / 10).toBeGreaterThanOrEqual(7);
     for (const b of steps) {
       expect(Math.min(Math.abs(b.min[0]), Math.abs(b.max[0]))).toBeGreaterThanOrEqual(30.9);
       expect(Math.max(Math.abs(b.min[0]), Math.abs(b.max[0]))).toBeLessThanOrEqual(33.5);
     }
     for (let f = 0; f < steps.length; f += 10) {
       for (let j = 1; j < 10; j++) {
-        expect(steps[f + j].max[1] - steps[f + j - 1].max[1]).toBeCloseTo(0.35, 3);
+        expect(steps[f + j].max[1] - steps[f + j - 1].max[1]).toBeCloseTo(
+          lotParams(world).step / 10,
+          3,
+        );
       }
     }
   });
