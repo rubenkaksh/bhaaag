@@ -63,7 +63,8 @@ const TANKS = ['#26282c', '#2e6b47'];
 const SOLAR = '#2b4a73';
 const SHUTTERS = ['#4a2c1c', '#5a3622', '#7c3e2e', '#2e6b47'];
 const PAVING = '#8e7a66'; // lane stairs between the filler rows
-const HILL = '#8b7a56'; // hillside earth between the playable houses
+const HILL = '#747448'; // muted olive earth: terraced fields, still warm under the sunset
+const HILL_ALT = '#826f48'; // brown-green fallow strips between the olive ones
 /**
  * Entry point for the packed hillside village: cheap instanced filler houses on the smooth flanks
  * (|x| > 30, see fillFlanks). The hero never stands there, so they carry no colliders.
@@ -741,7 +742,15 @@ interface PagodaInfo {
   plinthTop: number;
 }
 
-function pagoda(B: Builder, cx: number, cz: number, s: number, tiers: number): PagodaInfo | null {
+function pagoda(
+  B: Builder,
+  cx: number,
+  cz: number,
+  s: number,
+  tiers: number,
+  floor?: number,
+  spire = 'finial',
+): PagodaInfo | null {
   const hb0 = 4.6 * s;
   // smooth hillside: floor at the highest corner, plinth buried to the lowest
   const gc = [
@@ -759,6 +768,10 @@ function pagoda(B: Builder, cx: number, cz: number, s: number, tiers: number): P
       y0 = sd.max.y;
       yBase = y0;
     }
+  }
+  if (floor !== undefined) {
+    y0 = floor;
+    yBase = floor;
   }
   const hb = 4.6 * s;
   if (!B.allowed('pagoda', [cx - hb, yBase, cz - hb], [cx + hb, y0 + 26 * s, cz + hb])) return null;
@@ -837,7 +850,7 @@ function pagoda(B: Builder, cx: number, cz: number, s: number, tiers: number): P
   }
   B.box(
     'parapet',
-    'finial',
+    spire,
     cx - 0.15 * s,
     y,
     cz - 0.15 * s,
@@ -1198,6 +1211,8 @@ function groundMesh(world: World): Mesh {
   const nz = Math.round((zA - zB) / GROUND_CELL);
   const nx = Math.round((xMax - BANK_X1) / GROUND_CELL);
   const earth = new Color(HILL);
+  const fallow = new Color(HILL_ALT);
+  const field = new Color();
   const forest = new Color(FOREST_FLOOR);
   const c = new Color();
   for (let s = -1; s <= 1; s += 2) {
@@ -1209,7 +1224,9 @@ function groundMesh(world: World): Mesh {
         pos.push(s * ax, flankY(ax, z), z);
         const t = Math.min(1, Math.max(0, (ax - (FOREST_X0 - 6)) / 24));
         const h = (Math.imul((i + 1) * 7919, (j + 3) * 104729 + s) >>> 0) / 4294967296;
-        c.copy(earth)
+        // alternate olive and fallow strips down the slope: the terraced-field look
+        field.copy(earth).lerp(fallow, (i & 1) * 0.7);
+        c.copy(field)
           .lerp(forest, t)
           .multiplyScalar(0.94 + 0.12 * h);
         col.push(c.r, c.g, c.b);
@@ -1239,7 +1256,9 @@ function groundMesh(world: World): Mesh {
       for (let j = 0; j < 3; j++) {
         const ax = bankX[j];
         pos.push(s * ax, hillY(world, ax, rowsZ[i]), rowsZ[i]);
-        c.copy(earth).multiplyScalar(0.94 + 0.1 * ((i + j) % 3) * 0.5);
+        c.copy(earth)
+          .lerp(fallow, (i & 1) * 0.7)
+          .multiplyScalar(0.94 + 0.1 * ((i + j) % 3) * 0.5);
         col.push(c.r, c.g, c.b);
       }
     }
@@ -1350,13 +1369,15 @@ function fillFlanks(
     );
     roofTop.push(yTop + rh);
 
-    // window rows: near columns on the lane and downhill faces, far columns on the downhill face
+    // window rows on the faces the descending camera sees: the lane face (near columns) and the
+    // uphill face. Far columns only light the top storey; the downhill backs get none.
     const laneFace: 'x-' | 'x+' = s > 0 ? 'x-' : 'x+';
     const laneX = s > 0 ? xa : xb;
     const near = h.col < 2;
-    for (let st = near ? 0 : h.storeys - 2; st < h.storeys; st++) {
+    const gUp = Math.max(gs[2], gs[3]);
+    for (let st = Math.max(0, h.storeys - (h.col === 0 ? 2 : 1)); st < h.storeys; st++) {
       const wy = yF + st * STOREY + 0.8;
-      const kz = Math.min(3, Math.floor(d / 2.6));
+      const kz = Math.min(2, Math.floor(d / 2.6));
       if (near && wy > gs[4] + 0.2 && B.room('window', kz)) {
         for (let j = 0; j < kz; j++) {
           const zc = h.z0 + (d * (j + 0.5)) / kz;
@@ -1374,17 +1395,17 @@ function fillFlanks(
           );
         }
       }
-      const kx = Math.min(near ? 3 : 2, Math.floor(w / 2.6));
-      if (wy > gMin + 0.4 && B.room('window', kx)) {
+      const kx = Math.min(h.col === 0 ? 2 : 1, Math.floor(w / 2.6));
+      if (h.col < 4 && st === h.storeys - 1 && wy > gUp + 0.4 && B.room('window', kx)) {
         for (let j = 0; j < kx; j++) {
           const xc = xa + (w * (j + 0.5)) / kx;
           B.facing(
             'window',
             'window',
-            'z-',
+            'z+',
             xc,
             wy,
-            h.z0,
+            h.z1,
             0.9,
             1.3,
             WIN_D,
@@ -1515,7 +1536,9 @@ function fillForest(
         const rr = fr();
         const rc = fr();
         const rk = fr();
-        if (rk < 0.14) continue;
+        // thin with distance from the village: the far fringe is sparse, the near slope stays dense
+        const fade = Math.min(1, Math.max(0, (x - FOREST_X0) / (FOREST_X1 - FOREST_X0)));
+        if (rk < 0.14 + 0.4 * fade * fade) continue;
         // the village and the lower ends of the forest stay sparse beyond x = 100 near z < -214
         const tx = s * (x + (rx - 0.5) * 3.4);
         const tz = z + (rz - 0.5) * 3.4;
@@ -1540,6 +1563,233 @@ function fillForest(
   }
 }
 
+const PLAZA_WALL_H = 1.15;
+const PLAZA_Z_MIN = -8.1; // 0.5 m clear of the plot-0 fence collider (z -9 .. -8.7)
+
+/** A two-to-three storey courtyard house: brick plinth, plaster body, tiled roof, stoop and door. */
+function plazaHouse(
+  B: Builder,
+  side: number,
+  xa: number,
+  xb: number,
+  z0: number,
+  z1: number,
+  y0: number,
+  storeys: number,
+  ci: number,
+): void {
+  const w = xb - xa;
+  const d = z1 - z0;
+  const yTop = y0 + storeys * STOREY;
+  const rh = 1.5 + 0.2 * (ci % 3);
+  if (!B.room('roof', 1) || !B.room('body', 8)) return;
+  if (!B.allowed('plazahouse', [xa - 1.2, y0, z0 - 1.2], [xb + 1.2, yTop + rh, z1 + 1.2])) return;
+  const cx = (xa + xb) / 2;
+  const cz = (z0 + z1) / 2;
+  const jit = 0.95 + 0.1 * B.fx();
+  B.box('body', 'plazahouse', xa, y0, z0, xb, yTop, z1, tint(B, PLASTER[ci % PLASTER.length], jit));
+  B.box(
+    'body',
+    'plazahouse',
+    xa - 0.06,
+    y0,
+    z0 - 0.06,
+    xb + 0.06,
+    y0 + 1.0,
+    z1 + 0.06,
+    tint(B, BRICK[ci % BRICK.length], 0.95),
+  );
+  B.roof('plazaroof', cx, yTop, cz, w + 1.2, d + 1.2, rh, tint(B, TILE_FILL[ci % 4], jit));
+  const laneFace: 'x-' | 'x+' = side > 0 ? 'x-' : 'x+';
+  const laneX = side > 0 ? xa : xb;
+  const out = side > 0 ? -1 : 1;
+  const kz = Math.min(2, Math.floor(d / 2.8));
+  const kx = Math.min(3, Math.floor(w / 2.6));
+  for (let st = 0; st < storeys; st++) {
+    const wy = y0 + 1.15 + st * STOREY;
+    if (B.room('window', kz + kx)) {
+      for (let j = 0; j < kz; j++) {
+        if (st === 0 && j === 0) continue; // the door
+        B.facing(
+          'window',
+          'window',
+          laneFace,
+          laneX,
+          wy,
+          z0 + (d * (j + 0.5)) / kz,
+          0.9,
+          1.3,
+          WIN_D,
+          B.colRaw(WOOD[(j + st) % 2]),
+        );
+      }
+      for (let j = 0; j < kx; j++) {
+        B.facing(
+          'window',
+          'window',
+          'z-',
+          xa + (w * (j + 0.5)) / kx,
+          wy,
+          z0,
+          0.9,
+          1.3,
+          WIN_D,
+          B.colRaw(WOOD[(j + st) % 2]),
+        );
+      }
+    }
+  }
+  // stoop of three steps and a plank door on the lane face
+  const dz = z0 + d / (2 * kz);
+  for (let k = 0; k < 3; k++) {
+    const xs0 = out < 0 ? laneX - 0.55 * (3 - k) : laneX;
+    const xs1 = out < 0 ? laneX : laneX + 0.55 * (3 - k);
+    B.box('body', 'plazastep', xs0, y0, dz - 0.9, xs1, y0 + 0.2 * (k + 1), dz + 0.9, B.col(PAVING));
+  }
+  const dx0 = out < 0 ? laneX - 0.08 : laneX;
+  B.box(
+    'body',
+    'plazadoor',
+    dx0,
+    y0 + 0.6,
+    dz - 0.5,
+    dx0 + 0.08,
+    y0 + 2.4,
+    dz + 0.5,
+    B.colRaw(WOOD[0]),
+  );
+  if (B.room('pot', 2)) {
+    B.pot(laneX + out * 0.9, y0 + 0.6, dz - 1.2);
+    B.pot(laneX + out * 0.9, y0 + 0.6, dz + 1.2);
+  }
+}
+
+/**
+ * Plot 0 (under the spawn house) as a village courtyard: a low boundary wall with brick pillars,
+ * a gate gap at the back, two small pagodas and four houses, pots, planters, trees and prayer
+ * flags. Everything stands at |x| >= 16.5: the spawn area and the lane stay clear.
+ */
+function dressPlaza(B: Builder, plot: AABB): void {
+  const y0 = plot.max.y;
+  const zb = plot.max.z; // back edge
+  const xe = TERRACE_HALF_X;
+  const wallCol = (): Color => tint(B, LIME[1], 0.92 + 0.12 * B.fx());
+  const cap = (xa: number, za: number, xb: number, zc: number): void => {
+    B.box(
+      'body',
+      'plazawall',
+      xa,
+      y0 + PLAZA_WALL_H,
+      za,
+      xb,
+      y0 + PLAZA_WALL_H + 0.12,
+      zc,
+      B.colRaw(CONCRETE),
+    );
+  };
+  const pillars: [number, number][] = [];
+  for (let sd = -1; sd <= 1; sd += 2) {
+    // side wall along the plot edge
+    const xa = sd > 0 ? xe - 0.5 : -xe;
+    const xb = sd > 0 ? xe : -xe + 0.5;
+    B.box('body', 'plazawall', xa, y0, PLAZA_Z_MIN, xb, y0 + PLAZA_WALL_H, zb, wallCol());
+    cap(xa - 0.1, PLAZA_Z_MIN, xb + 0.1, zb);
+    // back wall with a gate gap at the middle (|x| < 2.6)
+    const bx0 = sd > 0 ? 2.6 : -xe;
+    const bx1 = sd > 0 ? xe : -2.6;
+    B.box('body', 'plazawall', bx0, y0, zb - 0.5, bx1, y0 + PLAZA_WALL_H, zb, wallCol());
+    cap(bx0, zb - 0.6, bx1, zb + 0.1);
+    pillars.push([sd * (xe - 0.45), PLAZA_Z_MIN + 0.5]);
+    pillars.push([sd * (xe - 0.45), 11]);
+    pillars.push([sd * (xe - 0.45), zb - 0.45]);
+    pillars.push([sd * 2.9, zb - 0.45]);
+    pillars.push([sd * 16.6, zb - 0.45]);
+  }
+  for (let i = 0; i < pillars.length; i++) {
+    const px = pillars[i][0];
+    const pz = pillars[i][1];
+    if (!B.room('body', 2)) break;
+    B.box(
+      'body',
+      'plazawall',
+      px - 0.4,
+      y0,
+      pz - 0.4,
+      px + 0.4,
+      y0 + 2.3,
+      pz + 0.4,
+      tint(B, BRICK[i % 3], 1),
+    );
+    B.box(
+      'body',
+      'plazawall',
+      px - 0.5,
+      y0 + 2.3,
+      pz - 0.5,
+      px + 0.5,
+      y0 + 2.45,
+      pz + 0.5,
+      B.colRaw(CONCRETE),
+    );
+  }
+  // pots on the wall coping, along both side walls and the back walls
+  if (B.room('pot', 20)) {
+    for (let sd = -1; sd <= 1; sd += 2) {
+      for (let z = -3; z < zb - 3; z += 6) {
+        if (Math.abs(z - 11) < 1.2) continue;
+        B.pot(sd * (xe - 0.25), y0 + PLAZA_WALL_H + 0.12, z);
+      }
+      for (let x = 7; x < xe - 2; x += 6) {
+        B.pot(sd * x, y0 + PLAZA_WALL_H + 0.12, zb - 0.25);
+      }
+    }
+  }
+
+  // landmarks and houses at the back
+  const spots: [number, number, number, number][] = [
+    [-1, 23.5, 17, 0.75],
+    [1, 23.5, 17, 0.75],
+  ];
+  const tops: [number, number, number][] = [];
+  for (let i = 0; i < spots.length; i++) {
+    const sp = spots[i];
+    const pg = pagoda(B, sp[0] * sp[1], sp[2], sp[3], i === 0 ? 3 : 2, y0, 'spire');
+    if (pg) tops.push([pg.fx, pg.fy, pg.fz]);
+  }
+  for (let sd = -1; sd <= 1; sd += 2) {
+    const a = sd > 0 ? 18.4 : -26.4;
+    plazaHouse(B, sd, a, a + 8, 22.3, 28.8, y0, 3, sd > 0 ? 2 : 4);
+    const a2 = sd > 0 ? 23.2 : -29;
+    plazaHouse(B, sd, a2, a2 + 5.4, 1.5, 7.4, y0, 2, sd > 0 ? 6 : 1);
+  }
+  // planters flank the gate pillars; trees line the edges
+  if (B.room('planter', 4)) {
+    for (let sd = -1; sd <= 1; sd += 2) {
+      B.planter(sd * 4.2, y0, zb - 1.2);
+      B.planter(sd * 17.8, y0, zb - 1.2);
+    }
+  }
+  const trees: [number, number][] = [
+    [27.6, -5],
+    [27.2, 9.5],
+    [20.5, -6.4],
+    [19, 11],
+    [28.4, 16],
+  ];
+  for (let sd = -1; sd <= 1; sd += 2) {
+    for (let i = 0; i < trees.length; i++) {
+      treeAt(B, sd * trees[i][0], trees[i][1], y0, 'tree', i === 1);
+    }
+  }
+  // prayer flags and laundry: pagoda spires to the pillars and house eaves
+  for (let sd = -1; sd <= 1; sd += 2) {
+    const t = tops[sd < 0 ? 0 : 1];
+    if (!t) continue;
+    flagString(B, t[0], t[1] - 0.6, t[2], sd * (xe - 0.45), y0 + 2.5, 11);
+    flagString(B, t[0], t[1] - 0.6, t[2], sd * 16.6, y0 + 2.5, zb - 0.45);
+  }
+}
+
 /** Builds the non-collider city. Deterministic for a given (world, seed). */
 export function buildDecor(world: World, seed = 1729): Group {
   const B = new Builder(world, mulberry32(seed));
@@ -1560,6 +1810,7 @@ export function buildDecor(world: World, seed = 1729): Group {
   }
   // no decor steps between hill plots: the plots are fenced, each has its own collider stair
   dressHouses(B);
+  dressPlaza(B, terraces[0]);
 
   const nearHouses: HouseInfo[] = [];
   const clusters: ClusterPlan[] = [];
@@ -1631,6 +1882,7 @@ export function buildDecor(world: World, seed = 1729): Group {
       }
       // hill trees on the lot (wooded slope between the playable houses)
       for (let t = 0; t < 3; t++) {
+        if (sz1 > terraces[0].min.z) break; // plot 0 is the courtyard (dressPlaza)
         if (!B.room('canopy', 2) || !B.room('trunk', 1)) break;
         const tx = s * B.U(19, 30);
         const tz = B.U(sz0 + 1.5, sz1 - 1.5);
