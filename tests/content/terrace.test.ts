@@ -19,7 +19,7 @@ interface Level {
 const lvl = JSON.parse(levelText) as Level;
 const base = generateLevel() as Level;
 const FIRST = 2 + 2 * 7 + 3; // ground, spawn roof, 7*(roof, body), 3 decoys
-const terraces = lvl.solids.slice(FIRST);
+const terraces = lvl.solids.slice(FIRST, FIRST + 9);
 const overlapXZ = (b: Box, x: number, z: number) =>
   x >= b.min[0] && x <= b.max[0] && z >= b.min[2] && z <= b.max[2];
 const terraceTopAt = (x: number, z: number): number[] =>
@@ -27,12 +27,15 @@ const terraceTopAt = (x: number, z: number): number[] =>
 
 describe('hill terraces (ADR 0005 D2)', () => {
   it('are appended after all existing solids; indices stable', () => {
-    expect(lvl.solids.length).toBe(FIRST + 9);
-    expect(lvl.style.slice(FIRST).every((s) => s === 0)).toBe(true);
+    expect(lvl.solids.length).toBe(FIRST + 9 + 7); // terraces, then 7 balcony ledges
+    expect(lvl.style.slice(FIRST, FIRST + 9).every((s) => s === 0)).toBe(true);
+    expect(lvl.style.slice(FIRST + 9).every((s) => s === 1)).toBe(true);
     // generator output is the same as the committed file
     expect(JSON.stringify(lvl)).toBe(JSON.stringify(base));
     // the pre-terrace prefix is the original layout
-    expect(lvl.style.slice(0, FIRST)).toEqual([0, 2, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 3, 3, 3]);
+    expect(lvl.style.slice(0, FIRST)).toEqual([
+      0, 2, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 3, 3, 3,
+    ]);
     expect(lvl.anchors.length).toBe(10);
     expect(lvl.pads.length).toBe(7);
     expect(lvl.route).toEqual([0, 1, 2, 3, 4, 5, 6]);
@@ -44,7 +47,8 @@ describe('hill terraces (ADR 0005 D2)', () => {
       const b = lvl.solids[i];
       if (lvl.style[i] === 2) {
         for (const x of [b.min[0], b.max[0], (b.min[0] + b.max[0]) / 2])
-          for (const z of [b.min[2], b.max[2], (b.min[2] + b.max[2]) / 2]) pts.push([x, b.max[1], z]);
+          for (const z of [b.min[2], b.max[2], (b.min[2] + b.max[2]) / 2])
+            pts.push([x, b.max[1], z]);
       }
     }
     // hanging: feet about 2 m below the anchor

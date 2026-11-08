@@ -43,13 +43,11 @@ describe('city decor (ADR 0005 D5)', () => {
   it('is dense: houses, windows, roofs, trees and flags all present', () => {
     const kinds = new Set(boxes.map((b) => b.kind));
     for (const k of [
-      'body',
       'window',
-      'roof',
+      'pagoda',
       'cornice',
       'tree',
       'flag',
-      'deck',
       'rail',
       'tank',
       'stair',
@@ -59,24 +57,33 @@ describe('city decor (ADR 0005 D5)', () => {
     ])
       expect(kinds.has(k), k).toBe(true);
     expect(kinds.has('stand')).toBe(false);
-    expect(boxes.length).toBeGreaterThan(2000);
+    expect(boxes.length).toBeGreaterThan(500);
   });
 
   it('keeps the reserved lane clear and never intersects a collider', () => {
-    expect(boxes.filter((b) => violatesLane(world, b))).toEqual([]);
-    expect(boxes.filter((b) => hitsCollider(world, b))).toEqual([]);
+    const scenery = boxes.filter((b) => !b.house);
+    expect(scenery.filter((b) => violatesLane(world, b))).toEqual([]);
+    expect(scenery.filter((b) => hitsCollider(world, b))).toEqual([]);
     // direct check: everything beside the route sits outside |x| < 16 except lane trees
-    const inLane = boxes.filter(
+    const inLane = scenery.filter(
       (b) => b.max[2] > -206 && b.min[2] < 12 && b.min[0] < LANE_HALF_X && b.max[0] > -LANE_HALF_X,
     );
     expect(inLane.every((b) => b.kind === 'tree' || b.kind === 'stair')).toBe(true);
   });
 
-  it('pitched tile roofs inside |x| < 35 (flat roofs and tanks only beyond)', () => {
-    const flat = boxes.filter((b) => b.kind === 'tank' || b.kind === 'parapet');
-    expect(flat.length).toBeGreaterThan(0);
-    for (const b of flat)
-      expect(Math.min(Math.abs(b.min[0]), Math.abs(b.max[0]))).toBeGreaterThanOrEqual(34.5);
+  it('only the playable houses are dressed: seven houses, no flanking town', () => {
+    const houses = boxes.filter((b) => b.house);
+    for (const k of ['window', 'bracket', 'rail', 'tank', 'parapet', 'base', 'pot'])
+      expect(
+        houses.some((b) => b.kind === k),
+        k,
+      ).toBe(true);
+    // 7 hops: every house has a brick base reaching down to its hill terrace, 3 steps each
+    expect(houses.filter((b) => b.kind === 'base').length).toBe(21);
+    // no body, roof or cluster outside the dressed houses beyond the three pagodas
+    expect((decor.userData.clusters as ClusterPlan[]).length).toBe(0);
+    const town = boxes.filter((b) => !b.house && b.kind === 'house');
+    expect(town.length).toBe(0);
   });
 
   it('flags a stair step that breaks the exemption', () => {
@@ -181,29 +188,18 @@ describe('city decor (ADR 0005 D5)', () => {
     for (let z = 30; z > -218; z -= 0.7) expect(lotY(p, z - 0.7)).toBeLessThanOrEqual(lotY(p, z));
   });
 
-  it('D3/D4: houses stand on the paving and stay within 3 storeys', () => {
-    const p = lotParams(world);
-    const bodies = boxes.filter(
-      (b) => b.kind === 'body' && Math.abs(b.min[0] + b.max[0]) / 2 >= 16,
-    );
-    expect(bodies.length).toBeGreaterThan(50);
-    let low = 0;
-    for (const b of bodies) {
+  it('D3/D4: dressed houses reach the hill and no scenery body stands in the lane', () => {
+    const bases = boxes.filter((b) => b.house && b.kind === 'base');
+    expect(bases.length).toBeGreaterThan(0);
+    for (const b of bases) {
       const zc = (b.min[2] + b.max[2]) / 2;
-      expect(b.max[1] - b.min[1]).toBeLessThanOrEqual(8.41);
-      if (Math.abs(b.min[1] - (lotY(p, zc) + 0.15)) <= 0.05) low++;
+      const xc = (b.min[0] + b.max[0]) / 2;
+      expect(Math.abs(b.min[1] - groundAt(world, xc, zc))).toBeLessThanOrEqual(21);
     }
-    expect(low).toBeGreaterThan(50);
-    // every house footprint has its lowest body on the paving
-    for (const b of boxes.filter((q) => q.kind === 'roof' || q.kind === 'parapet')) {
-      if (Math.abs(b.min[0] + b.max[0]) / 2 < 16) continue;
-      const zc = (b.min[2] + b.max[2]) / 2;
-      expect(b.max[1] - (lotY(p, zc) + 0.15)).toBeLessThanOrEqual(9.61);
-    }
-    const ground = boxes.filter(
-      (b) => b.kind === 'body' && b.min[1] < lotY(p, (b.min[2] + b.max[2]) / 2),
+    const lane = boxes.filter(
+      (b) => !b.house && b.kind === 'body' && Math.abs(b.min[0] + b.max[0]) / 2 < 16,
     );
-    expect(ground.length).toBe(0);
+    expect(lane.length).toBe(0);
   });
 
   it('D5: one 10-step flight per rising lot boundary', () => {
@@ -223,18 +219,9 @@ describe('city decor (ADR 0005 D5)', () => {
     }
   });
 
-  it('D6: 24+ flat clusters at |x| >= 35', () => {
-    const plans = decor.userData.clusters as ClusterPlan[];
-    expect(plans.length).toBeGreaterThanOrEqual(24);
-    for (const pl of plans) {
-      expect(pl.houses.length).toBeGreaterThanOrEqual(2);
-      for (const h of pl.houses) {
-        expect(h.x0).toBeGreaterThanOrEqual(35);
-        expect(h.roofY).toBeCloseTo(pl.baseY + 2.8 * h.storeys, 9);
-      }
-    }
-    for (const b of boxes.filter((q) => q.kind === 'roof'))
-      expect(Math.min(Math.abs(b.min[0]), Math.abs(b.max[0]))).toBeLessThan(31);
+  it('D6: no flat clusters; the hills are left to trees and pagodas', () => {
+    expect((decor.userData.clusters as ClusterPlan[]).length).toBe(0);
+    expect(boxes.filter((b) => b.kind === 'tree').length).toBeGreaterThan(100);
   });
 
   it('D7: nothing dropped, key pieces under 90 % of cap', () => {

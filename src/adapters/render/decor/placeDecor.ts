@@ -52,6 +52,9 @@ const TANKS = ['#26282c', '#2e6b47'];
 const SOLAR = '#2b4a73';
 const SHUTTERS = ['#4a2c1c', '#5a3622', '#7c3e2e', '#2e6b47'];
 const PAVING = '#8e7a66';
+const HILL = '#8b7a56'; // hillside earth between the playable houses
+/** The flanking town is gone: houses exist only where the hero can reach them (see dressHouses). */
+const SCENERY_HOUSES = false;
 const WIN_D = 0.118; // window depth unit: sticks out 1.6 x this = 0.19 m
 const CANOPY = ['#5d7a3a', '#6f8a3f', '#4f6b34'];
 const TRUNK = '#4a3424';
@@ -65,6 +68,8 @@ const STRING = '#3a2a20';
 
 export interface DecorBox {
   kind: string;
+  /** True for detail on the level's own (playable) houses; exempt from the lane and collider rules. */
+  house?: boolean;
   min: [number, number, number];
   max: [number, number, number];
 }
@@ -190,6 +195,8 @@ class Builder {
   private tmp = new Color();
   /** Detail stream: extras draw from it so the base layout (and its budgets) stays unchanged. */
   readonly fx = mulberry32(0x7a11);
+  /** While true, recorded boxes are tagged `house` (see dressHouses). */
+  onHouse = false;
   constructor(
     readonly world: World,
     readonly rng: () => number,
@@ -216,11 +223,9 @@ class Builder {
   }
 
   private rec(kind: string, a: number[], b: number[]): void {
-    this.boxes.push({
-      kind,
-      min: [a[0], a[1], a[2]],
-      max: [b[0], b[1], b[2]],
-    });
+    const box: DecorBox = { kind, min: [a[0], a[1], a[2]], max: [b[0], b[1], b[2]] };
+    if (this.onHouse) box.house = true;
+    this.boxes.push(box);
   }
 
   /** Axis-aligned box piece from corner coordinates. */
@@ -930,6 +935,173 @@ function farCity(B: Builder, x0: number, x1: number, z0: number, z1: number, ste
   }
 }
 
+/**
+ * Detail for the playable houses (the level's style-2 roofs and the walls under them): a stepped
+ * brick base down to the hill, two storeys of lattice windows, eave brackets, a balcony rail on the
+ * lane-facing ledge and rim furniture on the roof. Visual only; every box bypasses the lane rule
+ * because these are the level's own buildings.
+ */
+function dressHouses(B: Builder): void {
+  const w = B.world;
+  B.onHouse = true;
+  for (let i = 1; i + 1 < w.solids.length; i++) {
+    const st = i < w.style.length ? w.style[i] : 1;
+    const r = w.solids[i];
+    if (st !== 2 || r.max.x - r.min.x < 12) continue;
+    const body = w.solids[i + 1];
+    const x0 = r.min.x;
+    const x1 = r.max.x;
+    const z0 = r.min.z;
+    const z1 = r.max.z;
+    const cxh = (x0 + x1) / 2;
+    const czh = (z0 + z1) / 2;
+    const top = r.max.y;
+    const yE = r.min.y; // eaves: roof underside
+    const yF = yE - 2 * STOREY; // first-floor level
+    const dir = cxh < 0 ? 1 : -1; // toward the lane axis
+    const laneFace = dir > 0 ? 'x+' : 'x-';
+    const laneX = dir > 0 ? x1 : x0;
+    const outerX = dir > 0 ? x0 : x1;
+
+    // stepped brick base from the hill up to the first floor (wider toward the ground)
+    const yB = body.min.y;
+    const hB = yF - yB;
+    if (hB > 1) {
+      const offs = [1.6, 0.9, 0.25];
+      for (let k = 0; k < 3; k++) {
+        const o = offs[k];
+        B.box(
+          'wallBrick',
+          'base',
+          x0 - o,
+          yB + (hB * k) / 3,
+          z0 - o,
+          x1 + o,
+          yB + (hB * (k + 1)) / 3,
+          z1 + o,
+          B.col(BRICK[k % BRICK.length]),
+        );
+      }
+      B.box(
+        'cornice',
+        'cornice',
+        x0 - 0.4,
+        yF - 0.15,
+        z0 - 0.4,
+        x1 + 0.4,
+        yF + 0.15,
+        z1 + 0.4,
+        B.colRaw(WOOD[0]),
+      );
+    }
+    // brick ground floor band, plaster above (level walls are plaster; this is a proud skin)
+    B.box(
+      'cornice',
+      'cornice',
+      x0 - 0.25,
+      yE - 0.35,
+      z0 - 0.25,
+      x1 + 0.25,
+      yE,
+      z1 + 0.25,
+      B.colRaw(WOOD[0]),
+    );
+    B.box(
+      'cornice',
+      'cornice',
+      x0 - 0.12,
+      yF + 2.65,
+      z0 - 0.12,
+      x1 + 0.12,
+      yF + 2.9,
+      z1 + 0.12,
+      B.colRaw(WOOD[1]),
+    );
+
+    // windows: two storeys on every face, lattice units from the kit
+    const faces: ('x-' | 'x+' | 'z+' | 'z-')[] = ['x-', 'x+', 'z+', 'z-'];
+    for (let f = 0; f < 4; f++) {
+      const face = faces[f];
+      const alongX = face === 'z+' || face === 'z-';
+      const span = alongX ? x1 - x0 : z1 - z0;
+      const k = Math.floor(span / 2.8);
+      for (let st2 = 0; st2 < 2; st2++) {
+        const wy = yF + st2 * STOREY + 0.8;
+        for (let j = 0; j < k; j++) {
+          const u = (span * (j + 0.5)) / k;
+          const wx = face === 'x-' ? x0 : face === 'x+' ? x1 : x0 + u;
+          const wz = face === 'z+' ? z1 : face === 'z-' ? z0 : z0 + u;
+          B.facing('window', 'window', face, wx, wy, wz, 0.9, 1.3, WIN_D, B.colRaw(B.pick(WOOD)));
+          if (B.fx() < 0.35) {
+            B.facing('shutter', 'shutter', face, wx, wy, wz, 1, 1, 1, B.colRaw(B.pick(SHUTTERS)));
+          }
+        }
+      }
+      // eave brackets under the roof edge
+      const bn = Math.max(2, Math.floor(span / 1.8));
+      if (B.room('bracket', bn)) {
+        for (let j = 0; j < bn; j++) {
+          const u = (span * (j + 0.5)) / bn;
+          const wx = face === 'x-' ? x0 : face === 'x+' ? x1 : x0 + u;
+          const wz = face === 'z+' ? z1 : face === 'z-' ? z0 : z0 + u;
+          B.facing('bracket', 'bracket', face, wx, yE - 0.55, wz, 1, 1, 1, B.colRaw(WOOD[1]));
+        }
+      }
+    }
+
+    // balcony rail, pots and underside brackets on the lane-facing ledge
+    const ledgeTop = top - 3;
+    const outX = laneX + dir * 1.75;
+    const lz0 = z0 + 1;
+    const lz1 = z1 - 1;
+    const len = lz1 - lz0;
+    const m = Math.ceil(len / RAIL_LEN);
+    if (B.room('rail', m + 2)) {
+      for (let j = 0; j < m; j++) {
+        B.rail(outX, ledgeTop, lz0 + (len / m) * (j + 0.5), len / m, true, B.colRaw(WOOD[0]));
+      }
+      B.rail(laneX + dir * 0.9, ledgeTop, lz0, 1.8, false, B.colRaw(WOOD[0]));
+      B.rail(laneX + dir * 0.9, ledgeTop, lz1, 1.8, false, B.colRaw(WOOD[0]));
+    }
+    B.pot(laneX + dir * 0.9, ledgeTop, czh - 1.5);
+    B.pot(laneX + dir * 0.9, ledgeTop, czh + 1.5);
+    for (let j = 0; j < 3; j++) {
+      B.facing(
+        'bracket',
+        'bracket',
+        laneFace,
+        laneX,
+        ledgeTop - 0.8,
+        lz0 + (len * (j + 0.5)) / 3,
+        1,
+        1,
+        1,
+        B.colRaw(WOOD[1]),
+      );
+    }
+
+    // roof rim: low parapet on the sides the hero does not launch from, tank, planters, pots
+    B.box(
+      'parapet',
+      'parapet',
+      outerX - (dir > 0 ? 0 : 0.25),
+      top,
+      z0,
+      outerX + (dir > 0 ? 0.25 : 0),
+      top + 0.5,
+      z1,
+      B.colRaw(CONCRETE),
+    );
+    B.box('parapet', 'parapet', x0, top, z1 - 0.25, x1, top + 0.5, z1, B.colRaw(CONCRETE));
+    const rimX = outerX + (dir > 0 ? 0.55 : -0.55);
+    B.tank(rimX, top, czh - 2.4, 0.5, TANK_UNIT_H * 0.8, B.colRaw(B.pick(TANKS)));
+    if (B.room('planter', 1)) B.planter(rimX, top, czh + 1.6);
+    B.pot(rimX, top, z1 - 0.8);
+    B.pot(rimX, top, z0 + 0.8);
+  }
+  B.onHouse = false;
+}
+
 function groundMesh(): Mesh {
   const pos: number[] = [];
   const idx: number[] = [];
@@ -990,6 +1162,7 @@ export function buildDecor(world: World, seed = 1729): Group {
     if (pi) built.push(pi);
   }
   terraceSteps(B, terraces);
+  dressHouses(B);
 
   const nearHouses: HouseInfo[] = [];
   const clusters: ClusterPlan[] = [];
@@ -1041,12 +1214,12 @@ export function buildDecor(world: World, seed = 1729): Group {
       if (ly > top + 1e-6) {
         B.box('body', 'lot', inLo, top, sz0, inHi, ly, sz1 - 0.6, B.colRaw(LOT_COLOR));
       }
-      B.box('body', 'lot', inLo, ly, sz0, inHi, ly + LOT_CAP, sz1, B.colRaw(PAVING));
+      B.box('body', 'lot', inLo, ly, sz0, inHi, ly + LOT_CAP, sz1, B.colRaw(HILL));
       const outLo = s > 0 ? 30 : -LOT_OUTER_X;
       const outHi = s > 0 ? LOT_OUTER_X : -30;
       const yb = Math.max(farPlaneY(sz0) - 0.5, -89);
       B.box('body', 'lot', outLo, yb, sz0, outHi, ly, sz1, B.colRaw(LOT_COLOR));
-      B.box('body', 'lot', outLo, ly, sz0, outHi, ly + LOT_CAP, sz1, B.colRaw(PAVING));
+      B.box('body', 'lot', outLo, ly, sz0, outHi, ly + LOT_CAP, sz1, B.colRaw(HILL));
       // 2. steps
       if (s === flightSide && lyUp - ly > 0.01) {
         const rise = (lyUp - ly) / 10;
@@ -1068,7 +1241,7 @@ export function buildDecor(world: World, seed = 1729): Group {
       }
       // 3. inner houses
       const base = ly + LOT_CAP;
-      if (depthS >= 8) {
+      if (SCENERY_HOUSES && depthS >= 8) {
         let x = COL0_X;
         for (let c = 0; c < 2; c++) {
           if (c === 1) x += B.U(0.5, 1.5);
@@ -1090,8 +1263,17 @@ export function buildDecor(world: World, seed = 1729): Group {
       if (depthS >= 10 && B.rng() < 0.45 && !pagodaBlocks(s, 30, 35, sz0, sz1)) {
         treeAt(B, s * B.U(32, 33.2), B.U(sz0 + 1.4, sz1 - 6.8), base, 'gaptree', false);
       }
+      // hill trees on the lot (wooded slope between the playable houses)
+      for (let t = 0; t < 3; t++) {
+        if (!B.room('canopy', 2) || !B.room('trunk', 1)) break;
+        const tx = s * B.U(19, 58);
+        const tz = B.U(sz0 + 1.5, sz1 - 1.5);
+        if (!pagodaBlocks(s, Math.abs(tx) - 2, Math.abs(tx) + 2, tz - 2, tz + 2)) {
+          treeAt(B, tx, tz, base, 'tree', B.rng() < 0.35);
+        }
+      }
       // 4. cluster
-      if (depthS >= 8 && !pagodaBlocks(s, CLUSTER_MIN_X, 59, sz0, sz1)) {
+      if (SCENERY_HOUSES && depthS >= 8 && !pagodaBlocks(s, CLUSTER_MIN_X, 59, sz0, sz1)) {
         const plan = planCluster(B.rng, s, CLUSTER_MIN_X, 59, sz0, sz1, base);
         clusters.push(plan);
         buildCluster(B, plan);
@@ -1136,11 +1318,13 @@ export function buildDecor(world: World, seed = 1729): Group {
   }
 
   // far city: pre-fogged coarse grid east/west, plus a valley band beyond the goal
-  for (let s = -1; s <= 1; s += 2) {
-    if (s > 0) farCity(B, 60.6, 160, 40, -260, 12);
-    else farCity(B, -160, -60.6, 40, -260, 12);
+  if (SCENERY_HOUSES) {
+    for (let s = -1; s <= 1; s += 2) {
+      if (s > 0) farCity(B, 60.6, 160, 40, -260, 12);
+      else farCity(B, -160, -60.6, 40, -260, 12);
+    }
+    farCity(B, -160, 160, -236, -420, 12);
   }
-  farCity(B, -160, 160, -236, -420, 12);
 
   g.add(B.kit.finish());
   g.add(groundMesh());

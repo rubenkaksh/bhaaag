@@ -57,3 +57,6 @@ Done: 1 eave brackets (`bracket`), 2 lattice windows with lintel and cap, 3 tank
 | Golden-hour haze | Sky and hills already close | none |
 
 **Decision (step 7): keep.** The textured look beats the flat one clearly for roofs, brick and paving at near-zero cost (3 small textures, no triangles added). Walls and facade detail are the next gap. Not Opus-reviewed.
+
+## Playable houses, not a town (2026-11-08)
+Feedback: the zipline houses read as 9 m towers, three slabs were ziplined through, and most houses were scenery nobody could use. Changes: L1 houses are now 13 x 9 m, two storeys with a flat roof (`tools/genLevel.mjs`), walls run down to the hill terrace and are clad in a stepped brick base; each has a timber balcony ledge on its lane-facing wall (7 ledges, appended last); decoys are squat 10 x 9 x 6 m danger houses, not 21 m slabs. In `decor/placeDecor.ts` the flanking town (inner houses, clusters, far city) is switched off (`SCENERY_HOUSES`); `dressHouses()` adds windows, eave brackets, balcony rails and rim furniture to the playable houses only; lots are earth with trees; pagodas stay as hill temples. A house must stay 9 m deep: deeper makes the rope clip the roof edge from the roof centre (preview test).
