@@ -1,4 +1,5 @@
 import './hud.css';
+import { formatHop } from './progress';
 
 function el(parent: HTMLElement, tag: string, id: string, cls = ''): HTMLElement {
   const e = document.createElement(tag);
@@ -45,15 +46,20 @@ export class Hud {
   private wpY = -1e6;
   private wpAngle = 1e6;
   private wpText = '';
+  private readonly hop: HTMLElement;
+  private hopText = '';
+  private readonly alt: HTMLElement;
+  private readonly altFill: HTMLElement;
+  private altPct = -1;
 
-  constructor(
-    root: HTMLElement,
-    debug: boolean,
-    onPlayAgain: () => void,
-  ) {
+  constructor(root: HTMLElement, debug: boolean, onPlayAgain: () => void) {
     this.objective = el(root, 'div', 'hud-objective');
     this.objective.innerHTML =
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5 22.5 12 12 22.5 1.5 12Z" fill="#ffc83a" stroke="#2a1a0e" stroke-width="1.5"/><path d="M12 6.5 17.5 12 12 17.5 6.5 12Z" fill="none" stroke="#2a1a0e" stroke-width="1.5"/></svg><span>Reach the Target</span>';
+    this.hop = el(root, 'div', 'hud-hop');
+    this.alt = el(root, 'div', 'hud-alt');
+    this.alt.innerHTML = '<i class="alt-fill"></i><i class="alt-dot"></i>';
+    this.altFill = this.alt.querySelector('.alt-fill') as HTMLElement;
     this.timer = el(root, 'div', 'hud-timer', debug ? 'debug' : '');
     this.timer.innerHTML =
       '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13.5" r="8"/><path d="M12 13.5V9.5M10 2.5h4M12 2.5v3M18.5 6.5 20 5"/></g></svg><span></span>';
@@ -95,6 +101,22 @@ export class Hud {
     if (t === this.timerText) return;
     this.timerText = t;
     this.timerText_.textContent = t;
+  }
+
+  /** "HOP n/N" counter. */
+  setHop(n: number, total: number): void {
+    const t = formatHop(n, total);
+    if (t === this.hopText) return;
+    this.hopText = t;
+    this.hop.textContent = t;
+  }
+
+  /** Altitude strip: 0 = level start (top), 1 = goal (bottom). */
+  setAltitude(frac: number): void {
+    const pct = Math.round(frac * 200) / 2;
+    if (pct === this.altPct) return;
+    this.altPct = pct;
+    this.alt.style.setProperty('--alt', pct + '%');
   }
 
   /**
@@ -211,6 +233,8 @@ export class Hud {
 
   destroy(): void {
     this.objective.remove();
+    this.hop.remove();
+    this.alt.remove();
     this.pause.remove();
     this.timer.remove();
     this.hint.remove();

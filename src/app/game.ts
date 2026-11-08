@@ -18,7 +18,14 @@ import {
   HERO_EV_RELEASED,
   newHeroState,
 } from '../core/hero';
-import { HOOK_FLYING, HOOK_IDLE, NO_ANCHOR, AimResult, aimReason, pickAnchorAssisted } from '../core/hook';
+import {
+  HOOK_FLYING,
+  HOOK_IDLE,
+  NO_ANCHOR,
+  AimResult,
+  aimReason,
+  pickAnchorAssisted,
+} from '../core/hook';
 import { BTN_ACTION, BTN_HOOK, BTN_REEL, BTN_RESTART, newInputFrame } from '../core/input';
 import { aabbContainsPoint } from '../core/math/aabb';
 import { PreviewResult, PREVIEW_NONE, previewShot } from '../core/preview';
@@ -34,6 +41,7 @@ import { updateLevelView } from '../adapters/render/levelView';
 import { createGameScene } from '../adapters/render/scene';
 import { DebugHud } from '../adapters/ui/debugHud';
 import { Hud } from '../adapters/ui/hud';
+import { altitudeFraction } from '../adapters/ui/progress';
 import { aimReasonText } from '../adapters/ui/aimReasonText';
 import { AimPreviewView } from '../adapters/render/aimPreviewView';
 import { WaypointView } from '../adapters/render/waypointView';
@@ -240,7 +248,15 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
     feet.y = cur.py;
     feet.z = cur.pz;
     const speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
-    updateCamera(curRig, feet, camYawToRig(cur.camYaw), cur.camPitch, speed, world.solids, cfg.camera);
+    updateCamera(
+      curRig,
+      feet,
+      camYawToRig(cur.camYaw),
+      cur.camPitch,
+      speed,
+      world.solids,
+      cfg.camera,
+    );
   }
 
   const hudUi = new Hud(root, debug, () => restart());
@@ -568,12 +584,25 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
     );
     const pa = previewId !== NO_ANCHOR && phase === 'play' ? world.anchors[previewId] : undefined;
     if (pa !== undefined && previewOut.outcome !== PREVIEW_NONE) {
-      previewView.update(previewOut.outcome, hx, hy, hz, pa.px, pa.py, pa.pz, previewOut.x, previewOut.y, previewOut.z);
+      previewView.update(
+        previewOut.outcome,
+        hx,
+        hy,
+        hz,
+        pa.px,
+        pa.py,
+        pa.pz,
+        previewOut.x,
+        previewOut.y,
+        previewOut.z,
+      );
     } else {
       previewView.hide();
     }
     updateLevelView(level, performance.now() / 1000, nextRouteIndex);
     hudUi.setTime(runT);
+    hudUi.setHop(nextRouteIndex, world.route.length);
+    hudUi.setAltitude(altitudeFraction(cur.py, world.spawn.y, hasGoal ? goalCy : world.spawn.y));
     if (phase === 'pan') {
       hudUi.setReticle(0);
       hudUi.setAimReason('');
