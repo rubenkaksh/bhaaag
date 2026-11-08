@@ -9,7 +9,7 @@ const world = loadWorldFromJson(
 );
 
 describe('level base (ADR 0007 R7)', () => {
-  it('gives the spawn roof a brick base down to y -20', () => {
+  it('gives the spawn roof a brick base down to y -12', () => {
     const s0 = world.solids[1];
     const g = buildLevelMeshes(world);
     let found = false;
@@ -21,7 +21,7 @@ describe('level base (ADR 0007 R7)', () => {
       const p = m.geometry.getAttribute('position');
       for (let i = 0; i < p.count; i++) {
         if (
-          Math.abs(p.getY(i) + 20) < 0.01 &&
+          Math.abs(p.getY(i) + 12) < 0.01 &&
           p.getX(i) >= s0.min.x - 1e-6 &&
           p.getX(i) <= s0.max.x + 1e-6 &&
           p.getZ(i) >= s0.min.z - 1e-6 &&

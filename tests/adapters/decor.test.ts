@@ -86,6 +86,43 @@ describe('city decor (ADR 0005 D5)', () => {
     expect(town.length).toBe(0);
   });
 
+  it('house dressing respects the colliders: flush base, nothing buried, rails on curbs', () => {
+    const houses = boxes.filter((b) => b.house);
+    const solids = world.solids;
+    const enclosing = new Set(['base', 'cornice', 'parapet']);
+    const buried: string[] = [];
+    for (const b of houses) {
+      for (let i = 0; i < solids.length; i++) {
+        const c = solids[i];
+        const ox = Math.min(b.max[0], c.max.x) - Math.max(b.min[0], c.min.x);
+        const oy = Math.min(b.max[1], c.max.y) - Math.max(b.min[1], c.min.y);
+        const oz = Math.min(b.max[2], c.max.z) - Math.max(b.min[2], c.min.z);
+        if (ox <= 0.2 || oy <= 0.2 || oz <= 0.2) continue;
+        if (enclosing.has(b.kind)) continue; // skins that wrap a wall; checked below
+        buried.push(`${b.kind}@${b.min.map((v) => v.toFixed(1)).join(',')} in solid ${i}`);
+      }
+    }
+    expect(buried).toEqual([]);
+    // the brick base wraps its wall at most 0.12 m proud
+    const walls = solids.filter(
+      (_, i) => world.style[i] === 1 && solids[i].max.y - solids[i].min.y > 10,
+    );
+    for (const b of houses.filter((h) => h.kind === 'base')) {
+      const wall = walls.find(
+        (c) =>
+          b.min[0] <= c.min.x + 1e-6 &&
+          b.max[0] >= c.max.x - 1e-6 &&
+          b.min[2] <= c.min.z + 1e-6 &&
+          b.max[2] >= c.max.z - 1e-6,
+      );
+      expect(wall).toBeDefined();
+      expect(wall!.min.x - b.min[0]).toBeLessThanOrEqual(0.121);
+      expect(b.max[0] - wall!.max.x).toBeLessThanOrEqual(0.121);
+      expect(wall!.min.z - b.min[2]).toBeLessThanOrEqual(0.121);
+      expect(b.max[2] - wall!.max.z).toBeLessThanOrEqual(0.121);
+    }
+  });
+
   it('flags a stair step that breaks the exemption', () => {
     const t = terraceBoxes(world);
     const U = t[0];
@@ -168,20 +205,20 @@ describe('city decor (ADR 0005 D5)', () => {
 
   it('D1: lot constants derive from the terraces', () => {
     const p = lotParams(world);
-    expect(p.step).toBeCloseTo(4.75, 2);
-    expect(p.sliceZ).toBe(13);
+    expect(p.step).toBeCloseTo(3.5, 2);
+    expect(p.sliceZ).toBe(10);
     expect(p.z0).toBe(-13);
-    expect(p.y0).toBe(-20);
-    expect(p.floor).toBe(-86.5);
+    expect(p.y0).toBe(-12);
+    expect(p.floor).toBe(-61);
   });
 
-  it('D2: lotY is a monotone staircase of 4.75 or 0', () => {
+  it('D2: lotY is a monotone staircase of 3.5 or 0', () => {
     const p = lotParams(world);
     let prev = lotY(p, p.zMax - 0.01);
     for (let k = 0; k < 20; k++) {
-      const y = lotY(p, p.zMax - 0.01 - 13 * (k + 1));
+      const y = lotY(p, p.zMax - 0.01 - 10 * (k + 1));
       const dy = prev - y;
-      expect(dy === 0 || Math.abs(dy - 4.75) < 1e-6 || y === p.floor).toBe(true);
+      expect(dy === 0 || Math.abs(dy - 3.5) < 1e-6 || y === p.floor).toBe(true);
       expect(y).toBeLessThanOrEqual(prev);
       prev = y;
     }
@@ -214,7 +251,7 @@ describe('city decor (ADR 0005 D5)', () => {
     }
     for (let f = 0; f < steps.length; f += 10) {
       for (let j = 1; j < 10; j++) {
-        expect(steps[f + j].max[1] - steps[f + j - 1].max[1]).toBeCloseTo(0.475, 3);
+        expect(steps[f + j].max[1] - steps[f + j - 1].max[1]).toBeCloseTo(0.35, 3);
       }
     }
   });

@@ -18,9 +18,9 @@ import { tileTexture } from './tileTexture';
 // Palette: desaturated warm world, three-colour language on top (gold interactive,
 // cream safe, terracotta danger).
 // ADR 0005 D3: terrace paving, whitewash walls, walkable roof, hot terracotta danger.
-const COLOR_STYLE = ['#8e7a66', '#d9c6aa', '#b9a68c', '#c4472a']; // ground, wall, roof, danger
+const COLOR_STYLE = ['#8e7a66', '#d9c6aa', '#b9a68c', '#c4472a', '#a99a88']; // ground, wall, roof, danger, parapet
 const DANGER_STYLE = 3;
-const STYLE_TEXTURE = ['stone_warm', '', 'terracotta_a', '']; // per style; '' keeps the flat colour
+const STYLE_TEXTURE = ['stone_warm', '', 'terracotta_a', '', '']; // per style; '' keeps the flat colour
 const COLOR_BRICK = '#9c5640';
 const COLOR_WOOD = '#4a2c1c';
 const COLOR_PAD = '#f1e9d2';
@@ -120,28 +120,7 @@ function dressingMeshes(world: World): Mesh[] {
   const brick: AABB[] = [];
   const wood: AABB[] = [];
   const P = 0.1;
-  for (let i = 0; i < world.solids.length; i++) {
-    const st = i < world.style.length ? world.style[i] : 1;
-    if (st !== 1) continue;
-    const w = world.solids[i];
-    const gy = groundAt(world, (w.min.x + w.max.x) / 2, (w.min.z + w.max.z) / 2);
-    if (gy < w.min.y - 0.5) brick.push(box(w.min.x, gy, w.min.z, w.max.x, w.min.y, w.max.z));
-    const h = w.max.y - w.min.y;
-    wood.push(box(w.min.x - P, w.max.y - 3, w.min.z - P, w.max.x + P, w.max.y - 2.7, w.max.z + P));
-    const rows = [w.min.y + 1.0, w.min.y + Math.max(1.0, h - 2.3)];
-    for (let r = 0; r < rows.length; r++) {
-      const y = rows[r];
-      for (let j = 0; j < 3; j++) {
-        const u = (j + 0.5) / 3;
-        const x = w.min.x + (w.max.x - w.min.x) * u;
-        const z = w.min.z + (w.max.z - w.min.z) * u;
-        wood.push(box(x - 0.45, y, w.min.z - 0.08, x + 0.45, y + 1.3, w.min.z));
-        wood.push(box(x - 0.45, y, w.max.z, x + 0.45, y + 1.3, w.max.z + 0.08));
-        wood.push(box(w.min.x - 0.08, y, z - 0.45, w.min.x, y + 1.3, z + 0.45));
-        wood.push(box(w.max.x, y, z - 0.45, w.max.x + 0.08, y + 1.3, z + 0.45));
-      }
-    }
-  }
+  // House walls are dressed by decor/placeDecor (dressHouses); only S0 and the goal are dressed here.
   // S0 base (ADR 0007 section 5): a style-2 roof with no style-1 wall directly below gets a
   // flush brick box down to the highest style-0 top under its centre. Visual only.
   for (let i = 0; i < world.solids.length; i++) {

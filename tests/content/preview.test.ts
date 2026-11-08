@@ -75,6 +75,7 @@ describe('previewShot on the real l1', () => {
         const cz = (roof.min.z + roof.max.z) / 2;
         stands.push(['roof centre', hero(cx, roof.max.y, cz)]);
         stands.push(['3 m before edge', hero(cx, roof.max.y, roof.min.z + 3)]);
+        stands.push(['launch strip', hero(cx, roof.max.y, roof.min.z + 1.5)]);
       }
       for (const [where, s] of stands) {
         let ms = 0;
@@ -87,12 +88,28 @@ describe('previewShot on the real l1', () => {
           worstMs = ms;
           worstWhere = `hop ${hop + 1} ${where}`;
         }
-        rows.push(`hop ${hop + 1} ${where.padEnd(15)} ${NAMES[out.outcome].padEnd(7)} ${ms.toFixed(2)} ms`);
+        rows.push(
+          `hop ${hop + 1} ${where.padEnd(15)} ${NAMES[out.outcome].padEnd(7)} ${ms.toFixed(2)} ms`,
+        );
         expect(out.outcome, `hop ${hop + 1} ${where}\n${rows.join('\n')}`).not.toBe(PREVIEW_NONE);
         expect(out.outcome, `hop ${hop + 1} ${where}\n${rows.join('\n')}`).not.toBe(PREVIEW_LETHAL);
       }
     }
     console.log(`\n${rows.join('\n')}\nworst per-call: ${worstMs.toFixed(2)} ms (${worstWhere})\n`);
     expect(worstMs).toBeLessThan(50); // loose: the 2 ms budget is read from the log
+  });
+
+  it('every decoy anchor can be hooked (preview is not NONE) from some roof centre', () => {
+    for (let id = 0; id < w.anchors.length; id++) {
+      if (w.route.indexOf(id) >= 0) continue;
+      let hookable = false;
+      for (let r = 0; r < 7 && !hookable; r++) {
+        const roof = w.solids[2 + 2 * r];
+        const s = hero((roof.min.x + roof.max.x) / 2, roof.max.y, (roof.min.z + roof.max.z) / 2);
+        previewShot(s, id, w, cfg, out);
+        if (out.outcome !== PREVIEW_NONE) hookable = true;
+      }
+      expect(hookable, `decoy anchor ${id}`).toBe(true);
+    }
   });
 });

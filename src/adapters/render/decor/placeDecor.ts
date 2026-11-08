@@ -40,8 +40,8 @@ export const LOT_OUTER_X = 60;
 const LOT_COLOR = '#7d4a3a'; // RETAIN
 const LOT_CAP = 0.15;
 const MARGIN = 0.5; // collider clearance
-const SLOPE = 0.365;
-const SLOPE_BASE = -20;
+const SLOPE = 0.35;
+const SLOPE_BASE = -12;
 
 const BRICK = ['#9c5640', '#8c4a38', '#a8634a'];
 const LIME = ['#d9c6aa', '#cfb99a', '#e0cfb4'];
@@ -935,6 +935,20 @@ function farCity(B: Builder, x0: number, x1: number, z0: number, z1: number, ste
   }
 }
 
+/** The style-1 wall carrying roof r (xz overlap >= 50 % of the roof, top within 0.1 m of its underside). */
+function wallUnder(w: World, r: AABB): AABB | null {
+  const area = (r.max.x - r.min.x) * (r.max.z - r.min.z);
+  for (let j = 0; j < w.solids.length; j++) {
+    if ((j < w.style.length ? w.style[j] : 1) !== 1) continue;
+    const c = w.solids[j];
+    if (Math.abs(c.max.y - r.min.y) > 0.1) continue;
+    const ox = Math.min(r.max.x, c.max.x) - Math.max(r.min.x, c.min.x);
+    const oz = Math.min(r.max.z, c.max.z) - Math.max(r.min.z, c.min.z);
+    if (ox > 0 && oz > 0 && ox * oz >= 0.5 * area) return c;
+  }
+  return null;
+}
+
 /**
  * Detail for the playable houses (the level's style-2 roofs and the walls under them): a stepped
  * brick base down to the hill, two storeys of lattice windows, eave brackets, a balcony rail on the
@@ -948,7 +962,8 @@ function dressHouses(B: Builder): void {
     const st = i < w.style.length ? w.style[i] : 1;
     const r = w.solids[i];
     if (st !== 2 || r.max.x - r.min.x < 12) continue;
-    const body = w.solids[i + 1];
+    const body = wallUnder(w, r);
+    if (body === null) continue;
     const x0 = r.min.x;
     const x1 = r.max.x;
     const z0 = r.min.z;
@@ -967,7 +982,7 @@ function dressHouses(B: Builder): void {
     const yB = body.min.y;
     const hB = yF - yB;
     if (hB > 1) {
-      const offs = [1.6, 0.9, 0.25];
+      const offs = [0.12, 0.08, 0.04]; // flush with the collider: never more than 0.12 m proud
       for (let k = 0; k < 3; k++) {
         const o = offs[k];
         B.box(
@@ -1010,10 +1025,10 @@ function dressHouses(B: Builder): void {
       'cornice',
       'cornice',
       x0 - 0.12,
-      yF + 2.65,
+      yF + 2.45,
       z0 - 0.12,
       x1 + 0.12,
-      yF + 2.9,
+      yF + 2.7,
       z1 + 0.12,
       B.colRaw(WOOD[1]),
     );
@@ -1080,26 +1095,13 @@ function dressHouses(B: Builder): void {
       );
     }
 
-    // roof rim: low parapet on the sides the hero does not launch from, tank, planters, pots
-    B.box(
-      'parapet',
-      'parapet',
-      outerX - (dir > 0 ? 0 : 0.25),
-      top,
-      z0,
-      outerX + (dir > 0 ? 0.25 : 0),
-      top + 0.5,
-      z1,
-      B.colRaw(CONCRETE),
-    );
-    B.box('parapet', 'parapet', x0, top, z1 - 0.25, x1, top + 0.5, z1, B.colRaw(CONCRETE));
     // timber railing on the parapet wall: outer and uphill edges whole, launch edges with a 4 m gap
     const runZ = (xr: number, za: number, zb: number): void => {
       const n = Math.max(1, Math.ceil((zb - za) / RAIL_LEN));
       for (let j = 0; j < n; j++) {
         B.rail(
           xr,
-          top + 0.5,
+          top + 0.4,
           za + ((zb - za) * (j + 0.5)) / n,
           (zb - za) / n,
           true,
@@ -1112,7 +1114,7 @@ function dressHouses(B: Builder): void {
       for (let j = 0; j < n; j++) {
         B.rail(
           xa + ((xb - xa) * (j + 0.5)) / n,
-          top + 0.5,
+          top + 0.4,
           zr,
           (xb - xa) / n,
           false,
@@ -1120,20 +1122,42 @@ function dressHouses(B: Builder): void {
         );
       }
     };
+    // roof rim. The parapets and tank plinths are level colliders (style 4, drawn by levelView);
+    // the dressing rides on them: timber rail on every parapet, a tank on the plinth. The uphill
+    // (arrival) edge gets only a 0.2 m visual kerb: the hero crosses it at speed.
+    B.box('parapet', 'parapet', x0, top, z1 - 0.2, x1, top + 0.2, z1, B.colRaw(CONCRETE));
+    let tankX = outerX + (dir > 0 ? 1.1 : -1.1);
+    let tankZ = czh - 2.4;
+    let tankY = top;
     if (B.room('rail', 40)) {
-      const ox = outerX + (dir > 0 ? 0.12 : -0.12);
-      runZ(ox, z0, z1);
-      runX(z1 - 0.12, x0, x1);
-      runZ(laneX - dir * 0.12, z0, czh - 2);
-      runZ(laneX - dir * 0.12, czh + 2, z1);
-      runX(z0 + 0.12, x0, cxh - 2);
-      runX(z0 + 0.12, cxh + 2, x1);
+      for (let j = 0; j < w.solids.length; j++) {
+        const p = w.solids[j];
+        if ((j < w.style.length ? w.style[j] : 1) !== 4) continue;
+        if (Math.abs(p.min.y - top) > 1e-3) continue;
+        if (
+          p.min.x < x0 - 1e-3 ||
+          p.max.x > x1 + 1e-3 ||
+          p.min.z < z0 - 1e-3 ||
+          p.max.z > z1 + 1e-3
+        )
+          continue;
+        const pw = p.max.x - p.min.x;
+        const pd = p.max.z - p.min.z;
+        if (p.max.y - p.min.y > 0.5) {
+          tankX = (p.min.x + p.max.x) / 2;
+          tankZ = (p.min.z + p.max.z) / 2;
+          tankY = p.max.y;
+        } else if (pd > pw) {
+          runZ((p.min.x + p.max.x) / 2, p.min.z, p.max.z);
+        } else {
+          runX((p.min.z + p.max.z) / 2, p.min.x, p.max.x);
+        }
+      }
     }
-    const rimX = outerX + (dir > 0 ? 0.55 : -0.55);
-    B.tank(rimX, top, czh - 2.4, 0.5, TANK_UNIT_H * 0.8, B.colRaw(B.pick(TANKS)));
-    if (B.room('planter', 1)) B.planter(rimX, top, czh + 1.6);
-    B.pot(rimX, top, z1 - 0.8);
-    B.pot(rimX, top, z0 + 0.8);
+    B.tank(tankX, tankY, tankZ, 0.5, TANK_UNIT_H * 0.8, B.colRaw(B.pick(TANKS)));
+    if (B.room('planter', 1)) B.planter(tankX, top, czh + 1.6);
+    B.pot(tankX, top, z1 - 0.8);
+    B.pot(tankX, top, z0 + 0.8);
   }
   B.onHouse = false;
 }

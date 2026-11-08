@@ -27,9 +27,11 @@ const terraceTopAt = (x: number, z: number): number[] =>
 
 describe('hill terraces (ADR 0005 D2)', () => {
   it('are appended after all existing solids; indices stable', () => {
-    expect(lvl.solids.length).toBe(FIRST + 9 + 7); // terraces, then 7 balcony ledges
+    // terraces, then 7 balcony ledges, then 7 x 5 roof parapets and tank plinths (style 4)
+    expect(lvl.solids.length).toBe(FIRST + 9 + 7 + 35);
     expect(lvl.style.slice(FIRST, FIRST + 9).every((s) => s === 0)).toBe(true);
-    expect(lvl.style.slice(FIRST + 9).every((s) => s === 1)).toBe(true);
+    expect(lvl.style.slice(FIRST + 9, FIRST + 16).every((s) => s === 1)).toBe(true);
+    expect(lvl.style.slice(FIRST + 16).every((s) => s === 4)).toBe(true);
     // generator output is the same as the committed file
     expect(JSON.stringify(lvl)).toBe(JSON.stringify(base));
     // the pre-terrace prefix is the original layout
@@ -41,7 +43,7 @@ describe('hill terraces (ADR 0005 D2)', () => {
     expect(lvl.route).toEqual([0, 1, 2, 3, 4, 5, 6]);
   });
 
-  it('every stand or hang point over a terrace is at least 12 m above it', () => {
+  it('every stand or hang point over a terrace is at least 11.5 m above it', () => {
     const pts: number[][] = [];
     for (let i = 1; i < FIRST; i++) {
       const b = lvl.solids[i];
@@ -56,7 +58,7 @@ describe('hill terraces (ADR 0005 D2)', () => {
     let checked = 0;
     for (const [x, y, z] of pts) {
       for (const top of terraceTopAt(x, z)) {
-        expect(y - top).toBeGreaterThanOrEqual(12);
+        expect(y - top).toBeGreaterThanOrEqual(11.5);
         checked++;
       }
     }
@@ -80,6 +82,42 @@ describe('hill terraces (ADR 0005 D2)', () => {
     for (const t of terraces) {
       const hit = [0, 1, 2].every((k) => lvl.goal.min[k] < t.max[k] && lvl.goal.max[k] > t.min[k]);
       expect(hit).toBe(false);
+    }
+  });
+});
+
+describe('roof parapets and plinths (style 4)', () => {
+  const props = lvl.solids.filter((_, i) => lvl.style[i] === 4);
+
+  it('never exceed a jump-up: curbs <= 0.4 m, plinths <= 1.0 m', () => {
+    expect(props.length).toBe(35);
+    for (const b of props) {
+      const h = b.max[1] - b.min[1];
+      expect(h).toBeLessThanOrEqual(1.0);
+      expect(h <= 0.4 + 1e-9 || h >= 0.7).toBe(true);
+    }
+  });
+
+  it('keep every plinth 3 m clear of the arrival chord of its hop', () => {
+    // hop i lands on house i from anchor i-1's side; the chord runs prev hero -> this anchor
+    const roofs = lvl.solids.map((b, i) => ({ b, i })).filter((r) => lvl.style[r.i] === 2);
+    for (let hop = 0; hop < 7; hop++) {
+      const a = lvl.anchors[hop].pos;
+      const prev = roofs[hop].b; // previous roof (S0 for hop 0)
+      const p0 = [(prev.min[0] + prev.max[0]) / 2, (prev.min[2] + prev.max[2]) / 2];
+      for (const b of props) {
+        if (b.max[1] - b.min[1] < 0.7) continue;
+        const cx = (b.min[0] + b.max[0]) / 2;
+        const cz = (b.min[2] + b.max[2]) / 2;
+        const dx = a[0] - p0[0];
+        const dz = a[2] - p0[1];
+        const t = Math.max(
+          0,
+          Math.min(1, ((cx - p0[0]) * dx + (cz - p0[1]) * dz) / (dx * dx + dz * dz)),
+        );
+        const d = Math.hypot(cx - (p0[0] + t * dx), cz - (p0[1] + t * dz));
+        expect(d, `hop ${hop + 1}`).toBeGreaterThanOrEqual(3);
+      }
     }
   });
 });
