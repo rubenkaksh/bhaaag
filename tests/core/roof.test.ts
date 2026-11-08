@@ -14,7 +14,15 @@ import { BTN_HOOK, InputFrame, quantizeAxis } from '../../src/core/input';
 import { AABB } from '../../src/core/math/aabb';
 import { Vec3 } from '../../src/core/math/vec3';
 import { step } from '../../src/core/sim';
-import { RIDGE_X, RIDGE_Z, World, addAnchor, addRamp, addRoof, addSolid } from '../../src/core/world';
+import {
+  RIDGE_X,
+  RIDGE_Z,
+  World,
+  addAnchor,
+  addRamp,
+  addRoof,
+  addSolid,
+} from '../../src/core/world';
 
 const cfg = DEFAULT_TUNING;
 const RISE = 2.3; // 8 m span, half-span 4: pitch atan(2.3 / 4) = 29.9 deg

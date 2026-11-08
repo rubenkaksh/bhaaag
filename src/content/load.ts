@@ -8,12 +8,11 @@ import { World, addSolid, addRamp, addAnchor, addRoof } from '../core/world';
 
 const vec3Tuple = z.tuple([z.number(), z.number(), z.number()]);
 
-function boxMinLeMax(
-  box: { min: [number, number, number]; max: [number, number, number] },
-): boolean {
-  return (
-    box.min[0] <= box.max[0] && box.min[1] <= box.max[1] && box.min[2] <= box.max[2]
-  );
+function boxMinLeMax(box: {
+  min: [number, number, number];
+  max: [number, number, number];
+}): boolean {
+  return box.min[0] <= box.max[0] && box.min[1] <= box.max[1] && box.min[2] <= box.max[2];
 }
 
 const boxSchema = z
