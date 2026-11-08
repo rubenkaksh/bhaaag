@@ -26,11 +26,8 @@ Drafted by Sonnet from the contact sheets (A, A2, C, D2, G, H) and the reference
 - Windows: carved wooden lattice, taller than wide, set in dark timber frames; some with shutters.
 - Balconies: full width of the facade, timber, 1 m deep, square-baluster rail.
 
-## Kit pieces still missing
-1. Eave bracket (strut) row under the roof edge.
-2. Lattice window variant (texture or a second window piece).
-3. Tank stilts and rail (tank currently a plain cylinder).
-4. Planter box and tree clusters on terraces.
+## Kit pieces (2026-11-08)
+Done: 1 eave brackets (`bracket`), 2 lattice windows with lintel and cap, 3 tank braces and ladder, 4 planter troughs (`planter`). Walls use `wall_plaster` and `wall_brick` maps; roofs `roof_tile` (generated crops, grey-normalised, tinted by instance colour). Decor ceiling raised to 150k. Still missing:
 5. Two-tier pagoda roof piece (exists inside `pagoda()`, not reusable).
 
 ## Sorting (step 3)

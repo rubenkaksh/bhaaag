@@ -145,18 +145,18 @@ describe('city decor (ADR 0005 D5)', () => {
       if (o instanceof InstancedMesh) inst.push(o);
     });
     expect(inst.length).toBeGreaterThanOrEqual(13);
-    expect(inst.length).toBeLessThanOrEqual(16);
-    expect(stats.triangles).toBeLessThanOrEqual(90000);
-    expect(kitTriangleCeiling()).toBeLessThanOrEqual(90000);
+    expect(inst.length).toBeLessThanOrEqual(24);
+    expect(stats.triangles).toBeLessThanOrEqual(150000);
+    expect(kitTriangleCeiling()).toBeLessThanOrEqual(150000);
     let tris = 0;
     for (const m of inst) {
       const g = m.geometry;
       tris += m.count * (g.index ? g.index.count / 3 : g.getAttribute('position').count / 3);
     }
-    expect(tris).toBeLessThanOrEqual(90000);
+    expect(tris).toBeLessThanOrEqual(150000);
     const level: Group = buildLevelMeshes(world);
     expect(leaves(level).length).toBeLessThanOrEqual(60);
-    expect(stats.drawCalls).toBeLessThanOrEqual(16);
+    expect(stats.drawCalls).toBeLessThanOrEqual(24);
   });
 
   it('D1: lot constants derive from the terraces', () => {
@@ -245,16 +245,16 @@ describe('city decor (ADR 0005 D5)', () => {
     });
     for (const id of ['body', 'window', 'shutter', 'parapet', 'tank'] as const)
       expect(inst[id]).toBeLessThanOrEqual(0.9 * PIECE_CAP[id]);
-    expect(PIECE_IDS.length).toBe(13);
+    expect(PIECE_IDS.length).toBe(17);
   });
 
   it('D8: ceiling and instanced mesh count', () => {
-    expect(kitTriangleCeiling()).toBeLessThanOrEqual(90000);
+    expect(kitTriangleCeiling()).toBeLessThanOrEqual(150000);
     let n = 0;
     decor.traverse((o) => {
       if (o instanceof InstancedMesh) n++;
     });
-    expect(n).toBeLessThanOrEqual(16);
+    expect(n).toBeLessThanOrEqual(24);
   });
 
   it('D9: adjacent flags on a string alternate rotY by pi', () => {

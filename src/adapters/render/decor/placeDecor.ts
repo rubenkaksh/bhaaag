@@ -46,7 +46,7 @@ const SLOPE_BASE = -20;
 const BRICK = ['#9c5640', '#8c4a38', '#a8634a'];
 const LIME = ['#d9c6aa', '#cfb99a', '#e0cfb4'];
 const WOOD = ['#4a2c1c', '#5a3622'];
-const TILE = ['#8a4532', '#7c3e2e', '#96503a'];
+const TILE = ['#b5441c', '#a33d1a', '#c04e22'];
 const CONCRETE = '#a99a88';
 const TANKS = ['#26282c', '#2e6b47'];
 const SOLAR = '#2b4a73';
@@ -306,6 +306,22 @@ class Builder {
     this.rec('flag', [cx - ex, cy - 0.125, cz - ez], [cx + ex, cy + 0.125, cz + ez]);
   }
 
+  /** Planter trough with its long side along z (against a parapet). */
+  planter(cx: number, y0: number, cz: number): void {
+    const ok = this.kit.add(
+      'planter',
+      cx,
+      y0,
+      cz,
+      1,
+      1,
+      1,
+      Math.PI / 2,
+      this.tmp.setScalar(this.U(0.9, 1)),
+    );
+    if (ok) this.rec('pot', [cx - 0.3, y0, cz - 0.65], [cx + 0.3, y0 + 0.85, cz + 0.65]);
+  }
+
   pot(cx: number, y0: number, cz: number): void {
     const ok = this.kit.add('pot', cx, y0, cz, 1, 1, 1, 0, this.tmp.setScalar(this.U(0.88, 1)));
     if (ok) this.rec('pot', [cx - 0.24, y0, cz - 0.24], [cx + 0.24, y0 + 0.66, cz + 0.24]);
@@ -316,7 +332,7 @@ class Builder {
    * face 'x-' / 'x+' / 'z+' / 'z-' is the outward wall normal; the unit +z points out of the wall.
    */
   facing(
-    piece: 'window' | 'shutter',
+    piece: 'window' | 'shutter' | 'bracket',
     kind: string,
     face: 'x-' | 'x+' | 'z+' | 'z-',
     cx: number,
@@ -329,10 +345,11 @@ class Builder {
   ): void {
     const isWin = piece === 'window';
     const off = isWin ? 0.5 * depth : 0;
-    const along = isWin ? 0.6 * w : 0.93;
-    const outEnd = isWin ? 1.6 * depth : 0.04;
+    const isBr = piece === 'bracket';
+    const along = isWin ? 0.6 * w : isBr ? 0.06 : 0.93;
+    const outEnd = isWin ? 1.6 * depth : isBr ? 0.5 : 0.04;
     const yLo = isWin ? y0 - 0.08 * h : y0;
-    const yHi = isWin ? y0 + h : y0 + 1.3;
+    const yHi = isWin ? y0 + h : isBr ? y0 + 0.5 : y0 + 1.3;
     let rot = 0;
     let ox = cx;
     let oz = cz;
@@ -403,9 +420,9 @@ function house(
 
   // body: brick base, whitewash above, dark wood cornices at the join and under the roof
   const yBrick = baseY + nb * STOREY;
-  B.box('body', 'body', xa, baseY, z0, xb, yBrick, z1, B.col(B.pick(BRICK)));
+  B.box('wallBrick', 'body', xa, baseY, z0, xb, yBrick, z1, B.col(B.pick(BRICK)));
   if (n > nb) {
-    B.box('body', 'body', xa, yBrick, z0, xb, yTop, z1, B.col(B.pick(LIME)));
+    B.box('wallPlaster', 'body', xa, yBrick, z0, xb, yTop, z1, B.col(B.pick(LIME)));
     B.box(
       'cornice',
       'cornice',
@@ -430,6 +447,27 @@ function house(
     B.colRaw(B.pick(WOOD)),
   );
   B.roof('roof', (xa + xb) / 2, yTop, (z0 + z1) / 2, w + 1, d + 1, ROOF_H, B.col(B.pick(TILE)));
+  // eave struts along the lane face (reference: carved brackets under deep eaves)
+  {
+    const bf = side > 0 ? xa : xb;
+    const bn = Math.max(2, Math.floor(d / 1.8));
+    if (B.room('bracket', bn)) {
+      for (let j = 0; j < bn; j++) {
+        B.facing(
+          'bracket',
+          'bracket',
+          side > 0 ? 'x-' : 'x+',
+          bf,
+          yTop - 0.5,
+          z0 + (d * (j + 0.5)) / bn,
+          1,
+          1,
+          1,
+          B.colRaw(WOOD[1]),
+        );
+      }
+    }
+  }
 
   // windows (0.12 proud): column 0 on every storey, column 1 on the top storey only
   const laneFaceX = side > 0 ? xa : xb;
@@ -503,7 +541,17 @@ function buildCluster(B: Builder, plan: ClusterPlan): void {
     if (hex === prevHex) hex = B.pick(CLUSTER_PALETTE);
     prevHex = hex;
     maxRoof = Math.max(maxRoof, h.roofY);
-    B.box('body', 'body', xa, plan.baseY, h.z0, xb, h.roofY, h.z1, B.col(hex));
+    B.box(
+      BRICK.includes(hex) ? 'wallBrick' : 'wallPlaster',
+      'body',
+      xa,
+      plan.baseY,
+      h.z0,
+      xb,
+      h.roofY,
+      h.z1,
+      B.col(hex),
+    );
     const inner = k > 0 ? hs[k - 1] : null;
     const hidden = h.shareIn === 1 && inner !== null && inner.storeys >= h.storeys;
     const laneX = s > 0 ? xa : xb;
@@ -554,6 +602,11 @@ function buildCluster(B: Builder, plan: ClusterPlan): void {
     }
     if (B.rng() < 0.35) {
       B.tank(s * (h.x1 - 0.8), h.roofY, h.z1 - 1.2, 0.8, TANK_UNIT_H, B.colRaw(B.pick(TANKS)));
+    }
+    if (B.room('planter', 2) && B.fx() < 0.45) {
+      const lx = s > 0 ? xa + 0.7 : xb - 0.7;
+      const pz = h.z0 + d * (0.3 + 0.4 * B.fx());
+      B.planter(lx, h.roofY, pz);
     }
     if (B.rng() < 0.25) {
       const px = s * (h.x0 + 0.8);

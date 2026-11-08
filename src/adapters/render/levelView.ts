@@ -6,17 +6,14 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshLambertMaterial,
-  RepeatWrapping,
-  SRGBColorSpace,
   SphereGeometry,
-  Texture,
-  TextureLoader,
 } from 'three';
 import { AABB } from '../../core/math/aabb';
 import { Vec3 } from '../../core/math/vec3';
 import type { World } from '../../core/world';
 import { buildRopePost } from '../../app/ropePost';
 import { buildDecor, groundAt } from './decor/placeDecor';
+import { tileTexture } from './tileTexture';
 
 // Palette: desaturated warm world, three-colour language on top (gold interactive,
 // cream safe, terracotta danger).
@@ -33,24 +30,6 @@ const ANCHOR_R = 0.35;
 const PAD_LIFT = 0.03;
 
 const TILE_M = 4; // one texture tile covers this many metres
-const TEXTURE_BASE = import.meta.env.BASE_URL + 'assets/textures/';
-const textureCache = new Map<string, Texture>();
-
-// Tileable ground textures (FLUX-generated, tools/makeTextureAtlas.py). Browser only: tests run in
-// node with no DOM, where the flat colour is used.
-function tileTexture(name: string): Texture | null {
-  if (typeof document === 'undefined') return null;
-  let t = textureCache.get(name);
-  if (!t) {
-    t = new TextureLoader().load(TEXTURE_BASE + name + '.jpg');
-    t.wrapS = RepeatWrapping;
-    t.wrapT = RepeatWrapping;
-    t.colorSpace = SRGBColorSpace;
-    t.anisotropy = 4;
-    textureCache.set(name, t);
-  }
-  return t;
-}
 
 // Appends the 12 triangles of an axis-aligned box (24 vertices, so each face keeps its own
 // world-space planar UVs: tiles line up across neighbouring boxes with no stretching).

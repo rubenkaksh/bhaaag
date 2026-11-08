@@ -32,7 +32,7 @@ Known defects this pass fixes:
 | Triangles per frame | ≤ 120k | ≈ 86k actual (decor ≈ 73k, level 4.5k, hero ≤ 1.1k, sky 2.3k, rope+post 0.8k) |
 | Instanced meshes | ≤ 16 | 13 (all decor) |
 | Decor draw calls | ≤ 16 | 16 = 13 instanced + ground + strings + birds |
-| Decor kit ceiling (`kitTriangleCeiling`) | ≤ 90k (was 80k) | 89,720 |
+| Decor kit ceiling (`kitTriangleCeiling`) | ≤ 90k (was 80k; raised to 150k 2026-11-08 for the facade upgrade) | 89,720 |
 | Sky + mountains tris | < 3,000 | ≈ 2,300 |
 | Additive meshes | ≤ 5 | 5 (sun glow, horizon haze, rope halo, 2 waypoint) |
 | Pixel ratio | 1.5 on coarse pointer | unchanged |
