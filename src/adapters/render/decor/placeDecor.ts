@@ -16,6 +16,18 @@ import { buildBirds } from './birds';
 import { CLUSTER_STOREY, planCluster } from './cluster';
 import type { ClusterPlan } from './cluster';
 import {
+  BANK_X1,
+  FILL_X0,
+  FILL_Z_BOTTOM,
+  FILL_Z_TOP,
+  FOREST_X0,
+  FOREST_X1,
+  fillRng,
+  flankY,
+  planFillers,
+} from './flank';
+import type { FillerHouse } from './flank';
+import {
   DecorKit,
   RAIL_LEN,
   RAIL_POST_H,
@@ -37,7 +49,6 @@ const STOREY = 2.8;
 const ROOF_H = 1.2; // pitched roof height
 export const CLUSTER_MIN_X = 35;
 export const LOT_OUTER_X = 60;
-const LOT_COLOR = '#7d4a3a'; // RETAIN
 const LOT_CAP = 0.15;
 const MARGIN = 0.5; // collider clearance
 const SLOPE = 0.22; // far plane follows the plot staircase (4 m down per 18 m, docs/level-layout.md)
@@ -51,10 +62,30 @@ const CONCRETE = '#a99a88';
 const TANKS = ['#26282c', '#2e6b47'];
 const SOLAR = '#2b4a73';
 const SHUTTERS = ['#4a2c1c', '#5a3622', '#7c3e2e', '#2e6b47'];
-const PAVING = '#8e7a66';
+const PAVING = '#8e7a66'; // lane stairs between the filler rows
 const HILL = '#8b7a56'; // hillside earth between the playable houses
-/** The flanking town is gone: houses exist only where the hero can reach them (see dressHouses). */
-const SCENERY_HOUSES = false;
+/**
+ * Entry point for the packed hillside village: cheap instanced filler houses on the smooth flanks
+ * (|x| > 30, see fillFlanks). The hero never stands there, so they carry no colliders.
+ */
+const SCENERY_HOUSES = true;
+/** The old flat-roofed lot town (inner houses, clusters, far city): scattered, kept off. */
+const LEGACY_TOWN = false;
+const PLASTER = [
+  '#d9c6aa',
+  '#cfb99a',
+  '#e0cfb4',
+  '#e6d9c0',
+  '#d8b98e',
+  '#c9a27a',
+  '#e3c9b0',
+  '#b9c4a0',
+  '#d4a89a',
+  '#c8c0a8',
+];
+const TILE_FILL = ['#b5441c', '#a33d1a', '#c04e22', '#9c3a1c'];
+const FOREST_FLOOR = '#4f6a38';
+const FOREST_CANOPY = ['#46683a', '#587a3a', '#3f5e34', '#6a8a3e'];
 const WIN_D = 0.118; // window depth unit: sticks out 1.6 x this = 0.19 m
 const CANOPY = ['#5d7a3a', '#6f8a3f', '#4f6b34'];
 const TRUNK = '#4a3424';
@@ -63,7 +94,6 @@ const FAR_LIME = '#cdb59a';
 const FAR_BRICK = '#a87a62';
 const FAR_TILE = '#a2705a';
 const BRASS = '#9a7a3a';
-const GROUND = '#9a8068';
 const STRING = '#3a2a20';
 
 export interface DecorBox {
@@ -139,14 +169,35 @@ export function lotY(p: LotParams, z: number): number {
   return Math.max(p.floor, p.y0 + p.step * Math.floor((z - p.z0) / p.sliceZ));
 }
 
-/** Ground height under (x, z): terrace top inside |x| <= 30, sloped far plane outside. */
+/** Ground height under (x, z): terrace top inside |x| <= 30, the smooth flank hillside outside. */
 export function groundAt(world: World, x: number, z: number): number {
   const t = terraceBoxes(world);
   for (let i = 0; i < t.length; i++) {
     const b = t[i];
     if (x >= b.min.x && x <= b.max.x && z >= b.min.z && z <= b.max.z) return b.max.y;
   }
-  return farPlaneY(z);
+  return Math.abs(x) > TERRACE_HALF_X ? hillY(world, x, z) : farPlaneY(z);
+}
+
+/** Plot top at the edge (x = 30) for z, or the smooth line where no plot covers z. */
+function edgeY(world: World, z: number): number {
+  const t = terraceBoxes(world);
+  for (let i = 0; i < t.length; i++) {
+    if (z >= t[i].min.z && z <= t[i].max.z) return t[i].max.y;
+  }
+  return flankY(TERRACE_HALF_X, z);
+}
+
+/**
+ * Visible hillside height beyond |x| = 30: an earth bank blends from the plot edge to the smooth
+ * flank by |x| = BANK_X1, so the plot staircase never shows its sides.
+ */
+export function hillY(world: World, x: number, z: number): number {
+  const ax = Math.abs(x);
+  if (ax >= BANK_X1) return flankY(x, z);
+  const u = (ax - TERRACE_HALF_X) / (BANK_X1 - TERRACE_HALF_X);
+  const e = u * u * (3 - 2 * u);
+  return edgeY(world, z) * (1 - e) + flankY(BANK_X1, z) * e;
 }
 
 export function laneZRange(world: World): { zMin: number; zMax: number } {
@@ -692,8 +743,15 @@ interface PagodaInfo {
 
 function pagoda(B: Builder, cx: number, cz: number, s: number, tiers: number): PagodaInfo | null {
   const hb0 = 4.6 * s;
-  let y0 = lotY(B.lots, cz + hb0) + LOT_CAP;
-  let yBase = lotY(B.lots, cz - hb0) + LOT_CAP;
+  // smooth hillside: floor at the highest corner, plinth buried to the lowest
+  const gc = [
+    flankY(cx - hb0, cz - hb0),
+    flankY(cx + hb0, cz - hb0),
+    flankY(cx - hb0, cz + hb0),
+    flankY(cx + hb0, cz + hb0),
+  ];
+  let y0 = Math.max(gc[0], gc[1], gc[2], gc[3]) + 0.1;
+  let yBase = Math.min(gc[0], gc[1], gc[2], gc[3]) - 0.5;
   // a collider slab under the site (the far-plane ground can sit below it) is the real floor
   for (let i = 0; i < B.world.solids.length; i++) {
     const sd = B.world.solids[i];
@@ -1123,45 +1181,363 @@ function dressHouses(B: Builder): void {
   B.onHouse = false;
 }
 
-function groundMesh(): Mesh {
+const GROUND_CELL = 10;
+
+/**
+ * Smooth flank hillside: a vertex-coloured grid over flankY on both sides. The staircase of plots
+ * ends at |x| = 30; from there the surface is continuous (no terraces), earth under the village,
+ * forest green on the upper slope.
+ */
+function groundMesh(world: World): Mesh {
   const pos: number[] = [];
+  const col: number[] = [];
   const idx: number[] = [];
-  const zA = 40;
+  const zA = 120;
   const zB = -420;
-  const sides = [
-    [TERRACE_HALF_X, 200],
-    [-200, -TERRACE_HALF_X],
-  ];
-  for (let s = 0; s < sides.length; s++) {
+  const xMax = 190;
+  const nz = Math.round((zA - zB) / GROUND_CELL);
+  const nx = Math.round((xMax - BANK_X1) / GROUND_CELL);
+  const earth = new Color(HILL);
+  const forest = new Color(FOREST_FLOOR);
+  const c = new Color();
+  for (let s = -1; s <= 1; s += 2) {
     const base = pos.length / 3;
-    const xl = sides[s][0];
-    const xr = sides[s][1];
-    pos.push(
-      xl,
-      farPlaneY(zA),
-      zA,
-      xr,
-      farPlaneY(zA),
-      zA,
-      xr,
-      farPlaneY(zB),
-      zB,
-      xl,
-      farPlaneY(zB),
-      zB,
-    );
-    idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    for (let i = 0; i <= nz; i++) {
+      const z = zA - i * GROUND_CELL;
+      for (let j = 0; j <= nx; j++) {
+        const ax = BANK_X1 + j * GROUND_CELL;
+        pos.push(s * ax, flankY(ax, z), z);
+        const t = Math.min(1, Math.max(0, (ax - (FOREST_X0 - 6)) / 24));
+        const h = (Math.imul((i + 1) * 7919, (j + 3) * 104729 + s) >>> 0) / 4294967296;
+        c.copy(earth)
+          .lerp(forest, t)
+          .multiplyScalar(0.94 + 0.12 * h);
+        col.push(c.r, c.g, c.b);
+      }
+    }
+    for (let i = 0; i < nz; i++) {
+      for (let j = 0; j < nx; j++) {
+        const a = base + i * (nx + 1) + j;
+        const b2 = a + 1;
+        const d = a + nx + 1;
+        const e = d + 1;
+        if (s > 0) idx.push(a, b2, d, b2, e, d);
+        else idx.push(a, d, b2, b2, d, e);
+      }
+    }
+  }
+  // earth bank between the plot edge and the smooth hill: rows per 6 m, doubled at plot boundaries
+  const t = terraceBoxes(world);
+  const rowsZ: number[] = [];
+  for (let z = zA; z > zB; z -= 6) rowsZ.push(z);
+  for (let i = 0; i < t.length; i++) rowsZ.push(t[i].min.z + 0.01, t[i].min.z - 0.01);
+  rowsZ.sort((a, b) => b - a);
+  const bankX = [TERRACE_HALF_X, (TERRACE_HALF_X + BANK_X1) / 2, BANK_X1];
+  for (let s = -1; s <= 1; s += 2) {
+    const base = pos.length / 3;
+    for (let i = 0; i < rowsZ.length; i++) {
+      for (let j = 0; j < 3; j++) {
+        const ax = bankX[j];
+        pos.push(s * ax, hillY(world, ax, rowsZ[i]), rowsZ[i]);
+        c.copy(earth).multiplyScalar(0.94 + 0.1 * ((i + j) % 3) * 0.5);
+        col.push(c.r, c.g, c.b);
+      }
+    }
+    for (let i = 0; i + 1 < rowsZ.length; i++) {
+      for (let j = 0; j < 2; j++) {
+        const a = base + i * 3 + j;
+        const b2 = a + 1;
+        const d = a + 3;
+        const e = d + 1;
+        if (s > 0) idx.push(a, b2, d, b2, e, d);
+        else idx.push(a, d, b2, b2, d, e);
+      }
+    }
   }
   const geo = new BufferGeometry();
   geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new Float32BufferAttribute(col, 3));
   geo.setIndex(idx);
   geo.computeVertexNormals();
   const m = new Mesh(
     geo,
-    new MeshLambertMaterial({ color: new Color(GROUND), flatShading: true, side: DoubleSide }),
+    new MeshLambertMaterial({ vertexColors: true, flatShading: true, side: DoubleSide }),
   );
   m.name = 'decor_ground';
   return m;
+}
+
+/** Shifts the shared scratch colour by a factor (the colour is copied by kit.add straight away). */
+function tint(B: Builder, hex: string, f: number): Color {
+  return B.colRaw(hex).multiplyScalar(f);
+}
+
+/**
+ * The packed village: filler houses on a seeded grid down the flanks (docs/level-layout.md free
+ * area, |x| > 30). Walls reach the lowest ground under the footprint, so rows step with the slope.
+ * Scenery only: footprints never touch a collider, the lane or a pagoda.
+ */
+function fillFlanks(
+  B: Builder,
+  blocked: (s: number, lo: number, hi: number, za: number, zb: number) => boolean,
+): FillerHouse[] {
+  const fr = fillRng(0x51de);
+  const plan = planFillers(0xc417);
+  const placed: FillerHouse[] = [];
+  const roofTop: number[] = [];
+  for (let n = 0; n < plan.length; n++) {
+    const h = plan[n];
+    if (blocked(h.side, h.x0 - 1.5, h.x1 + 1.5, h.z0 - 1.5, h.z1 + 1.5)) continue;
+    const s = h.side;
+    const xa = s > 0 ? h.x0 : -h.x1;
+    const xb = s > 0 ? h.x1 : -h.x0;
+    const w = h.x1 - h.x0;
+    const d = h.z1 - h.z0;
+    const cx = (xa + xb) / 2;
+    const cz = (h.z0 + h.z1) / 2;
+    const gs = [
+      flankY(xa, h.z0),
+      flankY(xb, h.z0),
+      flankY(xa, h.z1),
+      flankY(xb, h.z1),
+      flankY(cx, cz),
+    ];
+    const gMin = Math.min(gs[0], gs[1], gs[2], gs[3]);
+    const gMax = Math.max(gs[0], gs[1], gs[2], gs[3]);
+    const yb = gMin - 0.4;
+    if (yb < -86) continue;
+    const yF = (gMin + gMax) / 2;
+    const yTop = yF + h.storeys * STOREY;
+    const rh = h.roofH;
+    if (!B.room('roof', 1) || !B.room('body', 3)) continue;
+    if (!B.allowed('filler', [xa - 1.2, yb, h.z0 - 1.2], [xb + 1.2, yTop + rh, h.z1 + 1.2]))
+      continue;
+    const jit = 0.94 + 0.12 * fr();
+    const plaster = PLASTER[h.colorIdx % PLASTER.length];
+    const brickHex = BRICK[h.colorIdx % BRICK.length];
+    if (h.brickGround) {
+      const yBr = Math.min(yTop - 1, yF + STOREY);
+      B.box('body', 'filler', xa, yb, h.z0, xb, yBr, h.z1, tint(B, brickHex, jit));
+      B.box('body', 'filler', xa, yBr, h.z0, xb, yTop, h.z1, tint(B, plaster, jit));
+    } else {
+      B.box('body', 'filler', xa, yb, h.z0, xb, yTop, h.z1, tint(B, plaster, jit));
+      // plinth band so the downhill wall reads as masonry
+      B.box(
+        'body',
+        'filler',
+        xa - 0.06,
+        yb,
+        h.z0 - 0.06,
+        xb + 0.06,
+        yF + 0.2,
+        h.z1 + 0.06,
+        tint(B, brickHex, 0.95),
+      );
+    }
+    // pitched red-tile roof: three silhouettes (steep, tall elongated, low wide) over the roof unit
+    const ov = h.roofVariant === 2 ? 1.6 : 1.2;
+    const rw = h.roofVariant === 1 ? w * 0.9 + ov : w + ov;
+    const rd = h.roofVariant === 1 ? d + ov + 0.6 : d + ov;
+    B.roof(
+      'fillerroof',
+      cx,
+      yTop,
+      cz,
+      rw,
+      rd,
+      rh,
+      tint(B, TILE_FILL[h.roofColorIdx % TILE_FILL.length], 0.95 + 0.1 * fr()),
+    );
+    roofTop.push(yTop + rh);
+
+    // window rows: near columns on the lane and downhill faces, far columns on the downhill face
+    const laneFace: 'x-' | 'x+' = s > 0 ? 'x-' : 'x+';
+    const laneX = s > 0 ? xa : xb;
+    const near = h.col < 2;
+    for (let st = near ? 0 : h.storeys - 2; st < h.storeys; st++) {
+      const wy = yF + st * STOREY + 0.8;
+      const kz = Math.min(3, Math.floor(d / 2.6));
+      if (near && wy > gs[4] + 0.2 && B.room('window', kz)) {
+        for (let j = 0; j < kz; j++) {
+          const zc = h.z0 + (d * (j + 0.5)) / kz;
+          B.facing(
+            'window',
+            'window',
+            laneFace,
+            laneX,
+            wy,
+            zc,
+            0.9,
+            1.3,
+            WIN_D,
+            B.colRaw(WOOD[(j + st) % 2]),
+          );
+        }
+      }
+      const kx = Math.min(near ? 3 : 2, Math.floor(w / 2.6));
+      if (wy > gMin + 0.4 && B.room('window', kx)) {
+        for (let j = 0; j < kx; j++) {
+          const xc = xa + (w * (j + 0.5)) / kx;
+          B.facing(
+            'window',
+            'window',
+            'z-',
+            xc,
+            wy,
+            h.z0,
+            0.9,
+            1.3,
+            WIN_D,
+            B.colRaw(WOOD[(j + st) % 2]),
+          );
+        }
+      }
+    }
+
+    // timber balcony on the lane face, top storey
+    if (h.balcony && h.storeys >= 2) {
+      const len = 0.75 * d;
+      const m = Math.ceil(len / RAIL_LEN);
+      if (B.room('rail', m) && B.room('deck', 1) && B.room('pot', 2)) {
+        const out = s > 0 ? -1 : 1;
+        const fy = yF + (h.storeys - 1) * STOREY;
+        const dx0 = out < 0 ? laneX - 1.0 : laneX;
+        B.box(
+          'deck',
+          'deck',
+          dx0,
+          fy,
+          cz - len / 2,
+          dx0 + 1.0,
+          fy + 0.15,
+          cz + len / 2,
+          B.colRaw(WOOD[1]),
+        );
+        const rx = out < 0 ? laneX - 0.95 : laneX + 0.95;
+        for (let j = 0; j < m; j++) {
+          B.rail(
+            rx,
+            fy + 0.15,
+            cz - len / 2 + (len / m) * (j + 0.5),
+            len / m,
+            true,
+            B.colRaw(WOOD[0]),
+          );
+        }
+        B.pot(dx0 + 0.5, fy + 0.15, cz - len / 2 + 0.4);
+        B.pot(dx0 + 0.5, fy + 0.15, cz + len / 2 - 0.4);
+      }
+    }
+
+    // water tank on a plinth against the uphill wall (sits on the slope, not on the pitched roof)
+    if (h.tank && B.room('tank', 1) && B.room('parapet', 1)) {
+      const tx = cx;
+      const tz = h.z1 + 1.1;
+      const gy = flankY(tx, tz);
+      if (B.allowed('tank', [tx - 0.8, gy - 0.5, tz - 0.8], [tx + 0.8, gy + 3.5, tz + 0.8])) {
+        B.box(
+          'parapet',
+          'parapet',
+          tx - 0.75,
+          gy - 0.5,
+          tz - 0.75,
+          tx + 0.75,
+          gy + 0.9,
+          tz + 0.75,
+          B.colRaw(CONCRETE),
+        );
+        B.tank(tx, gy + 0.9, tz, 0.55, TANK_UNIT_H * 0.8, B.colRaw(TANKS[n % 2]));
+      }
+    }
+    placed.push(h);
+  }
+
+  // prayer-flag strings across the alleys between roofs one row apart
+  let strings = 0;
+  for (let i = 0; i + 1 < placed.length && strings < 9; i++) {
+    const a = placed[i];
+    const b = placed[i + 1];
+    if (a.side !== b.side || a.col !== b.col || b.row !== a.row + 1 || a.col > 2) continue;
+    if (fr() > 0.4) continue;
+    const sg = a.side;
+    const ya = roofTop[i] + 0.3;
+    const yb2 = roofTop[i + 1] + 0.3;
+    flagString(
+      B,
+      (sg * (a.x0 + a.x1)) / 2,
+      ya,
+      (a.z0 + a.z1) / 2,
+      (sg * (b.x0 + b.x1)) / 2,
+      yb2,
+      (b.z0 + b.z1) / 2,
+    );
+    strings++;
+  }
+
+  // lane stairs between the first two columns, one short flight every other row
+  const flights = new Set<string>();
+  for (let n = 0; n < placed.length; n++) {
+    const h = placed[n];
+    if (h.col !== 0 || h.row % 2 !== 0) continue;
+    const key = h.side + ':' + h.row;
+    if (flights.has(key) || !B.room('body', 8)) continue;
+    flights.add(key);
+    const sx = h.side * (h.x1 + 1.3);
+    const zs = (h.z0 + h.z1) / 2 + 3;
+    for (let j = 0; j < 8; j++) {
+      const z1s = zs - j * 0.9;
+      const z0s = z1s - 0.9;
+      const ys = flankY(sx, (z0s + z1s) / 2);
+      const xlo = sx - 0.9;
+      const xhi = sx + 0.9;
+      if (B.allowed('stair', [xlo, ys - 0.4, z0s], [xhi, ys + 0.15, z1s])) {
+        B.box('body', 'stair', xlo, ys - 0.4, z0s, xhi, ys + 0.15, z1s, B.col(PAVING));
+      }
+    }
+  }
+  return placed;
+}
+
+/** Dense forest on the upper slope (x beyond the village) and around the village's ends. */
+function fillForest(
+  B: Builder,
+  blocked: (s: number, lo: number, hi: number, za: number, zb: number) => boolean,
+): void {
+  const fr = fillRng(0xf0e57);
+  const pitch = 8;
+  for (let s = -1; s <= 1; s += 2) {
+    for (let z = 82; z > FILL_Z_BOTTOM - 40; z -= pitch) {
+      const inRows = z < FILL_Z_TOP + 4 && z > FILL_Z_BOTTOM - 4;
+      const x0 = inRows ? FOREST_X0 : FILL_X0 - 3;
+      for (let x = x0; x < FOREST_X1; x += pitch) {
+        const rx = fr();
+        const rz = fr();
+        const rr = fr();
+        const rc = fr();
+        const rk = fr();
+        if (rk < 0.14) continue;
+        // the village and the lower ends of the forest stay sparse beyond x = 100 near z < -214
+        const tx = s * (x + (rx - 0.5) * 3.4);
+        const tz = z + (rz - 0.5) * 3.4;
+        const ax = Math.abs(tx);
+        if (blocked(s, ax - 2, ax + 2, tz - 2, tz + 2)) continue;
+        if (!B.room('canopy', 1) || !B.room('trunk', 1)) return;
+        const r = 2.2 + 1.2 * rr + (ax > 110 ? 0.4 : 0);
+        const base = flankY(tx, tz);
+        const cy = base + 2.4 + r * 0.7;
+        if (!B.allowed('tree', [tx - r, base, tz - r], [tx + r, cy + r, tz + r])) continue;
+        B.trunk('tree', tx, base - 0.3, tz, 2.7, B.colRaw(TRUNK));
+        B.canopy(
+          'tree',
+          tx,
+          cy,
+          tz,
+          r,
+          tint(B, FOREST_CANOPY[Math.floor(rc * FOREST_CANOPY.length)], 0.96 + 0.08 * fr()),
+        );
+      }
+    }
+  }
 }
 
 /** Builds the non-collider city. Deterministic for a given (world, seed). */
@@ -1224,46 +1600,12 @@ export function buildDecor(world: World, seed = 1729): Group {
     const sz1 = Math.min(LP.z0 + (k + 1) * LP.sliceZ, LP.zMax);
     const zm = (sz0 + sz1) / 2;
     const ly = lotY(LP, zm);
-    const lyUp = sz1 < LP.zMax ? lotY(LP, sz1 + 1) : ly;
     const depthS = sz1 - sz0;
-    const flightSide = k % 2 === 0 ? 1 : -1;
     for (let s = -1; s <= 1; s += 2) {
-      // 1. lots
-      const top = groundAt(world, s * 23, zm);
-      const inLo = s > 0 ? 16 : -30;
-      const inHi = s > 0 ? 30 : -16;
-      // inner lots only where the hill plot is lower than the lot (the plot is the ground otherwise)
-      if (ly > top + 1e-6) {
-        B.box('body', 'lot', inLo, top, sz0, inHi, ly, sz1 - 0.6, B.colRaw(LOT_COLOR));
-        B.box('body', 'lot', inLo, ly, sz0, inHi, ly + LOT_CAP, sz1, B.colRaw(HILL));
-      }
-      const outLo = s > 0 ? 30 : -LOT_OUTER_X;
-      const outHi = s > 0 ? LOT_OUTER_X : -30;
-      const yb = Math.max(farPlaneY(sz0) - 0.5, -89);
-      B.box('body', 'lot', outLo, yb, sz0, outHi, ly, sz1, B.colRaw(LOT_COLOR));
-      B.box('body', 'lot', outLo, ly, sz0, outHi, ly + LOT_CAP, sz1, B.colRaw(HILL));
-      // 2. steps
-      if (s === flightSide && lyUp - ly > 0.01) {
-        const rise = (lyUp - ly) / 10;
-        const xa = s * 31;
-        const xb = s * 33.4;
-        for (let j = 0; j < 10; j++) {
-          B.box(
-            'body',
-            'stair',
-            Math.min(xa, xb),
-            ly,
-            sz1 - (10 - j) * 0.5,
-            Math.max(xa, xb),
-            ly + (j + 1) * rise,
-            sz1,
-            B.col(PAVING),
-          );
-        }
-      }
-      // 3. inner houses
+      // the old 4 m lot slabs over plot 0 are gone: plots are the ground, the flanks are smooth
+      // 3. inner houses (legacy flat-lot town, off)
       const base = ly + LOT_CAP;
-      if (SCENERY_HOUSES && depthS >= 8) {
+      if (LEGACY_TOWN && depthS >= 8) {
         let x = COL0_X;
         for (let c = 0; c < 2; c++) {
           if (c === 1) x += B.U(0.5, 1.5);
@@ -1283,24 +1625,29 @@ export function buildDecor(world: World, seed = 1729): Group {
       }
       // alley tree
       if (depthS >= 10 && B.rng() < 0.45 && !pagodaBlocks(s, 30, 35, sz0, sz1)) {
-        treeAt(B, s * B.U(32, 33.2), B.U(sz0 + 1.4, sz1 - 6.8), base, 'gaptree', false);
+        const gx = s * B.U(32, 33.2);
+        const gz = B.U(sz0 + 1.4, sz1 - 6.8);
+        treeAt(B, gx, gz, hillY(world, gx, gz), 'gaptree', false);
       }
       // hill trees on the lot (wooded slope between the playable houses)
       for (let t = 0; t < 3; t++) {
         if (!B.room('canopy', 2) || !B.room('trunk', 1)) break;
-        const tx = s * B.U(19, 58);
+        const tx = s * B.U(19, 30);
         const tz = B.U(sz0 + 1.5, sz1 - 1.5);
-        if (!pagodaBlocks(s, Math.abs(tx) - 2, Math.abs(tx) + 2, tz - 2, tz + 2)) {
-          treeAt(B, tx, tz, base, 'tree', B.rng() < 0.35);
-        }
+        treeAt(B, tx, tz, groundAt(world, tx, tz), 'tree', B.rng() < 0.35);
       }
       // 4. cluster
-      if (SCENERY_HOUSES && depthS >= 8 && !pagodaBlocks(s, CLUSTER_MIN_X, 59, sz0, sz1)) {
+      if (LEGACY_TOWN && depthS >= 8 && !pagodaBlocks(s, CLUSTER_MIN_X, 59, sz0, sz1)) {
         const plan = planCluster(B.rng, s, CLUSTER_MIN_X, 59, sz0, sz1, base);
         clusters.push(plan);
         buildCluster(B, plan);
       }
     }
+  }
+
+  if (SCENERY_HOUSES) {
+    fillFlanks(B, pagodaBlocks);
+    fillForest(B, pagodaBlocks);
   }
 
   // prayer-flag strings between neighbouring column-0 roofs, parallel to the lane
@@ -1340,7 +1687,7 @@ export function buildDecor(world: World, seed = 1729): Group {
   }
 
   // far city: pre-fogged coarse grid east/west, plus a valley band beyond the goal
-  if (SCENERY_HOUSES) {
+  if (LEGACY_TOWN) {
     for (let s = -1; s <= 1; s += 2) {
       if (s > 0) farCity(B, 60.6, 160, 40, -260, 12);
       else farCity(B, -160, -60.6, 40, -260, 12);
@@ -1349,7 +1696,7 @@ export function buildDecor(world: World, seed = 1729): Group {
   }
 
   g.add(B.kit.finish());
-  g.add(groundMesh());
+  g.add(groundMesh(world));
   if (B.strings.length > 0) {
     const sg = new BufferGeometry();
     sg.setAttribute('position', new Float32BufferAttribute(B.strings, 3));

@@ -12,6 +12,7 @@ import {
   lotParams,
   lotY,
   groundAt,
+  hillY,
   hitsCollider,
   terraceBoxes,
   violatesLane,
@@ -241,24 +242,88 @@ describe('city decor (ADR 0005 D5)', () => {
     expect(lane.length).toBe(0);
   });
 
-  it('D5: one 10-step flight per rising lot boundary', () => {
-    const steps = boxes.filter(
-      (b) => b.kind === 'stair' && Math.abs(b.min[0] + b.max[0]) / 2 > 30.5,
-    );
-    expect(steps.length % 10).toBe(0);
-    expect(steps.length / 10).toBeGreaterThanOrEqual(7);
+  it('D5: lane stairs between the filler columns come in flights of 8 steps', () => {
+    const steps = boxes.filter((b) => b.kind === 'stair');
+    expect(steps.length).toBeGreaterThanOrEqual(40);
+    expect(steps.length % 8).toBe(0);
     for (const b of steps) {
-      expect(Math.min(Math.abs(b.min[0]), Math.abs(b.max[0]))).toBeGreaterThanOrEqual(30.9);
-      expect(Math.max(Math.abs(b.min[0]), Math.abs(b.max[0]))).toBeLessThanOrEqual(33.5);
+      expect(Math.min(Math.abs(b.min[0]), Math.abs(b.max[0]))).toBeGreaterThanOrEqual(38);
     }
-    for (let f = 0; f < steps.length; f += 10) {
-      for (let j = 1; j < 10; j++) {
-        expect(steps[f + j].max[1] - steps[f + j - 1].max[1]).toBeCloseTo(
-          lotParams(world).step / 10,
-          3,
-        );
+  });
+
+  it('F1: filler houses pack the flanks: 2-3 storeys, pitched roofs, beyond the plots', () => {
+    const fillers = boxes.filter((b) => b.kind === 'filler');
+    const roofs = boxes.filter((b) => b.kind === 'fillerroof');
+    expect(roofs.length).toBeGreaterThanOrEqual(100);
+    expect(fillers.length).toBeGreaterThanOrEqual(roofs.length);
+    for (const b of roofs) {
+      expect(Math.min(Math.abs(b.min[0]), Math.abs(b.max[0]))).toBeGreaterThanOrEqual(37);
+      const w = b.max[0] - b.min[0];
+      const d = b.max[2] - b.min[2];
+      expect(w).toBeGreaterThan(6);
+      expect(w).toBeLessThan(11);
+      expect(d).toBeGreaterThan(6);
+      expect(d).toBeLessThan(11.5);
+      expect(b.max[1] - b.min[1]).toBeGreaterThan(1.2);
+    }
+    // two roof silhouettes at least, both flanks
+    expect(new Set(roofs.map((b) => (b.max[1] - b.min[1]).toFixed(1))).size).toBeGreaterThanOrEqual(
+      3,
+    );
+    expect(roofs.some((b) => b.min[0] > 0)).toBe(true);
+    expect(roofs.some((b) => b.max[0] < 0)).toBe(true);
+  });
+
+  it('F2: fillers never touch the lane, the route corridor or a collider', () => {
+    const fillers = boxes.filter(
+      (b) => !b.house && (b.kind === 'filler' || b.kind === 'fillerroof'),
+    );
+    expect(fillers.length).toBeGreaterThan(200);
+    for (const b of fillers) {
+      expect(violatesLane(world, b)).toBe(false);
+      expect(hitsCollider(world, b)).toBe(false);
+      expect(Math.min(Math.abs(b.min[0]), Math.abs(b.max[0]))).toBeGreaterThan(30);
+    }
+    // no two filler roofs overlap in plan
+    const rf = fillers.filter((b) => b.kind === 'fillerroof');
+    for (let i = 0; i < rf.length; i++) {
+      for (let j = i + 1; j < rf.length; j++) {
+        const ox = Math.min(rf[i].max[0], rf[j].max[0]) - Math.max(rf[i].min[0], rf[j].min[0]);
+        const oz = Math.min(rf[i].max[2], rf[j].max[2]) - Math.max(rf[i].min[2], rf[j].min[2]);
+        expect(ox > 0 && oz > 0).toBe(false);
       }
     }
+  });
+
+  it('F3: the hillside beyond the plots is smooth and steeper than the route', () => {
+    const t = terraceBoxes(world);
+    // bank: meets each plot top at the edge, flank slope far out
+    for (let i = 0; i < t.length; i++) {
+      const zc = (t[i].min.z + t[i].max.z) / 2;
+      expect(hillY(world, 30.01, zc)).toBeCloseTo(t[i].max.y, 1);
+    }
+    const slope = (hillY(world, 100, -60) - hillY(world, 100, -80)) / 20;
+    expect(slope).toBeGreaterThan(0.4);
+    expect(slope).toBeLessThan(0.5);
+    // no terraces: no drop above 0.8 m between points 1 m apart beyond the bank
+    for (let z = 20; z > -200; z -= 1.7) {
+      for (let x = 40; x < 130; x += 7) {
+        expect(Math.abs(hillY(world, x, z) - hillY(world, x, z - 1))).toBeLessThan(0.8);
+        expect(Math.abs(hillY(world, x, z) - hillY(world, x + 1, z))).toBeLessThan(0.8);
+      }
+    }
+  });
+
+  it('F4: instance counts stay under the cap table with the 90 % margin', () => {
+    const counts: Record<string, number> = {};
+    decor.traverse((o) => {
+      if (o instanceof InstancedMesh) counts[o.name.replace('decor_', '')] = o.count;
+    });
+    for (const id of PIECE_IDS) {
+      expect(counts[id] ?? 0, id).toBeLessThanOrEqual(0.9 * PIECE_CAP[id] + 1e-9);
+    }
+    expect(counts.roof).toBeGreaterThan(150);
+    expect(counts.canopy).toBeGreaterThan(250);
   });
 
   it('D6: no flat clusters; the hills are left to trees and pagodas', () => {
