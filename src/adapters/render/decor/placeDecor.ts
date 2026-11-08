@@ -221,6 +221,14 @@ export function hitsCollider(world: World, b: DecorBox): boolean {
     if (b.max[1] <= s.min.y - m || b.min[1] >= s.max.y + m) continue;
     return true;
   }
+  // pitched roofs (ADR 0002) are ramps, not solids: keep decor out of their bounding prism
+  for (let i = 0; i < world.roofs.length; i++) {
+    const r = world.roofs[i].aabb;
+    if (b.max[0] <= r.min.x - m || b.min[0] >= r.max.x + m) continue;
+    if (b.max[2] <= r.min.z - m || b.min[2] >= r.max.z + m) continue;
+    if (b.max[1] <= r.min.y - m || b.min[1] >= r.max.y + m) continue;
+    return true;
+  }
   return false;
 }
 

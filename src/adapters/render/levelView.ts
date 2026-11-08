@@ -10,6 +10,7 @@ import {
 } from 'three';
 import { AABB } from '../../core/math/aabb';
 import { Vec3 } from '../../core/math/vec3';
+import { RIDGE_Z } from '../../core/world';
 import type { World } from '../../core/world';
 import { buildRopePost } from '../../app/ropePost';
 import { buildDecor, groundAt } from './decor/placeDecor';
@@ -26,6 +27,7 @@ const COLOR_WOOD = '#4a2c1c';
 const COLOR_PAD = '#f1e9d2';
 const COLOR_GOAL = '#efe2b4';
 const COLOR_ANCHOR = '#ffc83a';
+const COLOR_TILE_ROOF = '#b5523a'; // pitched tile roofs (ADR 0002): slippery, so danger-leaning red
 const ANCHOR_R = 0.35;
 const PAD_LIFT = 0.03;
 
@@ -75,6 +77,77 @@ function mergedMesh(boxes: AABB[], color: string, emissiveScale = 0, texture = '
   const mat = new MeshLambertMaterial({ color: tint, flatShading: true, map });
   if (emissiveScale > 0) mat.emissive = new Color(color).multiplyScalar(emissiveScale);
   return new Mesh(geo, mat);
+}
+
+// Appends one gable prism (two tiled slopes, two gable triangles) for a pitched roof whose
+// footprint is b (min.y eave, max.y ridge). Exactly the collider: no overhang, so the drawn eave is
+// where the hero slips off. UVs run along the ridge and up the slope in world metres.
+export function pushGable(
+  pos: number[],
+  idx: number[],
+  uv: number[],
+  b: AABB,
+  ridge: number,
+): void {
+  // Work in a local frame: u along the ridge, v across it; map back to (x, z) at the end.
+  const alongZ = ridge === RIDGE_Z;
+  const u0 = alongZ ? b.min.z : b.min.x;
+  const u1 = alongZ ? b.max.z : b.max.x;
+  const v0 = alongZ ? b.min.x : b.min.z;
+  const v1 = alongZ ? b.max.x : b.max.z;
+  const vc = (v0 + v1) / 2;
+  const y0 = b.min.y;
+  const y1 = b.max.y;
+  const slope = Math.hypot(vc - v0, y1 - y0);
+  const put = (u: number, v: number, y: number, tu: number, tv: number): void => {
+    if (alongZ) pos.push(v, y, u);
+    else pos.push(u, y, v);
+    uv.push(tu / TILE_M, tv / TILE_M);
+  };
+  // slopes: eave edge (v0 or v1) up to the ridge (vc)
+  for (let side = 0; side < 2; side++) {
+    const ve = side === 0 ? v0 : v1;
+    const base = pos.length / 3;
+    put(u0, ve, y0, u0, 0);
+    put(u1, ve, y0, u1, 0);
+    put(u1, vc, y1, u1, slope);
+    put(u0, vc, y1, u0, slope);
+    // outward winding: the normal must point away from the ridge line
+    const flip = (side === 0) === alongZ;
+    if (flip) idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    else idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+  }
+  // gable ends
+  for (let end = 0; end < 2; end++) {
+    const ue = end === 0 ? u0 : u1;
+    const base = pos.length / 3;
+    put(ue, v0, y0, v0, y0);
+    put(ue, v1, y0, v1, y0);
+    put(ue, vc, y1, vc, y1);
+    const flip = (end === 0) !== alongZ;
+    if (flip) idx.push(base, base + 1, base + 2);
+    else idx.push(base, base + 2, base + 1);
+  }
+}
+
+function gableMesh(world: World): Mesh {
+  const pos: number[] = [];
+  const idx: number[] = [];
+  const uv: number[] = [];
+  for (let i = 0; i < world.roofs.length; i++) {
+    pushGable(pos, idx, uv, world.roofs[i].aabb, world.roofs[i].ridgeAxis);
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const map = tileTexture('roof_tile');
+  const tint = new Color(COLOR_TILE_ROOF);
+  if (map) tint.lerp(new Color('#ffffff'), 0.55);
+  const mesh = new Mesh(geo, new MeshLambertMaterial({ color: tint, flatShading: true, map }));
+  mesh.name = 'pitchedRoofs';
+  return mesh;
 }
 
 const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): AABB =>
@@ -154,7 +227,7 @@ function dressingMeshes(world: World): Mesh[] {
   return out;
 }
 
-/** Level geometry: one merged mesh per colour (4 styles, pads, goal) plus anchor spheres. */
+/** Level geometry: one merged mesh per colour (styles, pads, goal, pitched roofs) plus anchor spheres. */
 export function buildLevelMeshes(world: World): Group {
   const g = new Group();
   g.name = 'level';
@@ -184,6 +257,7 @@ export function buildLevelMeshes(world: World): Group {
     g.add(mergedMesh(slabs, COLOR_PAD));
   }
   if (world.goal.max.y > world.goal.min.y) g.add(mergedMesh([world.goal], COLOR_GOAL));
+  if (world.roofs.length > 0) g.add(gableMesh(world));
 
   const dress = dressingMeshes(world);
   for (let i = 0; i < dress.length; i++) g.add(dress[i]);
