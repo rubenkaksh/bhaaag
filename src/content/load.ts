@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Vec3 } from '../core/math/vec3';
 import { AABB } from '../core/math/aabb';
-import { World, addSolid, addRamp, addAnchor } from '../core/world';
+import { World, addSolid, addRamp, addAnchor, addRoof } from '../core/world';
 
 // Minimal test-world JSON schema (M1). Kit/layout/level schemas (M4) build
 // on this shape; for now the fixture is a flat list of boxes, ramps, anchors.
@@ -33,6 +33,20 @@ const rampSchema = z
   .refine(boxMinLeMax, { message: 'min must be <= max on every axis' })
   .refine((ramp) => ramp.rise > 0, { message: 'rise must be > 0' });
 
+// Pitched gable roof (ADR 0002): min.y is the eave, max.y the ridge; ridge 0 runs along x,
+// 1 along z (a gable's yaw 0/180 and 90/270 are the same roof).
+const roofSchema = z
+  .object({
+    min: vec3Tuple,
+    max: vec3Tuple,
+    ridge: z.number().int().min(0).max(1),
+  })
+  .refine(boxMinLeMax, { message: 'min must be <= max on every axis' })
+  .refine((roof) => roof.max[1] > roof.min[1], { message: 'ridge must be above the eave' })
+  .refine((roof) => roof.max[0] > roof.min[0] && roof.max[2] > roof.min[2], {
+    message: 'footprint must have area',
+  });
+
 const anchorSchema = z.object({
   pos: vec3Tuple,
 });
@@ -45,6 +59,7 @@ const worldSchema = z.object({
   killPlaneY: z.number(),
   solids: z.array(boxSchema),
   ramps: z.array(rampSchema),
+  roofs: z.array(roofSchema).optional(),
   anchors: z.array(anchorSchema),
   goal: boxSchema.optional(),
   pads: z.array(boxSchema).optional(),
@@ -98,6 +113,12 @@ export function loadWorldFromObject(obj: unknown): World {
     const ramp = data.ramps[i];
     const box = new AABB(toVec3(ramp.min), toVec3(ramp.max));
     addRamp(w, box, ramp.slopeAxis, ramp.rise);
+  }
+  if (data.roofs !== undefined) {
+    for (let i = 0; i < data.roofs.length; i++) {
+      const roof = data.roofs[i];
+      addRoof(w, new AABB(toVec3(roof.min), toVec3(roof.max)), roof.ridge);
+    }
   }
   for (let i = 0; i < data.anchors.length; i++) {
     const anchor = data.anchors[i];
