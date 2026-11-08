@@ -30,6 +30,10 @@ const CURB_T = 0.25;
 const CURB_GAP = 2; // half width of the launch gap at the middle of the lane and downhill edges
 const PLINTH_H = 0.8; // tank plinth: a jump-up under 1 m
 const DECOY_ROOFS = [2, 4, 6];
+// Decoys that wear a pitched tile roof (ADR 0002): landable but slippery, so a hook there ends in a
+// slide off the eave into the house's own plot (a roll; the rescue stair leads back) or a fall.
+const PITCHED_DECOYS = [2, 4];
+const PITCH_RISE = 2; // eave (decoy top) to ridge: 2 m over a 3.5 m half span = 29.7 deg
 const PLOT_HALF_X = 30; // plot (hill step) half width; past it the hill falls away (kill)
 const PLOT_THICK = 4; // > DROP, so a plot's downhill face closes the step to the next plot
 const GOAL_RUN = 22; // the last plot runs this far past house 7's centre (goal area)
@@ -60,6 +64,7 @@ export function generateLevel() {
   const style = [];
   const anchors = [];
   const pads = [];
+  const roofs = [];
   const add = (b, s) => {
     solids.push(b);
     style.push(s);
@@ -84,6 +89,11 @@ export function generateLevel() {
     const { cx, cz, top, plot } = houseAt(i);
     const dx = -Math.sign(cx) * DECOY_X;
     add(box(dx - 3.5, plot, cz - 4.5, dx + 3.5, top - 0.6, cz + 4.5), 3);
+    // ridge along z through the anchor's x: the anchor (top + 1.6) is a finial 0.2 m above it
+    if (PITCHED_DECOYS.includes(i)) {
+      const b = box(dx - 3.5, top - 0.6, cz - 4.5, dx + 3.5, top - 0.6 + PITCH_RISE, cz + 4.5);
+      roofs.push({ ...b, ridge: 1 });
+    }
     anchors.push({ pos: [r(dx), r(top + ANCHOR_H), r(cz + ANCHOR_Z)] });
   }
 
@@ -176,6 +186,7 @@ export function generateLevel() {
     killPlaneY: -95,
     solids,
     ramps: [],
+    roofs,
     anchors,
     // The haystack: 2 m over the last plot (out of jump reach from it), entered by running off
     // roof 7's downhill edge (the leap of faith).
@@ -191,6 +202,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const level = generateLevel();
   writeFileSync(out, JSON.stringify(level, null, 2) + '\n');
   console.log(
-    `wrote ${out}: ${level.solids.length} solids, ${level.anchors.length} anchors, ${level.pads.length} pads`,
+    `wrote ${out}: ${level.solids.length} solids, ${level.roofs.length} roofs, ${level.anchors.length} anchors, ${level.pads.length} pads`,
   );
 }
