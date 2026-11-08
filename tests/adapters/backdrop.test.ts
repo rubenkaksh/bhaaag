@@ -37,6 +37,13 @@ describe('backdrop', () => {
     expect(skirtY(300)).toBeGreaterThan(skirtY(100));
   });
   it('builds a group with three meshes', () => {
-    expect(buildBackdrop('low').children.length).toBe(3);
+    const g = buildBackdrop('low');
+    expect(g.children.length).toBe(3);
+    // Range and ridges draw after the sky dome (renderOrder -2) and before the sun core (-1).
+    for (const c of g.children) {
+      if (c.name === 'skirt') continue;
+      expect(c.renderOrder).toBeGreaterThan(-2);
+      expect(c.renderOrder).toBeLessThan(-1);
+    }
   });
 });

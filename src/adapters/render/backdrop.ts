@@ -261,7 +261,9 @@ export function buildBackdrop(tier: BackdropTier): Group {
     const mesh = new Mesh(geo, mat);
     mesh.name = l.name;
     mesh.frustumCulled = false;
-    mesh.renderOrder = isSkirt ? -1 : -4 + i;
+    // After the sky dome (-2): it writes no depth but is nearer (r 500) than the range (z -640),
+    // so drawing the range first lets the dome paint over it. Before the sun core (-1).
+    mesh.renderOrder = isSkirt ? -1 : -1.8 + 0.2 * i;
     group.add(mesh);
   }
   return group;
