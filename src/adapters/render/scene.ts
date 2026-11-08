@@ -28,7 +28,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import type { World } from '../../core/world';
 import { buildLevelMeshes } from './levelView';
 import { buildMountains, buildSkyView } from './skyView';
-import {
+import { buildBackdrop } from './backdrop';import {
   GRAPHICS_TIER_EVENT,
   loadGraphicsTier,
   parseTier,
@@ -145,6 +145,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   scene.add(mountains);
   const backdropRoot = new Group();
   backdropRoot.name = 'backdropRoot';
+  backdropRoot.add(buildBackdrop(cfg.tier));
   scene.add(backdropRoot);
   const sun = new DirectionalLight(cfg.sun.color, cfg.sun.intensity);
   scene.add(sun);
