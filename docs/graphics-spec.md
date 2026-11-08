@@ -38,3 +38,17 @@ References in docs/reference/: target-lane-roof.png and target-village-backdrop.
 - Backdrop: a Himalayan snow range and layered hills at sunset behind the village.
 - Models: CC0 free assets first; replacing primitives with real models is considered and implemented AFTER the MVP.
 - Rejected for now: first-person camera.
+
+## Implemented tiers (2026-11-08)
+Code: `src/adapters/render/graphicsTier.ts` (pure settings + `renderConfigFor`), applied in `createGameScene` (`scene.ts`); choice in the lobby, which is also the pause menu. Saved in localStorage `zt.graphicsTier`; `?gfx=low|medium|high` overrides for testing. Changing it applies live (materials recompile once).
+
+| Tier | Default for | Lighting | Shadows | Post | Pixel ratio cap |
+|---|---|---|---|---|---|
+| Low | touch / mobile UA / <=4 cores / <=4 GB | today's stock look, unchanged (no tone mapping) | none | none | 2 (1.5 touch) |
+| Medium | other devices | lower warm sun (~19 deg, same azimuth), hemisphere fill, ACES exposure 1.2, sRGB out, haze fog 38-260 m | PCF 1024, radius 3, 26 m half-frustum following the camera focus, texel-snapped | none | 2 (1.5 touch) |
+| High | player choice (target: iPhone 13) | as Medium | PCF 2048, radius 2, 34 m half-frustum | UnrealBloomPass 0.22 / 0.35 / threshold 0.85 via EffectComposer (MSAA 4) + OutputPass | 2 (1.5 touch) |
+
+- three 0.187 removed `PCFSoftShadowMap`; `PCFShadowMap` with `shadow.radius` is the soft path.
+- Shadow flags go only on lit opaque meshes (not MeshBasic, not transparent); `decor_ground` receives but does not cast. Sky, mountains and `backdropRoot` are skipped. Static draw-call counts are unchanged; the shadow pass adds roughly one draw per caster at runtime.
+- `GameScene.backdropRoot` is the empty group for the Himalaya backdrop; `getTier()` gives the tier to build it for.
+- ACES makes the sky dome slightly paler than Low; untuned on a real phone.
