@@ -1,0 +1,31 @@
+{
+  "v": 1,
+  "name": "roof-slide: jump onto a pitched roof, fight uphill, let go, slide off the eave",
+  "level": {
+    "version": 1,
+    "spawn": [8, 2, 0],
+    "spawnYaw": -1.5708,
+    "killPlaneY": -30,
+    "solids": [
+      { "min": [-40, -9, -40], "max": [40, -8, 40] },
+      { "min": [-4, -8, -5], "max": [4, 0, 5] },
+      { "min": [5.5, -8, -5], "max": [10, 1.6, 5] }
+    ],
+    "ramps": [],
+    "roofs": [{ "min": [-4, 0, -5], "max": [4, 2.3, 5], "ridge": 1 }],
+    "anchors": []
+  },
+  "start": { "px": 9.5, "py": 1.6, "pz": 0.3, "camYaw": -1.5708, "grounded": 1 },
+  "frames": [
+    [24, 0, 32767, 0, 0, 0, 0],
+    [1, 0, 32767, 0, 0, 1, 1],
+    [90, 0, 32767, 0, 0, 0, 0],
+    [40, 0, 0, 0, 0, 0, 0],
+    [200, 0, 0, 0, 0, 0, 0]
+  ],
+  "expect": {
+    "ticks": 355,
+    "events": [[82, 12], [294, 12]],
+    "final": { "px": -10.249202, "py": -8, "pz": 0.299936, "vx": 0, "vy": 0, "vz": 0, "mode": 0, "grounded": 1, "dead": 0, "deadCause": 0 }
+  }
+}

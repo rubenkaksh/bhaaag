@@ -79,3 +79,49 @@ describe('loadWorldFromJson (testworld.json fixture)', () => {
     expect(a.anchors).toEqual(b.anchors);
   });
 });
+
+describe('roofs (ADR 0002 pitched tile roofs)', () => {
+  type Obj = { roofs?: { min: number[]; max: number[]; ridge: number }[] };
+  const withRoof = (roof: { min: number[]; max: number[]; ridge: number }): string => {
+    const obj = JSON.parse(fixtureText) as Obj;
+    obj.roofs = [roof];
+    return JSON.stringify(obj);
+  };
+
+  it('is optional: the fixture without roofs loads with none', () => {
+    const w = loadWorldFromJson(fixtureText);
+    expect(w.roofs.length).toBe(0);
+    for (const r of w.ramps) expect(r.slip).toBe(0);
+  });
+
+  it('loads a roof as two slippery ramp halves appended after the plain ramps', () => {
+    const w = loadWorldFromJson(withRoof({ min: [-4, 0, -5], max: [4, 2.3, 5], ridge: 1 }));
+    expect(w.roofs.length).toBe(1);
+    expect(w.ramps.length).toBe(4);
+    expect(w.ramps[0].slip).toBe(0);
+    expect(w.ramps[2].slip).toBe(1);
+    expect(w.ramps[3].slip).toBe(1);
+    expect(w.roofs[0].rampA).toBe(2);
+    expect(w.roofs[0].rampB).toBe(3);
+    expect(w.roofs[0].ridgeAxis).toBe(1);
+    expect(w.roofs[0].aabb.max.y).toBe(2.3);
+  });
+
+  it('rejects a ridge at or below the eave', () => {
+    expect(() =>
+      loadWorldFromJson(withRoof({ min: [-4, 2, -5], max: [4, 2, 5], ridge: 0 })),
+    ).toThrow(/roofs\.0: ridge must be above the eave/);
+  });
+
+  it('rejects a ridge axis other than 0 or 1', () => {
+    expect(() =>
+      loadWorldFromJson(withRoof({ min: [-4, 0, -5], max: [4, 2, 5], ridge: 2 })),
+    ).toThrow(/roofs\.0\.ridge/);
+  });
+
+  it('rejects a footprint with no area', () => {
+    expect(() =>
+      loadWorldFromJson(withRoof({ min: [-4, 0, 5], max: [4, 2, 5], ridge: 0 })),
+    ).toThrow(/footprint must have area/);
+  });
+});
