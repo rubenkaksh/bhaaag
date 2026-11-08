@@ -1093,6 +1093,42 @@ function dressHouses(B: Builder): void {
       B.colRaw(CONCRETE),
     );
     B.box('parapet', 'parapet', x0, top, z1 - 0.25, x1, top + 0.5, z1, B.colRaw(CONCRETE));
+    // timber railing on the parapet wall: outer and uphill edges whole, launch edges with a 4 m gap
+    const runZ = (xr: number, za: number, zb: number): void => {
+      const n = Math.max(1, Math.ceil((zb - za) / RAIL_LEN));
+      for (let j = 0; j < n; j++) {
+        B.rail(
+          xr,
+          top + 0.5,
+          za + ((zb - za) * (j + 0.5)) / n,
+          (zb - za) / n,
+          true,
+          B.colRaw(WOOD[0]),
+        );
+      }
+    };
+    const runX = (zr: number, xa: number, xb: number): void => {
+      const n = Math.max(1, Math.ceil((xb - xa) / RAIL_LEN));
+      for (let j = 0; j < n; j++) {
+        B.rail(
+          xa + ((xb - xa) * (j + 0.5)) / n,
+          top + 0.5,
+          zr,
+          (xb - xa) / n,
+          false,
+          B.colRaw(WOOD[0]),
+        );
+      }
+    };
+    if (B.room('rail', 40)) {
+      const ox = outerX + (dir > 0 ? 0.12 : -0.12);
+      runZ(ox, z0, z1);
+      runX(z1 - 0.12, x0, x1);
+      runZ(laneX - dir * 0.12, z0, czh - 2);
+      runZ(laneX - dir * 0.12, czh + 2, z1);
+      runX(z0 + 0.12, x0, cxh - 2);
+      runX(z0 + 0.12, cxh + 2, x1);
+    }
     const rimX = outerX + (dir > 0 ? 0.55 : -0.55);
     B.tank(rimX, top, czh - 2.4, 0.5, TANK_UNIT_H * 0.8, B.colRaw(B.pick(TANKS)));
     if (B.room('planter', 1)) B.planter(rimX, top, czh + 1.6);
