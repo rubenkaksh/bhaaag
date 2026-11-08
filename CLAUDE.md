@@ -6,7 +6,7 @@ Full spec: `docs/zipline-plan.md` (read the relevant section before each milesto
 
 ## Locked decisions
 
-- Renderer: three.js `WebGLRenderer`, exact version pinned. Stock materials only: no custom shaders, no post-processing.
+- Renderer: three.js `WebGLRenderer`, exact version pinned. Stock materials only: no hand-written custom shaders. Post-processing (three's own passes) and shadows are allowed ONLY in the Medium/High quality tiers; the Low tier stays stock (decided 2026-11-08, see docs/graphics-spec.md).
 - Tooling: TypeScript strict, Vite, pnpm, Vitest. Vanilla DOM for UI, no framework.
 - Core (`src/core`): pure TS, deterministic, fixed 60 Hz, NO imports of three or DOM. `step(state, input, world, cfg)`. No physics engine. Rope is a straight chord (sag is visual only). World is AABBs (house yaw in 0/90/180/270). Landing and wall impact are geometric speed/angle rules.
 - Levels: JSON validated with zod. JSON is the gameplay source of truth; GLB is visuals only (`part_*` nodes, primitive fallback when a part is missing).

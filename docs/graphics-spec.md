@@ -23,8 +23,18 @@ References: Chitlang village photo (dense houses stacked on a forested slope, pi
 
 ## Art direction
 - Low-poly stock materials. Get the silhouette right first: prayer flags, water tanks, stairs, balconies, dense trees, mountains behind.
-- MISSION, not yet done, do not lose: realistic lighting and better graphics (soft shadows, sky and haze, richer materials, ambient detail) toward the painterly look of the first mock. Its own milestone after the layout; needs a re-read of the "stock materials, no post-processing" lock before starting.
+- MISSION (now decided, 2026-11-08 grill round 2): realistic lighting and better graphics (soft shadows, sky and haze, richer materials, ambient detail) toward the painterly look of the first mock. Its own milestone after the layout; needs a re-read of the "stock materials, no post-processing" lock before starting.
 
 ## Open
 - Convert and add `IMG_1554.HEIC` to `docs/reference/`.
 - Which generated sprites go in-world.
+
+## Look decisions, round 2 (2026-11-08)
+References in docs/reference/: target-lane-roof.png and target-village-backdrop.png (AI video frames: sunlit tile roofs, dense village, huge cliff backdrop), himalaya-valley-photo.jpg (valley village with snow range behind).
+- Look: STYLISED but lit like the target (warm directional sun, soft shadows, haze, tone-mapped sunset). Not photoreal.
+- Quality tiers: Low = today's look (the default on slower phones); Medium/High add shadows, tone mapping and bloom. The player picks in a settings choice before play; baseline High target device is iPhone 13.
+- The locks "stock materials only, no custom shaders, no post-processing" are lifted ONLY for the High/Medium tiers and only via three's own built-in passes (no hand-written shaders). Low stays stock.
+- Camera stays third-person.
+- Backdrop: a Himalayan snow range and layered hills at sunset behind the village.
+- Models: CC0 free assets first; replacing primitives with real models is considered and implemented AFTER the MVP.
+- Rejected for now: first-person camera.
