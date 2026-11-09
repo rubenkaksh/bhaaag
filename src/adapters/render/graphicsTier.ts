@@ -197,7 +197,7 @@ export function renderConfigFor(tier: GraphicsTier, coarse: boolean): RenderConf
   // its warmth; nearer haze for depth.
   const shadow: ShadowConfig = {
     mapSize: tier === 'high' ? 2048 : 1024,
-    halfExtent: tier === 'high' ? 34 : 26,
+    halfExtent: tier === 'high' ? 48 : 30,
     distance: 80,
     far: 180,
     bias: -0.0004,

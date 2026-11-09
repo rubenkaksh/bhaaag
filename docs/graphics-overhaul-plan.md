@@ -208,3 +208,7 @@ PRODUCT.md and lean-scope are amended to match. P5 (hero) lock LIFTED by owner 2
 
 Go/no-go: P0 go after fixes 2-4; P1 after 1+6; P2 after 5; P3 after 1+8; P4 after rescope (7);
 P5 go (owner OK); P6 out.
+
+## 10. Progress log
+- P0 done (c74a4fb): ACES on Low, fog 60-320 / 55-320, Medium default + frame governor, bigger glow. Not visually verified.
+- ADR 0008 written. P1 done: dark contact slab under every house, shadow frustum High 48 m / Medium 30 m. Not visually verified; baked-AO strengthening and decals for trees/tanks not done.

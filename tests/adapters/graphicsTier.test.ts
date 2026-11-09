@@ -147,12 +147,12 @@ describe('tier -> render config', () => {
     }
   });
 
-  it('keeps the fog on the sky horizon colour and the shadow frustum tight', () => {
+  it('keeps the fog on the sky horizon colour and the shadow frustum bounded', () => {
     expect(FOG_HAZE).toBe(HAZE);
     for (const t of GRAPHICS_TIERS) {
       const c = renderConfigFor(t, false);
       expect(c.fog.color).toBe(HAZE);
-      if (c.shadow !== null) expect(c.shadow.halfExtent).toBeLessThanOrEqual(40);
+      if (c.shadow !== null) expect(c.shadow.halfExtent).toBeLessThanOrEqual(50);
     }
   });
 });

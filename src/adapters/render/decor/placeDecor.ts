@@ -486,6 +486,19 @@ function house(
   const hiX = xb + (side > 0 ? 0.5 : lipLane);
   if (!B.allowed('house', [loX, baseY, z0 - 0.5], [hiX, yTop + ROOF_H, z1 + 0.5])) return null;
 
+  // contact shadow: a thin dark plinth slab just proud of the footprint so the house sits on the
+  // ground instead of floating (graphics overhaul P1; colRaw keeps the rng stream unchanged)
+  B.box(
+    'cornice',
+    'cornice',
+    xa - 0.4,
+    baseY - 0.02,
+    z0 - 0.4,
+    xb + 0.4,
+    baseY + 0.04,
+    z1 + 0.4,
+    B.colRaw('#3a2a30'),
+  );
   // body: brick base, whitewash above, dark wood cornices at the join and under the roof
   const yBrick = baseY + nb * STOREY;
   B.box('wallBrick', 'body', xa, baseY, z0, xb, yBrick, z1, B.col(B.pick(BRICK)));
