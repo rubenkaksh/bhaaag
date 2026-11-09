@@ -340,7 +340,10 @@ export function buildMountains(seed = MOUNTAIN_SEED): Mesh {
   geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
   geo.setAttribute('color', new Float32BufferAttribute(col, 3));
   geo.setIndex(idx);
-  const mesh = new Mesh(geo, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide, fog: false }));
+  const mesh = new Mesh(
+    geo,
+    new MeshBasicMaterial({ vertexColors: true, side: DoubleSide, fog: false }),
+  );
   mesh.name = 'mountains';
   return mesh;
 }

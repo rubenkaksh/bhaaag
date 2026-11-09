@@ -16,7 +16,7 @@ import {
   Vector2,
   Vector3,
 } from 'three';
-import { tileTexture } from '../tileTexture';
+import { tileNormal, tileTexture } from '../tileTexture';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // ADR 0005 D5 / ADR 0006 section 4 city kit: one InstancedMesh per piece, unit geometry scaled per instance.
@@ -421,6 +421,7 @@ export class DecorKit {
         vertexColors: true,
         flatShading: true,
         map: tileTexture(name),
+        normalMap: tileNormal(name),
       });
     const matBrick = mapped('wall_brick');
     const matPlaster = mapped('wall_plaster');

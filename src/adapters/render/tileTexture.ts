@@ -1,4 +1,10 @@
-import { RepeatWrapping, SRGBColorSpace, Texture, TextureLoader } from 'three';
+import {
+  LinearSRGBColorSpace,
+  RepeatWrapping,
+  SRGBColorSpace,
+  Texture,
+  TextureLoader,
+} from 'three';
 
 const BASE = import.meta.env.BASE_URL + 'assets/textures/';
 const cache = new Map<string, Texture>();
@@ -18,6 +24,22 @@ export function tileTexture(name: string): Texture | null {
     t.colorSpace = SRGBColorSpace;
     t.anisotropy = 4;
     cache.set(name, t);
+  }
+  return t;
+}
+
+/** Matching tangent-space normal map (<name>_n.jpg, tools/makeNormalMaps.py); null in node. */
+export function tileNormal(name: string): Texture | null {
+  if (typeof document === 'undefined') return null;
+  const key = name + '_n';
+  let t = cache.get(key);
+  if (!t) {
+    t = new TextureLoader().load(BASE + key + '.jpg');
+    t.wrapS = RepeatWrapping;
+    t.wrapT = RepeatWrapping;
+    t.colorSpace = LinearSRGBColorSpace;
+    t.anisotropy = 4;
+    cache.set(key, t);
   }
   return t;
 }

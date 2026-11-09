@@ -1,3 +1,4 @@
+/* global process, fetch, setTimeout, console */
 // Screenshot capture for graphics phases: node tools/shots.mjs [phaseLabel]
 // Serves dist/ via vite preview, shoots ?gfx=low|medium|high at 1920x1080 and 640x360 (touch),
 // logs console errors, writes art/shots/auto/<label>-<tier>-<size>.png (gitignored).

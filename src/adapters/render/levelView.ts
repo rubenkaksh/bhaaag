@@ -14,7 +14,7 @@ import { RIDGE_Z } from '../../core/world';
 import type { World } from '../../core/world';
 import { buildRopePost } from '../../app/ropePost';
 import { buildDecor, groundAt } from './decor/placeDecor';
-import { tileTexture } from './tileTexture';
+import { tileNormal, tileTexture } from './tileTexture';
 
 // Palette: desaturated warm world, three-colour language on top (gold interactive,
 // cream safe, terracotta danger).
@@ -74,7 +74,12 @@ function mergedMesh(boxes: AABB[], color: string, emissiveScale = 0, texture = '
   // the map multiplies the colour, so a textured mesh gets a lightened tint of its palette colour
   const tint = new Color(color);
   if (map) tint.lerp(new Color('#ffffff'), 0.55);
-  const mat = new MeshLambertMaterial({ color: tint, flatShading: true, map });
+  const mat = new MeshLambertMaterial({
+    color: tint,
+    flatShading: true,
+    map,
+    normalMap: map ? tileNormal(texture) : null,
+  });
   if (emissiveScale > 0) mat.emissive = new Color(color).multiplyScalar(emissiveScale);
   return new Mesh(geo, mat);
 }
@@ -145,7 +150,15 @@ function gableMesh(world: World): Mesh {
   const map = tileTexture('roof_tile');
   const tint = new Color(COLOR_TILE_ROOF);
   if (map) tint.lerp(new Color('#ffffff'), 0.55);
-  const mesh = new Mesh(geo, new MeshLambertMaterial({ color: tint, flatShading: true, map }));
+  const mesh = new Mesh(
+    geo,
+    new MeshLambertMaterial({
+      color: tint,
+      flatShading: true,
+      map,
+      normalMap: tileNormal('roof_tile'),
+    }),
+  );
   mesh.name = 'pitchedRoofs';
   return mesh;
 }

@@ -28,7 +28,8 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import type { World } from '../../core/world';
 import { buildLevelMeshes } from './levelView';
 import { buildMountains, buildSkyView } from './skyView';
-import { buildBackdrop } from './backdrop';import {
+import { buildBackdrop } from './backdrop';
+import {
   GRAPHICS_TIER_EVENT,
   isTierAuto,
   loadGraphicsTier,
