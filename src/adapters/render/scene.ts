@@ -30,6 +30,7 @@ import { buildLevelMeshes } from './levelView';
 import { buildMountains, buildSkyView } from './skyView';
 import { buildBackdrop } from './backdrop';import {
   GRAPHICS_TIER_EVENT,
+  isTierAuto,
   loadGraphicsTier,
   parseTier,
   pixelRatioFor,
@@ -311,7 +312,29 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     sun.position.copy(focus).addScaledVector(sunDir, distance);
   }
 
+  // Frame-time governor (D-A): an auto-chosen tier above Low falls back to Low once if the
+  // first seconds run slower than ~20 fps-equivalent budget. Explicit choices are never touched.
+  let govActive = isTierAuto() && cfg.tier !== 'low';
+  let govLast = 0;
+  let govFrames = 0;
+  let govSum = 0;
+  function govern(): void {
+    const now = performance.now();
+    const dt = govLast === 0 ? 0 : now - govLast;
+    govLast = now;
+    if (dt === 0 || dt > 250) return; // first frame, or a tab stall
+    govFrames++;
+    if (govFrames <= 30) return; // warm-up (shader compile, first uploads)
+    govSum += dt;
+    if (govFrames < 150) return;
+    govActive = false;
+    if (govSum / (govFrames - 30) > 22) {
+      window.dispatchEvent(new CustomEvent(GRAPHICS_TIER_EVENT, { detail: 'low' }));
+    }
+  }
+
   function render(): void {
+    if (govActive) govern();
     // The sky dome follows the camera so the long descent never leaves it.
     sky.position.copy(camera.position);
     // Hero, rope and level are added after construction: set their shadow flags once.

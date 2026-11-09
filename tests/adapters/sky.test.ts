@@ -65,15 +65,15 @@ describe('sun placement (ADR 0005 D4, raised by ADR 0006 L-SKY)', () => {
     }
   });
 
-  it('gives the glow centre alpha 0.5, rim alpha 0 and a radius of 120', () => {
+  it('gives the glow centre alpha 0.65, rim alpha 0 and a radius of 170', () => {
     const glow = buildSkyView().getObjectByName('sunGlow') as Mesh;
     const a = glow.geometry.attributes.color;
     expect(a.itemSize).toBe(4);
-    expect(a.getW(0)).toBeCloseTo(0.5, 5);
+    expect(a.getW(0)).toBeCloseTo(0.65, 5);
     expect(a.getW(a.count - 1)).toBe(0);
     // CircleGeometry vertex 1 sits on the rim.
     const p = glow.geometry.attributes.position;
-    expect(Math.hypot(p.getX(1), p.getY(1))).toBeCloseTo(120, 5);
+    expect(Math.hypot(p.getX(1), p.getY(1))).toBeCloseTo(170, 5);
   });
 
   it('draws the dome before the core and both before the mountains (ADR 0006)', () => {

@@ -30,11 +30,13 @@ export type DeviceHints = {
   memoryGb: number;
 };
 
-const MOBILE_UA = /Android|iPhone|iPad|iPod|Mobile/i;
-
-/** Likely-slow devices (touch, mobile UA, <= 4 cores or <= 4 GB) start on Low; the rest on Medium. */
+/**
+ * Devices with a hard "weak" signal (<= 4 cores or <= 4 GB) start on Low; everything else
+ * starts on Medium, phones included (graphics overhaul D-A, 2026-11-09). iOS Safari hides
+ * memory and under-reports cores, so UA sniffing is not used: scene.ts runs a frame-time
+ * governor that drops an auto-chosen tier to Low if the first seconds are slow.
+ */
 export function defaultTierFor(h: DeviceHints): GraphicsTier {
-  if (h.coarsePointer || MOBILE_UA.test(h.userAgent)) return 'low';
   if (h.cores > 0 && h.cores <= 4) return 'low';
   if (h.memoryGb > 0 && h.memoryGb <= 4) return 'low';
   return 'medium';
@@ -100,6 +102,20 @@ export function loadGraphicsTier(
   return defaultTierFor(hints);
 }
 
+/** True when the tier came from the device default (no `?gfx=` and no saved choice). */
+export function isTierAuto(
+  store: TierStore | null = safeStorage(),
+  override: GraphicsTier | null = urlOverride(),
+): boolean {
+  if (override !== null) return false;
+  if (store === null) return true;
+  try {
+    return parseTier(store.getItem(GRAPHICS_TIER_KEY)) === null;
+  } catch {
+    return true;
+  }
+}
+
 /** Saves the choice (best effort) and tells a running scene to apply it. */
 export function saveGraphicsTier(
   tier: GraphicsTier,
@@ -161,15 +177,16 @@ export function pixelRatioFor(devicePixelRatio: number, coarse: boolean): number
 export function renderConfigFor(tier: GraphicsTier, coarse: boolean): RenderConfig {
   const maxPixelRatio = coarse ? 1.5 : 2;
   if (tier === 'low') {
-    // Today's look, value for value (ADR 0005 D4): no shadows, no tone mapping, no post.
+    // Graphics overhaul P0: Low keeps no shadows and no post, but gets ACES (a material define,
+    // no extra pass) so the base grade is not washed out. Fog starts further out.
     return {
       tier,
       maxPixelRatio,
-      toneMapping: 'none',
-      exposure: 1,
+      toneMapping: 'aces',
+      exposure: 1.1,
       sun: { color: '#ffb469', intensity: 3.0, dir: [70, 38, -15] },
       hemi: { sky: '#ffc99c', ground: '#5b4656', intensity: 1.0 },
-      fog: { color: FOG_HAZE, near: 45, far: 260 },
+      fog: { color: FOG_HAZE, near: 60, far: 320 },
       shadow: null,
       bloom: null,
       composerSamples: 0,
@@ -194,7 +211,7 @@ export function renderConfigFor(tier: GraphicsTier, coarse: boolean): RenderConf
     exposure: 1.2,
     sun: { color: '#ffa65c', intensity: 4.2, dir: [70, 25, -15] },
     hemi: { sky: '#ffc99c', ground: '#5e4a5c', intensity: 0.85 },
-    fog: { color: FOG_HAZE, near: 38, far: 260 },
+    fog: { color: FOG_HAZE, near: 55, far: 320 },
     shadow,
     bloom: tier === 'high' ? { strength: 0.22, radius: 0.35, threshold: 0.85 } : null,
     composerSamples: tier === 'high' ? 4 : 0,

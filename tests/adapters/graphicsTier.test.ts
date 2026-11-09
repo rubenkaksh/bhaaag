@@ -54,14 +54,14 @@ describe('graphics tier settings', () => {
     expect(defaultTierFor({ ...DESKTOP, cores: 0, memoryGb: 0 })).toBe('medium');
   });
 
-  it('defaults to low on touch, mobile UA, few cores or little memory', () => {
-    expect(defaultTierFor({ ...DESKTOP, coarsePointer: true })).toBe('low');
+  it('starts phones on medium (the governor demotes slow ones) but weak specs on low', () => {
+    expect(defaultTierFor({ ...DESKTOP, coarsePointer: true })).toBe('medium');
     expect(
       defaultTierFor({
         ...DESKTOP,
         userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148',
       }),
-    ).toBe('low');
+    ).toBe('medium');
     expect(defaultTierFor({ ...DESKTOP, cores: 4 })).toBe('low');
     expect(defaultTierFor({ ...DESKTOP, memoryGb: 4 })).toBe('low');
   });
@@ -71,7 +71,7 @@ describe('graphics tier settings', () => {
     expect(loadGraphicsTier(memStore({ [GRAPHICS_TIER_KEY]: 'junk' }), DESKTOP, null)).toBe(
       'medium',
     );
-    expect(loadGraphicsTier(memStore(), { ...DESKTOP, coarsePointer: true }, null)).toBe('low');
+    expect(loadGraphicsTier(memStore(), { ...DESKTOP, cores: 4 }, null)).toBe('low');
   });
 
   it('the URL override wins over the saved tier', () => {
@@ -106,15 +106,15 @@ describe('graphics tier settings', () => {
 });
 
 describe('tier -> render config', () => {
-  it('low is the pre-tier stock look: no shadows, no tone mapping, no post', () => {
+  it('low has no shadows and no post, but gets ACES and a lifted fog', () => {
     const c = renderConfigFor('low', false);
-    expect(c.toneMapping).toBe('none');
-    expect(c.exposure).toBe(1);
+    expect(c.toneMapping).toBe('aces');
+    expect(c.exposure).toBe(1.1);
     expect(c.shadow).toBeNull();
     expect(c.bloom).toBeNull();
     expect(c.sun).toEqual({ color: '#ffb469', intensity: 3.0, dir: [70, 38, -15] });
     expect(c.hemi).toEqual({ sky: '#ffc99c', ground: '#5b4656', intensity: 1.0 });
-    expect(c.fog).toEqual({ color: HAZE, near: 45, far: 260 });
+    expect(c.fog).toEqual({ color: HAZE, near: 60, far: 320 });
   });
 
   it('medium adds ACES, a lower warm sun and 1024 soft shadows, no bloom', () => {

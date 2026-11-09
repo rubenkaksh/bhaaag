@@ -100,12 +100,12 @@ function buildDome(): Mesh {
 /** Sun disc and additive glow, both at SUN_DIST along SUN_DIR, facing the group origin. */
 function buildSun(): Group {
   const g = new Group();
-  const glowGeo = new CircleGeometry(120, 32);
+  const glowGeo = new CircleGeometry(170, 32);
   const glowCol = new Color('#ffc070');
   const gc: number[] = [];
   // CircleGeometry index 0 is the centre: alpha 0.5 there, 0 on the rim.
   for (let i = 0; i < glowGeo.attributes.position.count; i++) {
-    gc.push(glowCol.r, glowCol.g, glowCol.b, i === 0 ? 0.5 : 0);
+    gc.push(glowCol.r, glowCol.g, glowCol.b, i === 0 ? 0.65 : 0);
   }
   glowGeo.setAttribute('color', new Float32BufferAttribute(gc, 4));
   const glow = new Mesh(
