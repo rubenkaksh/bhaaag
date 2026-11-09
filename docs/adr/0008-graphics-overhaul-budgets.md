@@ -15,3 +15,5 @@ Rebaselines the binding tables of ADR 0006 s1 and ADR 0007 s1 for `docs/graphics
 
 Rules unchanged: stock materials, no hand-written shaders, no GLB, <= 5 additive meshes (cloud and
 god-ray cards use normal alpha blending), 60 fps target on iPhone 12-class.
+
+Hero mesh cap raised 25 -> 28 (P5: second scarf segment, top-knot, brow fringe; tri cap 1,500 unchanged). Within the 90-call frame budget (Low frame ~65 calls).

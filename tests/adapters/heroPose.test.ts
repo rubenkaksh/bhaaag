@@ -213,7 +213,7 @@ describe('heroRig', () => {
       'hair',
       'leather',
     ]);
-    expect(meshes).toBeLessThanOrEqual(25);
+    expect(meshes).toBeLessThanOrEqual(28);
     const colours = Object.keys(HERO_COLORS).length;
     expect(colours).toBe(6);
     expect(mats.size).toBe(colours);
