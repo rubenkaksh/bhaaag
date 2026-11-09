@@ -212,3 +212,4 @@ P5 go (owner OK); P6 out.
 ## 10. Progress log
 - P0 done (c74a4fb): ACES on Low, fog 60-320 / 55-320, Medium default + frame governor, bigger glow. Not visually verified.
 - ADR 0008 written. P1 done: dark contact slab under every house, shadow frustum High 48 m / Medium 30 m. Not visually verified; baked-AO strengthening and decals for trees/tanks not done.
+- Verification tool added: `pnpm build && node tools/shots.mjs <label>` writes 6 shots to `art/shots/auto/` (gitignored; Playwright 1.49.1 devDep, SwiftShader so fps is meaningless). P0+P1 verdict (high, 1080): mid-ground keeps red/orange chroma versus the old baseline, haze is lighter, no console errors. Contact slabs and larger shadows are subtle at spawn.
