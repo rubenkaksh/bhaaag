@@ -84,7 +84,7 @@ const PLASTER = [
   '#d4a89a',
   '#c8c0a8',
 ];
-const TILE_FILL = ['#b5441c', '#a33d1a', '#c04e22', '#9c3a1c'];
+const TILE_FILL = ['#b5441c', '#a33d1a', '#c04e22', '#9c3a1c', '#bf5a2c', '#8e3418', '#c9622e'];
 const FOREST_FLOOR = '#4f6a38';
 const FOREST_CANOPY = ['#46683a', '#587a3a', '#3f5e34', '#6a8a3e'];
 const WIN_D = 0.118; // window depth unit: sticks out 1.6 x this = 0.19 m
@@ -1352,7 +1352,7 @@ function fillFlanks(
     if (!B.room('roof', 1) || !B.room('body', 3)) continue;
     if (!B.allowed('filler', [xa - 1.2, yb, h.z0 - 1.2], [xb + 1.2, yTop + rh, h.z1 + 1.2]))
       continue;
-    const jit = 0.94 + 0.12 * fr();
+    const jit = 0.88 + 0.24 * fr();
     const plaster = PLASTER[h.colorIdx % PLASTER.length];
     const brickHex = BRICK[h.colorIdx % BRICK.length];
     if (h.brickGround) {
@@ -1386,7 +1386,7 @@ function fillFlanks(
       rw,
       rd,
       rh,
-      tint(B, TILE_FILL[h.roofColorIdx % TILE_FILL.length], 0.95 + 0.1 * fr()),
+      tint(B, TILE_FILL[h.roofColorIdx % TILE_FILL.length], 0.88 + 0.24 * fr()),
     );
     roofTop.push(yTop + rh);
 
