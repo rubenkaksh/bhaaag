@@ -135,6 +135,80 @@ function buildSun(): Group {
   return g;
 }
 
+/**
+ * Graphics overhaul P4: five soft god-ray wedges fanning up from the sun, one merged mesh with
+ * normal (not additive) blending so the additive-mesh cap stays untouched. Alpha is highest at
+ * the sun end and fades to 0 at the tip and on both edges.
+ */
+function buildRays(): Mesh {
+  const pos: number[] = [];
+  const col: number[] = [];
+  const idx: number[] = [];
+  const c = new Color('#ffcf8a');
+  const fan = [-0.5, -0.25, 0.0, 0.3, 0.55];
+  for (let i = 0; i < fan.length; i++) {
+    const a = fan[i];
+    const len = 260 + 40 * (i % 2);
+    const half = 14 + 4 * (i % 3);
+    const b = pos.length / 3;
+    // local space: +Y up the ray, +X across; origin at the sun
+    pos.push(-half * 0.3, 0, 0, half * 0.3, 0, 0, -half, len, 0, half, len, 0);
+    col.push(c.r, c.g, c.b, 0.0, c.r, c.g, c.b, 0.0, c.r, c.g, c.b, 0.0, c.r, c.g, c.b, 0.0);
+    // centre fade: add a mid vertex row instead of a texture
+    const m = pos.length / 3;
+    pos.push(0, 0, 0, 0, len * 0.55, 0);
+    col.push(c.r, c.g, c.b, 0.16, c.r, c.g, c.b, 0.07);
+    idx.push(
+      b,
+      b + 1,
+      m,
+      b,
+      m,
+      b + 2,
+      b + 1,
+      b + 3,
+      m + 1,
+      b + 2,
+      b + 3,
+      m + 1,
+      m,
+      m + 1,
+      b,
+      m,
+      m + 1,
+      b + 1,
+    );
+    // rotate this wedge about the sun-facing axis by `a` radians
+    const cs = Math.cos(a);
+    const sn = Math.sin(a);
+    for (let v = b; v < pos.length / 3; v++) {
+      const x = pos[v * 3];
+      const y = pos[v * 3 + 1];
+      pos[v * 3] = x * cs - y * sn;
+      pos[v * 3 + 1] = x * sn + y * cs;
+    }
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new Float32BufferAttribute(col, 4));
+  geo.setIndex(idx);
+  const mesh = new Mesh(
+    geo,
+    new MeshBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+      side: DoubleSide,
+    }),
+  );
+  mesh.name = 'godRays';
+  mesh.position.copy(SUN_DIR).multiplyScalar(SUN_DIST - 4);
+  mesh.quaternion.setFromUnitVectors(FORWARD, SUN_DIR.clone().negate());
+  mesh.renderOrder = 1;
+  return mesh;
+}
+
 /** Seven flat cloud cards, merged into one mesh, placed on a ring around the sky group. */
 function buildClouds(rand: () => number): Mesh {
   const parts: BufferGeometry[] = [];
@@ -226,6 +300,7 @@ export function buildSkyView(): Group {
   g.add(buildDome());
   g.add(buildSun());
   g.add(buildHaze());
+  g.add(buildRays());
   g.add(buildClouds(mulberry32(SKY_SEED)));
   return g;
 }
