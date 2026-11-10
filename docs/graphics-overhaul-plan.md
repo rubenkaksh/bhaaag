@@ -218,3 +218,9 @@ P5 go (owner OK); P6 out.
 - P4 partial: five god-ray wedges (normal blending, 1 draw call) in skyView. Backdrop, birds, sway already existed. Not seen in shots (sun is out of frame at spawn). NOT done: new cloud layers, dust motes, tier gating of rays.
 - P5 partial: scarf second segment (secondary swing), top-knot and fringe on the hair; hero mesh cap 25 -> 28 (ADR 0008). NOT done: tapered limbs, pose blend weights, rope sag/pulse polish.
 - Measured (SwiftShader, spawn): Low 65 calls / 140k tris; Medium 115 calls / 273k tris including the shadow pass.
+
+### Log 2026-11-10 (second pass, Opus-only review; Qwen key expired)
+- A: spec Low amendment, `tests/adapters/palette.test.ts` (source-hex stand-in for the pixel check), darker TILE/TILE_FILL roofs. Contact slabs dropped (150k tri cap, plinth collider overlap).
+- B: High-tier `MeshStandardMaterial` swap for decor walls/roofs; ADR 0008 accepts instanced wall UV stretch and no new tiles.
+- C (P4 only): `cloudsHigh` layer, dust motes, Medium/High gating for clouds/rays/dust. No birds exist in code.
+- NOT done: P1 stronger vertex AO; P3 new silhouettes/clutter (decor tri cap is full); P5 tapered limbs, blend weights, rope polish; mid-rope/death shots; real-device fps; flaky `tests/content/preview.test.ts`.
