@@ -190,6 +190,9 @@ export class TouchInput {
    * sim when the game resumes (m1-review F4).
    */
   reset(): void {
+    // Release captures first so a finger still down (mid-gesture flip) stops feeding the old
+    // zone; later pointermove/up events for those ids are ignored (ids are -1 below).
+    for (const id of this.roles.keys()) this.releaseCapture(id);
     this.roles.clear();
     this.stickId = -1;
     this.lookId = -1;
@@ -276,6 +279,16 @@ export class TouchInput {
     } catch {
       // Capture is optional; the element-level listeners still cover us
       // while the finger stays over the zone.
+    }
+  }
+
+  private releaseCapture(id: number): void {
+    for (const el of [this.stickZone, this.lookZone, this.btnAction, this.btnJump]) {
+      try {
+        if (el !== null && el.hasPointerCapture(id)) el.releasePointerCapture(id);
+      } catch {
+        // The pointer may already be gone; nothing to release.
+      }
     }
   }
 

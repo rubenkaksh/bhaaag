@@ -3,6 +3,7 @@ import {
   formatDistance,
   newWaypointScreen,
   projectWaypoint,
+  waypointTopPx,
 } from '../../src/adapters/ui/waypointMath';
 
 const T = Math.tan((60 * Math.PI) / 360);
@@ -48,5 +49,27 @@ describe('waypoint projection', () => {
   it('rounds distance to whole metres', () => {
     expect(formatDistance(119.6)).toBe('120 m');
     expect(formatDistance(3.4)).toBe('3 m');
+  });
+});
+
+describe('waypoint shiftY and waypointTopPx', () => {
+  it('shiftY moves the projected y by that many pixels', () => {
+    const a = projectWaypoint(newWaypointScreen(), 0, 0, -10, T, 0.1, W, H, 60, 28, 0);
+    const b = projectWaypoint(newWaypointScreen(), 0, 0, -10, T, 0.1, W, H, 60, 28, 70);
+    expect(b.y - a.y).toBeCloseTo(70);
+    expect(b.edge).toBe(false);
+  });
+  it('a large shift pushes the marker to the bottom edge clamp', () => {
+    const s = projectWaypoint(newWaypointScreen(), 0, 0, -10, T, 0.1, W, H, 60, 28, 400);
+    expect(s.edge).toBe(true);
+    expect(s.y).toBeLessThanOrEqual(H - 28 + 1e-9);
+  });
+  it('landscape top reproduces the original formula', () => {
+    expect(waypointTopPx(844, 390, false)).toBeCloseTo(Math.max(10, 390 * 0.028) + Math.max(32, 390 * 0.054) + 8);
+  });
+  it('portrait top clears the pill and the two HUD rows', () => {
+    const t = waypointTopPx(390, 844, true);
+    expect(t).toBeGreaterThan(80);
+    expect(t).toBeLessThan(844 * 0.2);
   });
 });

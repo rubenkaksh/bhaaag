@@ -178,3 +178,49 @@
     justify-content: center;
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * Portrait phones (three-track plan B2). The look zone is the whole screen (z 9), the stick zone
+ * is the bottom-left quarter-plus (z 10) and the buttons sit on the right-thumb arc (z 20), so the
+ * topmost element wins each touch and nothing overlaps the action. Safe-area insets everywhere;
+ * the home indicator gets the bottom inset plus 8px.
+ * ------------------------------------------------------------------ */
+@media (orientation: portrait) and (pointer: coarse) {
+  :root {
+    --pad: clamp(12px, 4vw, 24px);
+    --ab: calc(var(--pad) + 8px + env(safe-area-inset-bottom, 0px));
+  }
+  #look-zone {
+    inset: 0;
+    width: auto;
+    height: auto;
+    z-index: 9;
+  }
+  #stick-zone {
+    top: auto;
+    left: 0;
+    bottom: 0;
+    width: 50vw;
+    height: 42vh;
+    z-index: 10;
+  }
+  #stick-base.ghost,
+  #stick-knob.ghost {
+    bottom: calc(var(--ab) + 64px);
+  }
+  #btn-action,
+  #btn-jump {
+    --a: clamp(76px, 22vw, 100px);
+    --j: clamp(60px, 17vw, 80px);
+    /* centre distance between the two buttons, resolved on a 45 degree arc up and to the left */
+    --arc: calc(((var(--a) + var(--j)) / 2 + 12px) * 0.7071);
+  }
+  #btn-action {
+    right: calc(var(--pad) + env(safe-area-inset-right, 0px));
+    bottom: var(--ab);
+  }
+  #btn-jump {
+    right: calc(var(--pad) + (var(--a) - var(--j)) / 2 + var(--arc) + env(safe-area-inset-right, 0px));
+    bottom: calc(var(--ab) + (var(--a) - var(--j)) / 2 + var(--arc));
+  }
+}
