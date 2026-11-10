@@ -53,7 +53,16 @@ import {
   waypointTopPx,
   WAYPOINT_HIDE_M,
 } from '../adapters/ui/waypointMath';
-import { Vector3 } from 'three';
+import { Color, DirectionalLight, Fog, Vector3 } from 'three';
+import type { Group } from 'three';
+import { ChaseState, DEAD_CAUGHT, chaseScore, chaseStep, newChaseState } from '../core/chase/chase';
+import { routeIndexFor } from '../core/chase/chaseWorld';
+import { cloudCoverFor } from '../core/chase/dragon';
+import { GRADE as HILL_GRADE, hillY } from '../core/chase/rows';
+import { ChaseRowsView } from '../adapters/render/chase/chaseRowsView';
+import { DragonView } from '../adapters/render/chase/dragonView';
+import { EndlessGround } from '../adapters/render/chase/endlessGround';
+import { ChaseHud } from '../adapters/ui/chaseHud';
 import { RopeView } from './ropeView';
 import {
   AE_ATTACH,
@@ -78,6 +87,10 @@ import type { ViewportLayout } from './viewport';
 const RESTART_ACCEPT_S = 0.3; // death: accept restart input after this
 const RESTART_AUTO_S = 0.8; // death: auto-restart after this
 const PAN_S = 2.5; // opening flyover from the goal back to the hero
+const CHASE_PAN_S = 3.2; // chase opening: the dragon reveal, then back behind the hero
+const CHASE_OVER_DELAY_S = 0.9; // caught: the camera turns back before the card shows
+const CLOUD_FOG_COLOR = '#cdd0da';
+const cloudColor = new Color(CLOUD_FOG_COLOR);
 const HEAD_FRAC = 0.9; // same aim-ray origin the sim uses (core/sim.ts)
 
 export type GameHandle = {
@@ -93,6 +106,7 @@ const DEATH_MSG: Record<number, string> = {
   [DEAD_WALL]: 'Too low: hit the wall too fast. Hold BRAKE to slow down',
   [DEAD_HARD_LANDING]: 'Too hard a landing',
   [DEAD_HAZARD]: 'Hit a hazard',
+  [DEAD_CAUGHT]: 'The dragon caught you',
 };
 
 /** Best time for the lobby (0 = none yet). Thin wrapper kept for older callers. */
@@ -156,13 +170,41 @@ export function startGame(
   root: HTMLElement,
   mode: GameMode = 'classic',
 ): GameHandle {
-  // Dragon Chase lands with Track 3; until then every mode runs the classic descent.
-  if (mode === 'chase') console.info('[zipline] chase mode is not built yet: running classic');
   const cfg = mergeTuning();
   let camCfg = cfg.camera;
-  const world = loadWorldFromJson(levelText);
+  const params = new URLSearchParams(location.search);
+  const isChase = mode === 'chase';
+  const seedParam = params.get('seed');
+  const fixedSeed = seedParam !== null && Number.isFinite(Number(seedParam));
+  let chaseSeed = fixedSeed ? Number(seedParam) | 0 : (Math.random() * 2147483647) | 0;
+  const gapParam = Number(params.get('dragonGap'));
+  if (isChase && params.has('dragonGap') && Number.isFinite(gapParam) && gapParam > 0) {
+    cfg.chase.startGap = gapParam;
+  }
+  let cs: ChaseState | null = isChase ? newChaseState(chaseSeed, 0, cfg) : null;
+  let world = cs !== null ? cs.rw.world : loadWorldFromJson(levelText);
   const gs = createGameScene(canvas);
-  const level = gs.buildWorld(world);
+  const level: Group | null = cs === null ? gs.buildWorld(world) : null;
+  // Chase views: no classic scenery; own rows, endless ground and dragon.
+  const rowsView = isChase ? new ChaseRowsView(() => gs.refreshFlags()) : null;
+  const treesFor = (t: string): number => (t === 'low' ? 8 : t === 'medium' ? 16 : 26);
+  let viewTier = gs.getTier();
+  let ground = isChase ? new EndlessGround(treesFor(viewTier)) : null;
+  const dragonView = isChase ? new DragonView(viewTier) : null;
+  if (rowsView !== null) gs.scene.add(rowsView.root);
+  if (ground !== null) gs.scene.add(ground.group);
+  if (dragonView !== null) gs.scene.add(dragonView.group);
+  let sunLight: DirectionalLight | null = null;
+  gs.scene.traverse((o) => {
+    if (sunLight === null && o instanceof DirectionalLight) sunLight = o;
+  });
+  const fogBase = { near: 0, far: 0, color: '' };
+  let sunBase = 0;
+  let baseTier = '';
+  let cloudK = 0;
+  let roared = false;
+  let windT = 0;
+  let overShown = false;
 
   const heroView = new HeroView();
   gs.scene.add(heroView.group);
@@ -217,7 +259,7 @@ export function startGame(
   let lensShiftPx = 0;
   let jsMs = 0;
   let stepMs = 0;
-  let best = readBest('classic');
+  let best = readBest(mode);
 
   function resetHero(): void {
     copyHeroState(cur, newHeroState());
@@ -258,9 +300,21 @@ export function startGame(
   }
 
   const hudUi = new Hud(root, debug, () => restart());
+  const chaseHud = isChase ? new ChaseHud(root, () => restart()) : null;
 
   /** Canonical respawn: spawn point, zero velocity, hook idle, camera facing spawnYaw. */
   function restart(): void {
+    if (cs !== null) {
+      if (!fixedSeed) chaseSeed = (Math.random() * 2147483647) | 0;
+      cs = newChaseState(chaseSeed, 0, cfg);
+      world = cs.rw.world;
+      rowsView?.invalidate();
+      ground?.snap(0, true);
+      roared = false;
+      overShown = false;
+      cloudK = 0;
+      chaseHud?.hideOver();
+    }
     resetHero();
     phase = 'play';
     deadT = 0;
@@ -298,17 +352,28 @@ export function startGame(
     if (phase === 'pan') {
       // Drain input so nothing pressed during the flyover fires on the first play tick.
       panT += stepDt;
-      if (panSkip || panT >= PAN_S) {
+      if (panSkip || panT >= (cs !== null ? CHASE_PAN_S : PAN_S)) {
         phase = 'play';
         anyInput = false;
         hudUi.objectiveIn();
       }
     } else if (phase === 'dead') {
       deadT += stepDt;
-      const wants = anyInput || (frame.pressed & BTN_RESTART) !== 0;
-      if (deadT >= RESTART_AUTO_S || (deadT >= RESTART_ACCEPT_S && wants)) {
-        restart();
-        return;
+      if (cs !== null) {
+        // Chase: the card owns the restart (RETRY / MENU); R also retries. No auto-restart.
+        if (!overShown && deadT >= (cur.deadCause === DEAD_CAUGHT ? CHASE_OVER_DELAY_S : 0.4)) {
+          showChaseOver();
+        }
+        if (overShown && (frame.pressed & BTN_RESTART) !== 0) {
+          restart();
+          return;
+        }
+      } else {
+        const wants = anyInput || (frame.pressed & BTN_RESTART) !== 0;
+        if (deadT >= RESTART_AUTO_S || (deadT >= RESTART_ACCEPT_S && wants)) {
+          restart();
+          return;
+        }
       }
     } else if (phase === 'play') {
       if (input instanceof TouchInput) {
@@ -327,6 +392,7 @@ export function startGame(
         hudUi.setActionLabel(cur.mode === HERO_ATTACHED ? 'BRAKE' : 'HOOK');
       }
       step(cur, frame, world, cfg);
+      if (cs !== null) chaseStep(cs, cur, world, cfg);
       runT += stepDt;
 
       const ev = cur.eventBits;
@@ -354,7 +420,9 @@ export function startGame(
       }
 
       if ((cur.eventBits & HERO_EV_HOOKED) !== 0) hudUi.fadeHint();
-      if (cur.mode === HERO_ATTACHED) {
+      if (cs !== null) {
+        nextRouteIndex = routeIndexFor(cs.rw, cs.heroRow);
+      } else if (cur.mode === HERO_ATTACHED) {
         const idx = world.route.indexOf(cur.hook.anchorId);
         if (idx >= 0 && idx + 1 > nextRouteIndex) {
           nextRouteIndex = idx + 1;
@@ -365,8 +433,10 @@ export function startGame(
         phase = 'dead';
         deadT = 0;
         anyInput = false;
-        hudUi.toast(DEATH_MSG[cur.deadCause] ?? 'You fell');
+        if (cs === null) hudUi.toast(DEATH_MSG[cur.deadCause] ?? 'You fell');
+        else if (document.pointerLockElement) document.exitPointerLock();
       } else if (
+        cs === null &&
         cur.dead === 0 &&
         world.goal.max.y > world.goal.min.y &&
         aabbContainsPoint(world.goal, cur.px, cur.py, cur.pz)
@@ -388,6 +458,45 @@ export function startGame(
 
     copyRig(prevRig, curRig);
     tickCamera();
+  }
+
+  function showChaseOver(): void {
+    if (cs === null || chaseHud === null) return;
+    overShown = true;
+    const score = chaseScore(cs, cfg);
+    const isBest = score > best;
+    if (isBest) {
+      best = score;
+      writeBest('chase', score);
+    }
+    chaseHud.showOver(
+      score,
+      cs.maxProgress,
+      cs.hops,
+      best,
+      isBest,
+      DEATH_MSG[cur.deadCause] ?? 'You fell',
+    );
+  }
+
+  /** Fog, sun and the white-out layer follow the dragon's gap (setCloudCover only dims sky clouds). */
+  function applyCloud(k: number): void {
+    const fog = gs.scene.fog;
+    if (!(fog instanceof Fog)) return;
+    const tier = gs.getTier();
+    if (tier !== baseTier) {
+      // applyConfig just reset fog and sun for the new tier: re-capture the pristine values.
+      baseTier = tier;
+      fogBase.near = fog.near;
+      fogBase.far = fog.far;
+      fogBase.color = '#' + fog.color.getHexString();
+      sunBase = sunLight !== null ? (sunLight as DirectionalLight).intensity : 0;
+    }
+    fog.near = fogBase.near * (1 - 0.92 * k);
+    fog.far = fogBase.far * (1 - 0.85 * k) + 40 * k;
+    fog.color.set(fogBase.color).lerp(cloudColor, k);
+    if (sunLight !== null) (sunLight as DirectionalLight).intensity = sunBase * (1 - 0.55 * k);
+    chaseHud?.setCloud(k);
   }
 
   /** Gold + big when pickAnchor (same args the sim uses on press) finds a target. */
@@ -460,6 +569,10 @@ export function startGame(
     }
   }
 
+  // Chase pan: start in front of the dragon's head and look up its body, then settle behind the hero.
+  const chasePanStart = new Vec3(46, 18, -44);
+  const chasePanLook = new Vec3(0, 24, cfg.chase.startGap + 34);
+
   // Pan camera scratch.
   const goalCx = (world.goal.min.x + world.goal.max.x) / 2;
   const goalCy = (world.goal.min.y + world.goal.max.y) / 2;
@@ -475,8 +588,9 @@ export function startGame(
     let ty = goalCy;
     let tz = goalCz;
     let have = hasGoal;
-    if (nextRouteIndex < world.route.length) {
-      const a = world.anchors[world.route[nextRouteIndex]];
+    const wpIdx = cs !== null ? 0 : nextRouteIndex; // chase: route[0] is always the next row
+    if (wpIdx < world.route.length) {
+      const a = world.anchors[world.route[wpIdx]];
       if (a !== undefined) {
         tx = a.px;
         ty = a.py;
@@ -530,6 +644,44 @@ export function startGame(
       formatDistance(dist),
       wpScreen.x > w / 2,
     );
+  }
+
+  /** Chase-only per-frame work: streamed rows, ground, dragon, cloud cover, HUD, backdrop. */
+  function renderChase(nowSec: number, frameDt: number): void {
+    const c = cs;
+    if (c === null || rowsView === null || ground === null || dragonView === null) return;
+    if (gs.getTier() !== viewTier) {
+      viewTier = gs.getTier();
+      dragonView.setTier(viewTier);
+      gs.scene.remove(ground.group);
+      ground.dispose();
+      ground = new EndlessGround(treesFor(viewTier));
+      gs.scene.add(ground.group);
+      rowsView.invalidate();
+    }
+    rowsView.sync(c.rw);
+    rowsView.update(nowSec, routeIndexFor(c.rw, c.heroRow));
+    ground.snap(heroView.group.position.z);
+    const d = c.dragon;
+    dragonView.update(d.z, nowSec, phase === 'dead' && cur.deadCause === DEAD_CAUGHT ? 1 : 0, cur.px);
+    const k = phase === 'pan' ? 0 : cloudCoverFor(d.gap, cfg);
+    cloudK = k;
+    applyCloud(cloudK);
+    // Distant scenery rides along with the descent so the endless slope never leaves it behind.
+    const bz = heroView.group.position.z;
+    gs.backdropRoot.position.set(0, HILL_GRADE * bz, bz);
+    if (!roared && d.gap < cfg.chase.fogGap && phase === 'play') {
+      roared = true;
+      sfx.roar();
+    }
+    windT -= frameDt;
+    if (windT <= 0 && phase === 'play') {
+      windT = 0.35;
+      sfx.wind(k);
+    }
+    const score = chaseScore(c, cfg);
+    chaseHud?.setScore(score, c.maxProgress);
+    chaseHud?.setGap((d.gap - cfg.chase.catchGap) / (cfg.chase.startGap - cfg.chase.catchGap));
   }
 
   function onRender(alpha: number, frameDt: number): void {
@@ -605,10 +757,15 @@ export function startGame(
     } else {
       previewView.hide();
     }
-    updateLevelView(level, performance.now() / 1000, nextRouteIndex);
-    hudUi.setTime(runT);
-    hudUi.setHop(nextRouteIndex, world.route.length);
-    hudUi.setAltitude(altitudeFraction(cur.py, world.spawn.y, hasGoal ? goalCy : world.spawn.y));
+    const nowSec = performance.now() / 1000;
+    if (cs !== null && rowsView !== null && ground !== null && dragonView !== null) {
+      renderChase(nowSec, frameDt);
+    } else if (level !== null) {
+      updateLevelView(level, nowSec, nextRouteIndex);
+      hudUi.setTime(runT);
+      hudUi.setHop(nextRouteIndex, world.route.length);
+      hudUi.setAltitude(altitudeFraction(cur.py, world.spawn.y, hasGoal ? goalCy : world.spawn.y));
+    }
     if (phase === 'pan') {
       hudUi.setReticle(0);
       hudUi.setAimReason('');
@@ -623,13 +780,25 @@ export function startGame(
     let lookZ = prevRig.lookAt.z + (curRig.lookAt.z - prevRig.lookAt.z) * alpha;
     const fov = prevRig.fov + (curRig.fov - prevRig.fov) * alpha;
     if (phase === 'pan') {
-      const k = smooth((panT + alpha * stepDt) / PAN_S);
-      camX = panStart.x + (camX - panStart.x) * k;
-      camY = panStart.y + (camY - panStart.y) * k;
-      camZ = panStart.z + (camZ - panStart.z) * k;
-      lookX = world.spawn.x + (lookX - world.spawn.x) * k;
-      lookY = world.spawn.y + (lookY - world.spawn.y) * k;
-      lookZ = world.spawn.z + (lookZ - world.spawn.z) * k;
+      const k = smooth((panT + alpha * stepDt) / (cs !== null ? CHASE_PAN_S : PAN_S));
+      const ps = cs !== null ? chasePanStart : panStart;
+      const pl = cs !== null ? chasePanLook : world.spawn;
+      camX = ps.x + (camX - ps.x) * k;
+      camY = ps.y + (camY - ps.y) * k;
+      camZ = ps.z + (camZ - ps.z) * k;
+      lookX = pl.x + (lookX - pl.x) * k;
+      lookY = pl.y + (lookY - pl.y) * k;
+      lookZ = pl.z + (lookZ - pl.z) * k;
+    } else if (cs !== null && phase === 'dead' && cur.deadCause === DEAD_CAUGHT) {
+      // Caught: swing round in front of the hero and look back up at the jaws.
+      const k = smooth((deadT + alpha * stepDt) / CHASE_OVER_DELAY_S);
+      const dz = cs.dragon.z;
+      camX += (cur.px + 7 - camX) * k;
+      camY += (cur.py + 5 - camY) * k;
+      camZ += (cur.pz - 11 - camZ) * k;
+      lookX += (0 - lookX) * k;
+      lookY += (hillY(dz) + 14 - lookY) * k;
+      lookZ += (dz + 6 - lookZ) * k;
     }
     let fovOut = fov;
     if (phase !== 'pan') {
@@ -651,7 +820,21 @@ export function startGame(
       stepMs = 0;
     }
     gs.render();
-    if (debug) (window as unknown as { __ztStats?: unknown }).__ztStats = { ...gs.frameStats(), jsMs };
+    if (debug) {
+      const extra =
+        cs !== null && rowsView !== null
+          ? {
+              rows: rowsView.rebuilds,
+              rebuildMs: rowsView.lastRebuildMs,
+              dragonGap: cs.dragon.gap,
+              heroRow: cs.heroRow,
+              newest: cs.rw.newest,
+              score: chaseScore(cs, cfg),
+              cloud: cloudK,
+            }
+          : {};
+      (window as unknown as { __ztStats?: unknown }).__ztStats = { ...gs.frameStats(), jsMs, ...extra };
+    }
     const info = gs.renderer.info.render;
     hud?.update(cur, info.calls, info.triangles);
     animEv = 0;
@@ -711,6 +894,19 @@ export function startGame(
       window.removeEventListener('pointerup', onUnlockGesture, true);
       input.dispose();
       hudUi.destroy();
+      chaseHud?.destroy();
+      if (rowsView !== null) {
+        gs.scene.remove(rowsView.root);
+        rowsView.dispose();
+      }
+      if (ground !== null) {
+        gs.scene.remove(ground.group);
+        ground.dispose();
+      }
+      if (dragonView !== null) {
+        gs.scene.remove(dragonView.group);
+        dragonView.dispose();
+      }
       ropeView.dispose();
       previewView.dispose();
       sfx.dispose();
