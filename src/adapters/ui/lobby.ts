@@ -127,7 +127,7 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
 
   function show(): void {
     shown = true;
-    if (document.pointerLockElement !== null) document.exitPointerLock();
+    if (document.pointerLockElement) document.exitPointerLock();
     refreshBest();
     playBtn.textContent = started ? 'RESUME' : 'PLAY';
     lobby.classList.remove('off');

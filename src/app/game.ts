@@ -374,7 +374,7 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
         }
         hudUi.showWin(runT, best);
         hudUi.pulseTimer();
-        if (document.pointerLockElement !== null) document.exitPointerLock();
+        if (document.pointerLockElement) document.exitPointerLock();
       }
       updateReticle();
       updatePreview();
