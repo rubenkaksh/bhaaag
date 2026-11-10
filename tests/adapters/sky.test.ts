@@ -10,6 +10,9 @@ import {
   SUN_EL_DEG,
   buildMountains,
   buildSkyView,
+  buildDust,
+  updateDust,
+  DUST_COUNT,
   skyColorAt,
 } from '../../src/adapters/render/skyView';
 
@@ -19,7 +22,8 @@ function triangles(o: Object3D): number {
   let n = 0;
   o.traverse((c) => {
     const m = c as Mesh;
-    if (m.isMesh) n += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
+    if (m.isMesh)
+      n += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
   });
   return n;
 }
@@ -48,8 +52,8 @@ describe('sun placement (ADR 0005 D4, raised by ADR 0006 L-SKY)', () => {
     expect(SUN_EL_DEG).toBe(8);
     expect(SUN_AZ_DEG).toBe(32);
     expect(SUN_DIR.length()).toBeCloseTo(1, 6);
-    expect(Math.atan2(SUN_DIR.x, -SUN_DIR.z) * 180 / Math.PI).toBeCloseTo(32, 0);
-    expect(Math.asin(SUN_DIR.y) * 180 / Math.PI).toBeCloseTo(8, 0);
+    expect((Math.atan2(SUN_DIR.x, -SUN_DIR.z) * 180) / Math.PI).toBeCloseTo(32, 0);
+    expect((Math.asin(SUN_DIR.y) * 180) / Math.PI).toBeCloseTo(8, 0);
   });
 
   it('puts the glow and core 470 m out along SUN_DIR, facing back at the sky origin', () => {
@@ -65,15 +69,15 @@ describe('sun placement (ADR 0005 D4, raised by ADR 0006 L-SKY)', () => {
     }
   });
 
-  it('gives the glow centre alpha 0.5, rim alpha 0 and a radius of 120', () => {
+  it('gives the glow centre alpha 0.65, rim alpha 0 and a radius of 170', () => {
     const glow = buildSkyView().getObjectByName('sunGlow') as Mesh;
     const a = glow.geometry.attributes.color;
     expect(a.itemSize).toBe(4);
-    expect(a.getW(0)).toBeCloseTo(0.5, 5);
+    expect(a.getW(0)).toBeCloseTo(0.65, 5);
     expect(a.getW(a.count - 1)).toBe(0);
     // CircleGeometry vertex 1 sits on the rim.
     const p = glow.geometry.attributes.position;
-    expect(Math.hypot(p.getX(1), p.getY(1))).toBeCloseTo(120, 5);
+    expect(Math.hypot(p.getX(1), p.getY(1))).toBeCloseTo(170, 5);
   });
 
   it('draws the dome before the core and both before the mountains (ADR 0006)', () => {
@@ -199,5 +203,29 @@ describe('pixel ratio cap (ADR 0005 D4)', () => {
   it('never raises a low device ratio', () => {
     expect(pixelRatioFor(1, true)).toBe(1);
     expect(pixelRatioFor(1.25, false)).toBe(1.25);
+  });
+});
+
+describe('P4 atmosphere extras', () => {
+  it('has a second cloud layer', () => {
+    expect(buildSkyView().getObjectByName('cloudsHigh')).toBeDefined();
+  });
+  it('keeps dust motes inside the box around the camera', () => {
+    const d = buildDust();
+    updateDust(d, 10, 20, -30, 123.4);
+    const a = d.geometry.getAttribute('position');
+    expect(a.count).toBe(DUST_COUNT);
+    for (let i = 0; i < a.count; i++) {
+      expect(Math.abs(a.getX(i) - 10)).toBeLessThanOrEqual(18);
+      expect(Math.abs(a.getY(i) - 20)).toBeLessThanOrEqual(7);
+      expect(Math.abs(a.getZ(i) + 30)).toBeLessThanOrEqual(18);
+    }
+  });
+  it('drifts motes over time', () => {
+    const d = buildDust();
+    updateDust(d, 0, 0, 0, 0);
+    const x0 = d.geometry.getAttribute('position').getX(0);
+    updateDust(d, 0, 0, 0, 10);
+    expect(d.geometry.getAttribute('position').getX(0)).not.toBe(x0);
   });
 });

@@ -21,6 +21,7 @@ export const HERO_EV_LANDED = 4;
 export const HERO_EV_ROLLED = 8; // landed with a roll (also sets LANDED)
 export const HERO_EV_CLING = 16;
 export const HERO_EV_DIED = 32;
+export const HERO_EV_PERFECT = 64; // JUMP released inside the timed window (speed boost)
 
 // Conventions: yaw 0 faces +z; forward = (sin yaw, cos yaw) in (x, z);
 // right = (cos yaw, -sin yaw). Positive moveY = forward, positive moveX = right.
@@ -47,6 +48,7 @@ export class HeroState {
   hookIntentT = 0; // seconds a missed hook press stays armed (fires once an anchor is valid)
   runOut = 0; // 1 while the rope pulls the hero off the launch surface
   launchY = 0; // feet height of the launch surface during run-out
+  perfect = 0; // 1 after a timed release: the next landing may carry perfectBoost above carryCap
 }
 
 export function newHeroState(): HeroState {
@@ -76,4 +78,5 @@ export function copyHeroState(dst: HeroState, src: HeroState): void {
   dst.hookIntentT = src.hookIntentT;
   dst.runOut = src.runOut;
   dst.launchY = src.launchY;
+  dst.perfect = src.perfect;
 }

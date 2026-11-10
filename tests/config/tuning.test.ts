@@ -26,8 +26,12 @@ const schema = z.strictObject({
     magnetDegDesktop: num,
     magnetDegTouch: num,
     routeAssistDeg: num,
+    routeAssistLateDeg: num,
+    routeAssistEarlyHops: num,
     snapRadius: num,
     previewHz: num,
+    previewMaxSec: num,
+    previewReleaseSamples: num,
   }),
   release: z.strictObject({
     inputBufferMs: num,
@@ -37,6 +41,10 @@ const schema = z.strictObject({
     carry: num,
     hookCooldownSec: num,
     hookIntentSec: num,
+    perfectLo: num,
+    perfectHi: num,
+    perfectBoost: num,
+    perfectUp: num,
   }),
   landing: z.strictObject({
     vyClean: num,
@@ -53,6 +61,7 @@ const schema = z.strictObject({
     edgeGrabVyMax: num,
   }),
   wall: z.strictObject({ vCling: num }),
+  roof: z.strictObject({ slipDeg: num, mu: num, control: num, uphillRun: num }),
   hero: z.strictObject({
     walk: num,
     run: num,
@@ -96,10 +105,11 @@ describe('tuning.json', () => {
     const t = schema.parse(raw);
     expect(t.rope.gravityFactor).toBe(1.0);
     expect(t.rope.drag).toBe(0.05);
-    expect(t.rope.launchSpeed).toBe(6);
+    expect(t.rope.launchSpeed).toBe(3);
+    expect(t.rope.hookSpeed).toBe(320);
     expect(t.rope.brakeDecel).toBe(10);
     expect(t.wall.vCling).toBe(7.5);
-    expect(t.landing.carryCap).toBe(8);
+    expect(t.landing.carryCap).toBe(12);
     expect(t.landing.chainWindowMs).toBe(400);
     expect(t.landing.vhStumble).toBe(16);
     expect(t.fixedHz).toBe(60);

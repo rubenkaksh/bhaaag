@@ -14,7 +14,7 @@
 import type { Tuning } from './config';
 import { SweepHit, segmentVsAabb } from './math/aabb';
 import { Vec3, set } from './math/vec3';
-import type { World } from './world';
+import type { Anchor, World } from './world';
 
 export const HOOK_IDLE = 0;
 export const HOOK_FLYING = 1;
@@ -132,6 +132,12 @@ export class AimResult {
 const scratchP0 = new Vec3(0, 0, 0);
 const scratchP1 = new Vec3(0, 0, 0);
 const scratchHit = new SweepHit();
+// Split route lists for pickAnchorAssisted, refilled (length = 0, then push) on every
+// call, plus the second result for the late pass: pickAnchor resets its out on entry, so
+// a pass that finds nothing must not erase an earlier hit.
+const scratchRouteEarly: number[] = [];
+const scratchRouteLate: number[] = [];
+const scratchLatePick = new AimResult();
 
 // True when any solid blocks the hand -> anchor chord. Writes into module scratch only.
 function chordBlocked(
@@ -247,10 +253,14 @@ export function pickAnchor(
 }
 
 /**
- * Casual-friendly pick: first the on-route anchors (world.route) inside the wide
- * aim.routeAssistDeg cone, so a sloppy aim at the glowing next anchor still hooks it
- * (decoy anchors are never on the route); if none qualifies, the plain pickAnchor
- * with the device magnet cone.
+ * Casual-friendly pick: first the on-route anchors (world.route) inside the wide aim
+ * cones — routeAssistDeg for the first cfg.aim.routeAssistEarlyHops route entries (the
+ * opening hops), routeAssistLateDeg for the rest — so a sloppy aim at the glowing next
+ * anchor still hooks it (decoy anchors are never on the route). The two passes write into
+ * separate results because pickAnchor resets its out on entry, so a pass with no hit must
+ * not erase an earlier hit; when both find an anchor the smaller angular error wins. If
+ * neither route pass finds one, the plain pickAnchor with the device magnet cone runs.
+ * Writes into out; allocates nothing per call.
  */
 export function pickAnchorAssisted(
   world: World,
@@ -268,11 +278,129 @@ export function pickAnchorAssisted(
   magnetDeg: number,
   out: AimResult,
 ): void {
-  if (world.route.length > 0 && cfg.aim.routeAssistDeg > magnetDeg) {
-    pickAnchor(world, cfg, handX, handY, handZ, camX, camY, camZ, dirX, dirY, dirZ, maxLen, cfg.aim.routeAssistDeg, out, world.route);
-    if (out.anchorId !== NO_ANCHOR) return;
+  const aim = cfg.aim;
+  const route = world.route;
+  scratchRouteEarly.length = 0;
+  scratchRouteLate.length = 0;
+  for (let i = 0; i < route.length; i++) {
+    if (i < aim.routeAssistEarlyHops) scratchRouteEarly.push(route[i]);
+    else scratchRouteLate.push(route[i]);
   }
+  let found = false;
+  if (aim.routeAssistDeg > magnetDeg) {
+    pickAnchor(world, cfg, handX, handY, handZ, camX, camY, camZ, dirX, dirY, dirZ, maxLen, aim.routeAssistDeg, out, scratchRouteEarly);
+    found = out.anchorId !== NO_ANCHOR;
+  }
+  if (aim.routeAssistLateDeg > magnetDeg) {
+    pickAnchor(world, cfg, handX, handY, handZ, camX, camY, camZ, dirX, dirY, dirZ, maxLen, aim.routeAssistLateDeg, scratchLatePick, scratchRouteLate);
+    if (scratchLatePick.anchorId !== NO_ANCHOR) {
+      if (!found || scratchLatePick.angleDeg < out.angleDeg) {
+        out.anchorId = scratchLatePick.anchorId;
+        out.dist = scratchLatePick.dist;
+        out.angleDeg = scratchLatePick.angleDeg;
+      }
+      found = true;
+    }
+  }
+  if (found) return;
   pickAnchor(world, cfg, handX, handY, handZ, camX, camY, camZ, dirX, dirY, dirZ, maxLen, magnetDeg, out);
+}
+
+export const AIM_OK = 0;
+export const AIM_NONE = 1;
+export const AIM_TOO_CLOSE = 2;
+export const AIM_OUT_OF_RANGE = 3;
+export const AIM_UPHILL = 4;
+export const AIM_TOO_FLAT = 5;
+export const AIM_TOO_STEEP = 6;
+export const AIM_BLOCKED = 7;
+
+/**
+ * Why pickAnchor would (or would not) hook here: picks the in-cone anchor nearest the aim
+ * ray (on-route anchors get the wider of the magnet cone and their hop's route cone —
+ * routeAssistDeg below routeAssistEarlyHops, routeAssistLateDeg after) and reports the
+ * first failed chord check as an AIM_* reason, AIM_OK when none fails. Allocation-free.
+ */
+export function aimReason(
+  world: World,
+  cfg: Tuning,
+  handX: number,
+  handY: number,
+  handZ: number,
+  camX: number,
+  camY: number,
+  camZ: number,
+  dirX: number,
+  dirY: number,
+  dirZ: number,
+  maxLen: number,
+  magnetDeg: number,
+): number {
+  const rayLen = Math.sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ);
+  if (rayLen <= MIN_LEN) return AIM_NONE;
+  const invRay = 1 / rayLen;
+  const fx = dirX * invRay;
+  const fy = dirY * invRay;
+  const fz = dirZ * invRay;
+
+  const rope = cfg.rope;
+  const minSlopeSin = Math.sin(rope.minSlopeDeg * DEG2RAD);
+  const maxSlopeSin = Math.sin(rope.maxSlopeDeg * DEG2RAD);
+  const cosLimit = Math.cos(magnetDeg * DEG2RAD);
+  // On-route anchors sit in the larger of the magnet cone and their hop's route cone:
+  // the first routeAssistEarlyHops route entries get routeAssistDeg, the rest
+  // routeAssistLateDeg. Both limits are precomputed so the loop allocates nothing.
+  const routeEarlyCos =
+    cfg.aim.routeAssistDeg > magnetDeg ? Math.cos(cfg.aim.routeAssistDeg * DEG2RAD) : cosLimit;
+  const routeLateCos =
+    cfg.aim.routeAssistLateDeg > magnetDeg ? Math.cos(cfg.aim.routeAssistLateDeg * DEG2RAD) : cosLimit;
+  const earlyHops = cfg.aim.routeAssistEarlyHops;
+  const route = world.route;
+
+  const anchors = world.anchors;
+  let best: Anchor | null = null;
+  let bestCos = 0; // only consulted once best is set
+  for (let i = 0; i < anchors.length; i++) {
+    const a = anchors[i];
+    if (a === undefined) continue;
+    let routeIdx = -1;
+    for (let r = 0; r < route.length; r++) {
+      if (route[r] === a.id) {
+        routeIdx = r;
+        break;
+      }
+    }
+    let coneCos = cosLimit;
+    if (routeIdx >= 0) coneCos = routeIdx < earlyHops ? routeEarlyCos : routeLateCos;
+    // Angular error to the aim ray, as in pickAnchor: comparing cos keeps acos out of the
+    // loop; larger cos is smaller angle.
+    const rx = a.px - camX;
+    const ry = a.py - camY;
+    const rz = a.pz - camZ;
+    const rLen = Math.sqrt(rx * rx + ry * ry + rz * rz);
+    if (rLen <= MIN_LEN) continue;
+    const invR = 1 / rLen;
+    const cosA = (rx * fx + ry * fy + rz * fz) * invR;
+    if (!(cosA > coneCos)) continue; // outside this anchor's cone, and drops NaN
+    if (best !== null && !(cosA > bestCos)) continue;
+    best = a;
+    bestCos = cosA;
+  }
+  if (best === null) return AIM_NONE;
+
+  const cx = best.px - handX;
+  const cy = best.py - handY;
+  const cz = best.pz - handZ;
+  const len = Math.sqrt(cx * cx + cy * cy + cz * cz);
+  if (len < rope.minLen) return AIM_TOO_CLOSE;
+  if (len > maxLen) return AIM_OUT_OF_RANGE;
+  const slopeSin = -cy / len; // positive = downhill
+  if (slopeSin <= 0) return AIM_UPHILL;
+  if (slopeSin < minSlopeSin) return AIM_TOO_FLAT;
+  if (slopeSin > maxSlopeSin) return AIM_TOO_STEEP;
+  if (chordBlocked(world, handX, handY, handZ, best.px, best.py, best.pz, len, cx / len, cy / len, cz / len))
+    return AIM_BLOCKED;
+  return AIM_OK;
 }
 
 /**

@@ -24,6 +24,7 @@ import {
   HERO_EV_DIED,
   HERO_EV_HOOKED,
   HERO_EV_LANDED,
+  HERO_EV_PERFECT,
   HERO_EV_RELEASED,
   HERO_EV_ROLLED,
   HERO_GROUNDED,
@@ -63,10 +64,20 @@ const scratchAim = new AimResult();
 const scratchVel = new Vec3(0, 0, 0);
 const scratchFeet = new Vec3(0, 0, 0);
 
-const HEAD_FRAC = 0.9; // aim ray starts at this fraction of the hero height
+export const HEAD_FRAC = 0.9; // aim ray starts at this fraction of the hero height
 const LAND_TOL = 2 * SKIN; // feet this close above a surface count as touching it
 const AT_END_PROBE = 0.1; // extra reach past the rope stop when checking for a wall
 const RUNOUT_TOL = 0.05; // launch-surface match tolerance, metres
+
+// Support surface found by the last groundHeight call: -1 = a solid top (or none), else a ramp
+// id. Written and read inside one step, never carried between steps, so state copies stay exact.
+let groundRamp = -1;
+// Slope frame of a ramp (rampFrame): uphill unit (x, z), tan/cos/sin of its pitch.
+let slopeUx = 0;
+let slopeUz = 0;
+let slopeTan = 0;
+let slopeCos = 1;
+let slopeSin = 0;
 
 // Sweeps the capsule (feet at py) along one axis (0=x, 1=y, 2=z) by amount a
 // against all solids. Returns the distance actually travelled (signed) and
@@ -191,13 +202,51 @@ function rampHeightAt(w: World, idx: number, x: number, z: number): number {
   return b.min.y + r.rise * frac;
 }
 
+// Fills the slope frame (slopeUx/Uz/Tan/Cos/Sin) for ramp idx.
+function rampFrame(w: World, idx: number): void {
+  const r = w.ramps[idx];
+  const b = r.aabb;
+  slopeUx = 0;
+  slopeUz = 0;
+  let run: number;
+  if (r.slopeAxis === 0) {
+    slopeUx = 1;
+    run = b.max.x - b.min.x;
+  } else if (r.slopeAxis === 1) {
+    slopeUx = -1;
+    run = b.max.x - b.min.x;
+  } else if (r.slopeAxis === 2) {
+    slopeUz = 1;
+    run = b.max.z - b.min.z;
+  } else {
+    slopeUz = -1;
+    run = b.max.z - b.min.z;
+  }
+  slopeTan = run > 0 ? r.rise / run : 0;
+  slopeCos = 1 / Math.sqrt(1 + slopeTan * slopeTan);
+  slopeSin = slopeTan * slopeCos;
+}
+
+// Ramp id of the slippery slope the hero stands on (pitch above roof.slipDeg), or -1. Leaves
+// that ramp's frame in the slope scratch. Call only while grounded (feet on the support).
+function slipSupport(w: World, s: HeroState, cfg: Tuning): number {
+  groundHeight(w, s.px, s.pz, cfg.hero.radius, s.py + LAND_TOL);
+  const idx = groundRamp;
+  if (idx < 0 || w.ramps[idx].slip !== 1) return -1;
+  rampFrame(w, idx);
+  if (slopeTan <= Math.tan(cfg.roof.slipDeg * DEG2RAD)) return -1;
+  return idx;
+}
+
 // Highest walkable surface under the capsule footprint (circle x, z, radius) whose
-// height is <= maxH, or NO_GROUND. Support comes from the footprint overlapping the
+// height is <= maxH, or NO_GROUND. Sets groundRamp to the supporting ramp (-1 for a solid);
+// a slippery ramp wins a tie with a solid, so an eave over its wall box stays slippery. Support comes from the footprint overlapping the
 // solid/ramp xz rect, not just the centre point (finding 1): the hero stays
 // supported until fully clear of an edge and never drops its feet into the side
 // volume of the box it stepped off.
 function groundHeight(w: World, x: number, z: number, radius: number, maxH: number): number {
   let best = NO_GROUND;
+  groundRamp = -1;
   for (let i = 0; i < w.solids.length; i++) {
     const b = w.solids[i];
     if (!circleOverlapsAabbXZ(b, x, z, radius)) continue;
@@ -213,7 +262,11 @@ function groundHeight(w: World, x: number, z: number, radius: number, maxH: numb
       clampScalar(x, b.min.x, b.max.x),
       clampScalar(z, b.min.z, b.max.z),
     );
-    if (h > NO_GROUND && h <= maxH && h > best) best = h;
+    if (h <= NO_GROUND || h > maxH) continue;
+    if (h > best || (h === best && w.ramps[i].slip === 1)) {
+      best = h;
+      groundRamp = i;
+    }
   }
   return best;
 }
@@ -247,24 +300,43 @@ function killHero(s: HeroState, cause: number): void {
   s.vy = 0;
   s.vz = 0;
   s.grounded = 0;
+  s.perfect = 0;
   resetHook(s.hook);
 }
 
-// Feet are on a surface; s.vy is the speed at touchdown. Classifies the landing and turns
-// horizontal speed into run speed (capped at carryCap, kept through a roll).
-function landHero(s: HeroState, cfg: Tuning): void {
-  const vyDown = -s.vy;
-  if (vyDown > cfg.landing.vyRoll) {
+// Feet are on the surface groundHeight just found (groundRamp says which); s.v* is the velocity
+// at touchdown. The impact speed is the speed into the surface along its normal (ADR 0002; on a
+// flat top that is -vy, as before). Classifies the landing, keeps the tangential part and turns
+// its horizontal speed into run speed (capped at carryCap, kept through a roll).
+function landHero(s: HeroState, w: World, cfg: Tuning): void {
+  let nx = 0;
+  let ny = 1;
+  let nz = 0;
+  if (groundRamp >= 0) {
+    rampFrame(w, groundRamp);
+    nx = -slopeUx * slopeSin;
+    ny = slopeCos;
+    nz = -slopeUz * slopeSin;
+  }
+  const vn = s.vx * nx + s.vy * ny + s.vz * nz;
+  const vImpact = -vn;
+  if (vImpact > cfg.landing.vyRoll) {
     killHero(s, DEAD_HARD_LANDING);
     return;
   }
-  if (vyDown > cfg.landing.vyClean) {
+  if (vImpact > cfg.landing.vyClean) {
     s.rollT = cfg.landing.rollSec;
     s.eventBits |= HERO_EV_ROLLED;
   }
+  if (vn < 0) {
+    s.vx -= vn * nx;
+    s.vz -= vn * nz;
+  }
   const hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
-  if (hs > cfg.landing.carryCap) {
-    const k = cfg.landing.carryCap / hs;
+  const cap = cfg.landing.carryCap + (s.perfect === 1 ? cfg.release.perfectBoost : 0);
+  s.perfect = 0;
+  if (hs > cap) {
+    const k = cap / hs;
     s.vx *= k;
     s.vz *= k;
   }
@@ -336,7 +408,9 @@ function tryFire(s: HeroState, input: InputFrame, world: World, cfg: Tuning): vo
   if (scratchAim.anchorId === NO_ANCHOR) return;
   s.hookIntentT = 0;
   let speedAlong = 0;
-  if (s.chainT > 0) {
+  // Momentum seeds the rope whenever the hero is on the ground (a run-up pays) or still inside
+  // the chain window (carried speed above run speed survives there).
+  if (s.grounded === 1 || s.chainT > 0) {
     const a = world.anchors[scratchAim.anchorId];
     const cx = a.px - s.px;
     const cy = a.py - handY;
@@ -346,19 +420,38 @@ function tryFire(s: HeroState, input: InputFrame, world: World, cfg: Tuning): vo
   }
   if (hookFire(s.hook, scratchAim.anchorId, s.px, handY, s.pz, world, cfg, speedAlong)) {
     s.eventBits |= HERO_EV_HOOKED;
+    s.perfect = 0; // a new rope forfeits the timed-release carry
   }
 }
 
 function rideStep(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt: number): void {
+  const h = s.hook;
   if (wasPressed(input, BTN_JUMP)) {
+    // Timed release: JUMP late on the rope adds a forward boost along the horizontal chord.
+    const span = h.len - cfg.rope.trolleyStop;
+    const frac = span > 0 ? h.s / span : 0;
+    const hl = Math.sqrt(h.dirX * h.dirX + h.dirZ * h.dirZ);
+    const bx = hl > 1e-6 ? h.dirX / hl : 0;
+    const bz = hl > 1e-6 ? h.dirZ / hl : 0;
+    const timed =
+      h.state === HOOK_ATTACHED &&
+      hl > 1e-6 &&
+      frac >= cfg.release.perfectLo &&
+      frac <= cfg.release.perfectHi;
     releaseHero(s, cfg, true);
+    if (timed) {
+      s.vx += bx * cfg.release.perfectBoost;
+      s.vz += bz * cfg.release.perfectBoost;
+      s.vy += cfg.release.perfectUp - cfg.release.jumpUp; // a flatter, faster exit than a plain jump
+      s.perfect = 1;
+      s.eventBits |= HERO_EV_PERFECT;
+    }
     return;
   }
   if (wasPressed(input, BTN_DROP)) {
     releaseHero(s, cfg, false);
     return;
   }
-  const h = s.hook;
   const st = hookStep(h, dt, world, cfg, hasButton(input, BTN_REEL));
   hookTrolleyPos(h, scratchFeet);
   const r = cfg.hero.radius;
@@ -405,7 +498,7 @@ function rideStep(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
     const gh = groundHeight(world, s.px, s.pz, r, oldY + cfg.hero.stepUp);
     if (gh > NO_GROUND && gh >= s.py - LAND_TOL) {
       s.py = gh;
-      landHero(s, cfg);
+      landHero(s, world, cfg);
       return;
     }
   }
@@ -507,6 +600,54 @@ export function step(s: HeroState, input: InputFrame, world: World, cfg: Tuning)
   if (s.dead === 0 && s.py < world.killPlaneY) killHero(s, DEAD_FELL);
 }
 
+// Grounded on a slippery slope (frame in the slope scratch): weak steering toward the wanted
+// velocity with the uphill part cut to roof.uphillRun, gravity along the slope (horizontal
+// projection) and kinetic tile friction against the motion. No full-friction stop.
+function slideVelocity(
+  s: HeroState,
+  cfg: Tuning,
+  wantX: number,
+  wantZ: number,
+  mag: number,
+  dt: number,
+): void {
+  if (mag > 0) {
+    let wx = wantX;
+    let wz = wantZ;
+    const up = wx * slopeUx + wz * slopeUz;
+    if (up > 0) {
+      const cut = up * (1 - cfg.roof.uphillRun);
+      wx -= slopeUx * cut;
+      wz -= slopeUz * cut;
+    }
+    const dx = wx - s.vx;
+    const dz = wz - s.vz;
+    const dl = Math.sqrt(dx * dx + dz * dz);
+    const maxD = cfg.hero.accel * cfg.roof.control * dt;
+    if (dl <= maxD) {
+      s.vx = wx;
+      s.vz = wz;
+    } else {
+      s.vx += (dx / dl) * maxD;
+      s.vz += (dz / dl) * maxD;
+    }
+  }
+  const g = cfg.physics.g;
+  const aDown = g * slopeSin * slopeCos;
+  s.vx -= slopeUx * aDown * dt;
+  s.vz -= slopeUz * aDown * dt;
+  const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+  const drop = cfg.roof.mu * g * slopeCos * dt;
+  if (sp <= drop) {
+    s.vx = 0;
+    s.vz = 0;
+  } else {
+    const k = (sp - drop) / sp;
+    s.vx *= k;
+    s.vz *= k;
+  }
+}
+
 function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt: number): void {
   // Desired horizontal velocity, camera-relative.
   let mx = dequantizeAxis(input.moveX);
@@ -530,13 +671,22 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
     }
   }
 
+  // Slippery pitched roof under the feet (ADR 0002): -1 when none.
+  const slip = s.grounded === 1 ? slipSupport(world, s, cfg) : -1;
+
   // Horizontal velocity.
-  if (s.grounded === 1) {
+  if (slip >= 0) {
+    slideVelocity(s, cfg, wantX, wantZ, mag, dt);
+  } else if (s.grounded === 1) {
     if (mag > 0) {
       const dx = wantX - s.vx;
       const dz = wantZ - s.vz;
       const dl = Math.sqrt(dx * dx + dz * dz);
-      const maxD = cfg.hero.accel * dt;
+      // Holding the way you are already going keeps a landing's carry through the chain window.
+      const wantSq = wantX * wantX + wantZ * wantZ;
+      const carrying =
+        s.chainT > 0 && s.vx * s.vx + s.vz * s.vz > wantSq && s.vx * wantX + s.vz * wantZ > 0;
+      const maxD = (carrying ? cfg.landing.skidDecel : cfg.hero.accel) * dt;
       if (dl <= maxD) {
         s.vx = wantX;
         s.vz = wantZ;
@@ -544,10 +694,10 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
         s.vx += (dx / dl) * maxD;
         s.vz += (dz / dl) * maxD;
       }
-    } else if (s.chainT <= 0) {
-      // Momentum survives the chain window after a landing.
+    } else {
+      // A landing skids through the chain window, then full friction stops the hero.
       const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
-      const drop = cfg.hero.friction * dt;
+      const drop = (s.chainT > 0 ? cfg.landing.skidDecel : cfg.hero.friction) * dt;
       if (sp <= drop) {
         s.vx = 0;
         s.vz = 0;
@@ -601,6 +751,8 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
       s.vy = 0;
     } else {
       s.grounded = 0;
+      // Off the eave: keep the slope's vertical rate (slipSupport left its frame in scratch).
+      if (slip >= 0) s.vy = (s.vx * slopeUx + s.vz * slopeUz) * slopeTan;
     }
   }
   if (s.grounded === 0) {
@@ -623,7 +775,7 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
       // A blocked down-sweep leaves the feet SKIN above the top: land there.
       if (gh > NO_GROUND && gh >= s.py - LAND_TOL) {
         s.py = gh;
-        landHero(s, cfg);
+        landHero(s, world, cfg);
       }
     }
   }

@@ -9,8 +9,19 @@ const world = loadWorldFromJson(
 );
 
 describe('level base (ADR 0007 R7)', () => {
-  it('gives the spawn roof a brick base down to y -20', () => {
+  // Was "down to y -12" (the old terrace); the base now ends on the hill plot S0 stands on.
+  it('gives the spawn roof a brick base down to the hill plot under it', () => {
     const s0 = world.solids[1];
+    const cx = (s0.min.x + s0.max.x) / 2;
+    const cz = (s0.min.z + s0.max.z) / 2;
+    let groundY = -Infinity;
+    for (let i = 0; i < world.solids.length; i++) {
+      const b = world.solids[i];
+      if (world.style[i] !== 0 || b.max.y >= s0.min.y) continue;
+      if (cx >= b.min.x && cx <= b.max.x && cz >= b.min.z && cz <= b.max.z)
+        groundY = Math.max(groundY, b.max.y);
+    }
+    expect(groundY).toBeGreaterThan(-12);
     const g = buildLevelMeshes(world);
     let found = false;
     g.traverse((o) => {
@@ -21,7 +32,7 @@ describe('level base (ADR 0007 R7)', () => {
       const p = m.geometry.getAttribute('position');
       for (let i = 0; i < p.count; i++) {
         if (
-          Math.abs(p.getY(i) + 20) < 0.01 &&
+          Math.abs(p.getY(i) - groundY) < 0.01 &&
           p.getX(i) >= s0.min.x - 1e-6 &&
           p.getX(i) <= s0.max.x + 1e-6 &&
           p.getZ(i) >= s0.min.z - 1e-6 &&

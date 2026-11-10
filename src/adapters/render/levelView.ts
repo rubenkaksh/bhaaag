@@ -10,76 +10,157 @@ import {
 } from 'three';
 import { AABB } from '../../core/math/aabb';
 import { Vec3 } from '../../core/math/vec3';
+import { RIDGE_Z } from '../../core/world';
 import type { World } from '../../core/world';
 import { buildRopePost } from '../../app/ropePost';
 import { buildDecor, groundAt } from './decor/placeDecor';
+import { tileNormal, tileTexture } from './tileTexture';
 
 // Palette: desaturated warm world, three-colour language on top (gold interactive,
 // cream safe, terracotta danger).
 // ADR 0005 D3: terrace paving, whitewash walls, walkable roof, hot terracotta danger.
-const COLOR_STYLE = ['#8e7a66', '#d9c6aa', '#b9a68c', '#c4472a']; // ground, wall, roof, danger
+const COLOR_STYLE = ['#8e7a66', '#d9c6aa', '#b9a68c', '#c4472a', '#a99a88']; // ground, wall, roof, danger, parapet
 const DANGER_STYLE = 3;
+const STYLE_TEXTURE = ['stone_warm', '', 'terracotta_a', '', '']; // per style; '' keeps the flat colour
 const COLOR_BRICK = '#9c5640';
 const COLOR_WOOD = '#4a2c1c';
 const COLOR_PAD = '#f1e9d2';
 const COLOR_GOAL = '#efe2b4';
 const COLOR_ANCHOR = '#ffc83a';
+const COLOR_TILE_ROOF = '#b5523a'; // pitched tile roofs (ADR 0002): slippery, so danger-leaning red
 const ANCHOR_R = 0.35;
 const PAD_LIFT = 0.03;
 
-// Appends the 12 triangles of an axis-aligned box to flat position/index arrays.
-function pushBox(pos: number[], idx: number[], b: AABB): void {
-  const x0 = b.min.x;
-  const y0 = b.min.y;
-  const z0 = b.min.z;
-  const x1 = b.max.x;
-  const y1 = b.max.y;
-  const z1 = b.max.z;
-  const base = pos.length / 3;
-  pos.push(
-    x0,
-    y0,
-    z0,
-    x1,
-    y0,
-    z0,
-    x1,
-    y1,
-    z0,
-    x0,
-    y1,
-    z0,
-    x0,
-    y0,
-    z1,
-    x1,
-    y0,
-    z1,
-    x1,
-    y1,
-    z1,
-    x0,
-    y1,
-    z1,
-  );
-  const f = [
-    0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 4, 7, 0, 7, 3, 1, 2, 6, 1, 6, 5, 3, 7, 6, 3, 6, 2, 0, 1,
-    5, 0, 5, 4,
-  ];
-  for (let i = 0; i < f.length; i++) idx.push(base + f[i]);
+const TILE_M = 4; // one texture tile covers this many metres
+
+// Appends the 12 triangles of an axis-aligned box (24 vertices, so each face keeps its own
+// world-space planar UVs: tiles line up across neighbouring boxes with no stretching).
+function pushBox(pos: number[], idx: number[], uv: number[], b: AABB): void {
+  const lo = [b.min.x, b.min.y, b.min.z];
+  const hi = [b.max.x, b.max.y, b.max.z];
+  for (let axis = 0; axis < 3; axis++) {
+    const ua = axis === 0 ? 2 : 0; // texture axes: top uses (x, z), z faces (x, y), x faces (z, y)
+    const va = axis === 1 ? 2 : 1;
+    for (let side = 0; side < 2; side++) {
+      const c = side === 0 ? lo[axis] : hi[axis];
+      const base = pos.length / 3;
+      for (let k = 0; k < 4; k++) {
+        const p = [0, 0, 0];
+        p[axis] = c;
+        p[ua] = k === 0 || k === 3 ? lo[ua] : hi[ua];
+        p[va] = k < 2 ? lo[va] : hi[va];
+        pos.push(p[0], p[1], p[2]);
+        uv.push(p[ua] / TILE_M, p[va] / TILE_M);
+      }
+      // wind so the face looks outward: flip by axis parity and side
+      const flip = (axis === 2 ? side === 0 : side === 1) ? 1 : 0;
+      if (flip === 0) idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      else idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+    }
+  }
 }
 
-function mergedMesh(boxes: AABB[], color: string, emissiveScale = 0): Mesh {
+function mergedMesh(boxes: AABB[], color: string, emissiveScale = 0, texture = ''): Mesh {
   const pos: number[] = [];
   const idx: number[] = [];
-  for (let i = 0; i < boxes.length; i++) pushBox(pos, idx, boxes[i]);
+  const uv: number[] = [];
+  for (let i = 0; i < boxes.length; i++) pushBox(pos, idx, uv, boxes[i]);
   const geo = new BufferGeometry();
   geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new Float32BufferAttribute(uv, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
-  const mat = new MeshLambertMaterial({ color: new Color(color), flatShading: true });
+  const map = texture ? tileTexture(texture) : null;
+  // the map multiplies the colour, so a textured mesh gets a lightened tint of its palette colour
+  const tint = new Color(color);
+  if (map) tint.lerp(new Color('#ffffff'), 0.55);
+  const mat = new MeshLambertMaterial({
+    color: tint,
+    flatShading: true,
+    map,
+    normalMap: map ? tileNormal(texture) : null,
+  });
   if (emissiveScale > 0) mat.emissive = new Color(color).multiplyScalar(emissiveScale);
   return new Mesh(geo, mat);
+}
+
+// Appends one gable prism (two tiled slopes, two gable triangles) for a pitched roof whose
+// footprint is b (min.y eave, max.y ridge). Exactly the collider: no overhang, so the drawn eave is
+// where the hero slips off. UVs run along the ridge and up the slope in world metres.
+export function pushGable(
+  pos: number[],
+  idx: number[],
+  uv: number[],
+  b: AABB,
+  ridge: number,
+): void {
+  // Work in a local frame: u along the ridge, v across it; map back to (x, z) at the end.
+  const alongZ = ridge === RIDGE_Z;
+  const u0 = alongZ ? b.min.z : b.min.x;
+  const u1 = alongZ ? b.max.z : b.max.x;
+  const v0 = alongZ ? b.min.x : b.min.z;
+  const v1 = alongZ ? b.max.x : b.max.z;
+  const vc = (v0 + v1) / 2;
+  const y0 = b.min.y;
+  const y1 = b.max.y;
+  const slope = Math.hypot(vc - v0, y1 - y0);
+  const put = (u: number, v: number, y: number, tu: number, tv: number): void => {
+    if (alongZ) pos.push(v, y, u);
+    else pos.push(u, y, v);
+    uv.push(tu / TILE_M, tv / TILE_M);
+  };
+  // slopes: eave edge (v0 or v1) up to the ridge (vc)
+  for (let side = 0; side < 2; side++) {
+    const ve = side === 0 ? v0 : v1;
+    const base = pos.length / 3;
+    put(u0, ve, y0, u0, 0);
+    put(u1, ve, y0, u1, 0);
+    put(u1, vc, y1, u1, slope);
+    put(u0, vc, y1, u0, slope);
+    // outward winding: the normal must point away from the ridge line
+    const flip = (side === 0) === alongZ;
+    if (flip) idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    else idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+  }
+  // gable ends
+  for (let end = 0; end < 2; end++) {
+    const ue = end === 0 ? u0 : u1;
+    const base = pos.length / 3;
+    put(ue, v0, y0, v0, y0);
+    put(ue, v1, y0, v1, y0);
+    put(ue, vc, y1, vc, y1);
+    const flip = (end === 0) !== alongZ;
+    if (flip) idx.push(base, base + 1, base + 2);
+    else idx.push(base, base + 2, base + 1);
+  }
+}
+
+function gableMesh(world: World): Mesh {
+  const pos: number[] = [];
+  const idx: number[] = [];
+  const uv: number[] = [];
+  for (let i = 0; i < world.roofs.length; i++) {
+    pushGable(pos, idx, uv, world.roofs[i].aabb, world.roofs[i].ridgeAxis);
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const map = tileTexture('roof_tile');
+  const tint = new Color(COLOR_TILE_ROOF);
+  if (map) tint.lerp(new Color('#ffffff'), 0.55);
+  const mesh = new Mesh(
+    geo,
+    new MeshLambertMaterial({
+      color: tint,
+      flatShading: true,
+      map,
+      normalMap: tileNormal('roof_tile'),
+    }),
+  );
+  mesh.name = 'pitchedRoofs';
+  return mesh;
 }
 
 const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): AABB =>
@@ -125,28 +206,7 @@ function dressingMeshes(world: World): Mesh[] {
   const brick: AABB[] = [];
   const wood: AABB[] = [];
   const P = 0.1;
-  for (let i = 0; i < world.solids.length; i++) {
-    const st = i < world.style.length ? world.style[i] : 1;
-    if (st !== 1) continue;
-    const w = world.solids[i];
-    const gy = groundAt(world, (w.min.x + w.max.x) / 2, (w.min.z + w.max.z) / 2);
-    if (gy < w.min.y - 0.5) brick.push(box(w.min.x, gy, w.min.z, w.max.x, w.min.y, w.max.z));
-    const h = w.max.y - w.min.y;
-    wood.push(box(w.min.x - P, w.max.y - 3, w.min.z - P, w.max.x + P, w.max.y - 2.7, w.max.z + P));
-    const rows = [w.min.y + 1.0, w.min.y + Math.max(1.0, h - 2.3)];
-    for (let r = 0; r < rows.length; r++) {
-      const y = rows[r];
-      for (let j = 0; j < 3; j++) {
-        const u = (j + 0.5) / 3;
-        const x = w.min.x + (w.max.x - w.min.x) * u;
-        const z = w.min.z + (w.max.z - w.min.z) * u;
-        wood.push(box(x - 0.45, y, w.min.z - 0.08, x + 0.45, y + 1.3, w.min.z));
-        wood.push(box(x - 0.45, y, w.max.z, x + 0.45, y + 1.3, w.max.z + 0.08));
-        wood.push(box(w.min.x - 0.08, y, z - 0.45, w.min.x, y + 1.3, z + 0.45));
-        wood.push(box(w.max.x, y, z - 0.45, w.max.x + 0.08, y + 1.3, z + 0.45));
-      }
-    }
-  }
+  // House walls are dressed by decor/placeDecor (dressHouses); only S0 and the goal are dressed here.
   // S0 base (ADR 0007 section 5): a style-2 roof with no style-1 wall directly below gets a
   // flush brick box down to the highest style-0 top under its centre. Visual only.
   for (let i = 0; i < world.solids.length; i++) {
@@ -175,12 +235,12 @@ function dressingMeshes(world: World): Mesh[] {
       );
     }
   }
-  if (brick.length > 0) out.push(mergedMesh(brick, COLOR_BRICK));
+  if (brick.length > 0) out.push(mergedMesh(brick, COLOR_BRICK, 0, 'brick_a'));
   if (wood.length > 0) out.push(mergedMesh(wood, COLOR_WOOD));
   return out;
 }
 
-/** Level geometry: one merged mesh per colour (4 styles, pads, goal) plus anchor spheres. */
+/** Level geometry: one merged mesh per colour (styles, pads, goal, pitched roofs) plus anchor spheres. */
 export function buildLevelMeshes(world: World): Group {
   const g = new Group();
   g.name = 'level';
@@ -192,7 +252,7 @@ export function buildLevelMeshes(world: World): Group {
       if (s === st) boxes.push(world.solids[i]);
     }
     if (boxes.length > 0) {
-      g.add(mergedMesh(boxes, COLOR_STYLE[st], st === DANGER_STYLE ? 0.2 : 0));
+      g.add(mergedMesh(boxes, COLOR_STYLE[st], st === DANGER_STYLE ? 0.2 : 0, STYLE_TEXTURE[st]));
     }
   }
   if (world.pads.length > 0) {
@@ -210,6 +270,7 @@ export function buildLevelMeshes(world: World): Group {
     g.add(mergedMesh(slabs, COLOR_PAD));
   }
   if (world.goal.max.y > world.goal.min.y) g.add(mergedMesh([world.goal], COLOR_GOAL));
+  if (world.roofs.length > 0) g.add(gableMesh(world));
 
   const dress = dressingMeshes(world);
   for (let i = 0; i < dress.length; i++) g.add(dress[i]);

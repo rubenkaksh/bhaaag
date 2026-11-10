@@ -10,6 +10,8 @@ import {
   Group,
   Mesh,
   MeshBasicMaterial,
+  Points,
+  PointsMaterial,
   Quaternion,
   SphereGeometry,
   Vector3,
@@ -100,12 +102,12 @@ function buildDome(): Mesh {
 /** Sun disc and additive glow, both at SUN_DIST along SUN_DIR, facing the group origin. */
 function buildSun(): Group {
   const g = new Group();
-  const glowGeo = new CircleGeometry(120, 32);
+  const glowGeo = new CircleGeometry(170, 32);
   const glowCol = new Color('#ffc070');
   const gc: number[] = [];
   // CircleGeometry index 0 is the centre: alpha 0.5 there, 0 on the rim.
   for (let i = 0; i < glowGeo.attributes.position.count; i++) {
-    gc.push(glowCol.r, glowCol.g, glowCol.b, i === 0 ? 0.5 : 0);
+    gc.push(glowCol.r, glowCol.g, glowCol.b, i === 0 ? 0.65 : 0);
   }
   glowGeo.setAttribute('color', new Float32BufferAttribute(gc, 4));
   const glow = new Mesh(
@@ -135,18 +137,115 @@ function buildSun(): Group {
   return g;
 }
 
+/**
+ * Graphics overhaul P4: five soft god-ray wedges fanning up from the sun, one merged mesh with
+ * normal (not additive) blending so the additive-mesh cap stays untouched. Alpha is highest at
+ * the sun end and fades to 0 at the tip and on both edges.
+ */
+function buildRays(): Mesh {
+  const pos: number[] = [];
+  const col: number[] = [];
+  const idx: number[] = [];
+  const c = new Color('#ffcf8a');
+  const fan = [-0.5, -0.25, 0.0, 0.3, 0.55];
+  for (let i = 0; i < fan.length; i++) {
+    const a = fan[i];
+    const len = 260 + 40 * (i % 2);
+    const half = 14 + 4 * (i % 3);
+    const b = pos.length / 3;
+    // local space: +Y up the ray, +X across; origin at the sun
+    pos.push(-half * 0.3, 0, 0, half * 0.3, 0, 0, -half, len, 0, half, len, 0);
+    col.push(c.r, c.g, c.b, 0.0, c.r, c.g, c.b, 0.0, c.r, c.g, c.b, 0.0, c.r, c.g, c.b, 0.0);
+    // centre fade: add a mid vertex row instead of a texture
+    const m = pos.length / 3;
+    pos.push(0, 0, 0, 0, len * 0.55, 0);
+    col.push(c.r, c.g, c.b, 0.16, c.r, c.g, c.b, 0.07);
+    idx.push(
+      b,
+      b + 1,
+      m,
+      b,
+      m,
+      b + 2,
+      b + 1,
+      b + 3,
+      m + 1,
+      b + 2,
+      b + 3,
+      m + 1,
+      m,
+      m + 1,
+      b,
+      m,
+      m + 1,
+      b + 1,
+    );
+    // rotate this wedge about the sun-facing axis by `a` radians
+    const cs = Math.cos(a);
+    const sn = Math.sin(a);
+    for (let v = b; v < pos.length / 3; v++) {
+      const x = pos[v * 3];
+      const y = pos[v * 3 + 1];
+      pos[v * 3] = x * cs - y * sn;
+      pos[v * 3 + 1] = x * sn + y * cs;
+    }
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new Float32BufferAttribute(col, 4));
+  geo.setIndex(idx);
+  const mesh = new Mesh(
+    geo,
+    new MeshBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+      side: DoubleSide,
+    }),
+  );
+  mesh.name = 'godRays';
+  mesh.position.copy(SUN_DIR).multiplyScalar(SUN_DIST - 4);
+  mesh.quaternion.setFromUnitVectors(FORWARD, SUN_DIR.clone().negate());
+  mesh.renderOrder = 1;
+  return mesh;
+}
+
 /** Seven flat cloud cards, merged into one mesh, placed on a ring around the sky group. */
-function buildClouds(rand: () => number): Mesh {
+function buildClouds(
+  rand: () => number,
+  opts: {
+    azLo: number;
+    azHi: number;
+    count: number;
+    elLo: number;
+    elHi: number;
+    wLo: number;
+    wHi: number;
+    opacity: number;
+    name: string;
+  } = {
+    azLo: -40,
+    azHi: 60,
+    count: CLOUD_COUNT,
+    elLo: 4,
+    elHi: 14,
+    wLo: 60,
+    wHi: 140,
+    opacity: 0.85,
+    name: 'clouds',
+  },
+): Mesh {
   const parts: BufferGeometry[] = [];
   const top = new Color('#f7b98a');
   const under = new Color('#ffd9a0');
   const dir = new Vector3();
   const q = new Quaternion();
   const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
-  for (let k = 0; k < CLOUD_COUNT; k++) {
-    const az = lerp(-40, 60, rand()) * DEG;
-    const el = lerp(4, 14, rand()) * DEG;
-    const w = lerp(60, 140, rand());
+  for (let k = 0; k < opts.count; k++) {
+    const az = lerp(opts.azLo, opts.azHi, rand()) * DEG;
+    const el = lerp(opts.elLo, opts.elHi, rand()) * DEG;
+    const w = lerp(opts.wLo, opts.wHi, rand());
     const h = lerp(8, 14, rand());
     dir.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
     const g = new CircleGeometry(1, 16);
@@ -173,13 +272,13 @@ function buildClouds(rand: () => number): Mesh {
     new MeshBasicMaterial({
       vertexColors: true,
       transparent: true,
-      opacity: 0.85,
+      opacity: opts.opacity,
       side: DoubleSide,
       depthWrite: false,
       fog: false,
     }),
   );
-  mesh.name = 'clouds';
+  mesh.name = opts.name;
   return mesh;
 }
 
@@ -226,7 +325,22 @@ export function buildSkyView(): Group {
   g.add(buildDome());
   g.add(buildSun());
   g.add(buildHaze());
+  g.add(buildRays());
   g.add(buildClouds(mulberry32(SKY_SEED)));
+  // Medium/High only (scene.ts toggles by name): a higher, paler second layer.
+  g.add(
+    buildClouds(mulberry32(SKY_SEED + 7), {
+      azLo: -60,
+      azHi: 80,
+      count: 9,
+      elLo: 16,
+      elHi: 34,
+      wLo: 90,
+      wHi: 200,
+      opacity: 0.55,
+      name: 'cloudsHigh',
+    }),
+  );
   return g;
 }
 
@@ -340,7 +454,56 @@ export function buildMountains(seed = MOUNTAIN_SEED): Mesh {
   geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
   geo.setAttribute('color', new Float32BufferAttribute(col, 3));
   geo.setIndex(idx);
-  const mesh = new Mesh(geo, new MeshBasicMaterial({ vertexColors: true, side: DoubleSide, fog: false }));
+  const mesh = new Mesh(
+    geo,
+    new MeshBasicMaterial({ vertexColors: true, side: DoubleSide, fog: false }),
+  );
   mesh.name = 'mountains';
   return mesh;
+}
+
+export const DUST_COUNT = 90;
+const DUST_BOX = [36, 14, 36];
+
+/** Dust motes: warm additive points in a box around the camera (Medium/High). Positions are set by updateDust. */
+export function buildDust(): Points {
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(DUST_COUNT * 3), 3));
+  const mat = new PointsMaterial({
+    color: '#d8c9b4',
+    size: 0.09,
+    transparent: true,
+    opacity: 0.4,
+    depthWrite: false,
+    blending: AdditiveBlending,
+    fog: false,
+  });
+  const pts = new Points(geo, mat);
+  pts.name = 'dust';
+  pts.frustumCulled = false;
+  return pts;
+}
+
+const DUST_R = new Float32Array(DUST_COUNT * 3);
+for (let i = 0; i < DUST_COUNT; i++) {
+  for (let k = 0; k < 3; k++) {
+    const h = Math.sin(i * [12.9898, 78.233, 39.425][k]) * [43758.5453, 12345.6789, 24681.357][k];
+    DUST_R[i * 3 + k] = h - Math.floor(h);
+  }
+}
+const wrap = (v: number, size: number): number => v - size * Math.floor(v / size);
+
+/** Wraps each mote into the box around the camera and drifts it slowly; 90 points, no per-frame allocation. */
+export function updateDust(pts: Points, cx: number, cy: number, cz: number, t: number): void {
+  const a = pts.geometry.getAttribute('position');
+  for (let i = 0; i < DUST_COUNT; i++) {
+    const r1 = DUST_R[i * 3];
+    const r2 = DUST_R[i * 3 + 1];
+    const r3 = DUST_R[i * 3 + 2];
+    const x = wrap(r1 * DUST_BOX[0] + t * 0.25 * (0.5 + r2), DUST_BOX[0]) - DUST_BOX[0] / 2;
+    const y = wrap(r2 * DUST_BOX[1] - t * 0.12 * (0.5 + r3), DUST_BOX[1]) - DUST_BOX[1] / 2;
+    const z = wrap(r3 * DUST_BOX[2] + t * 0.18 * (0.5 + r1), DUST_BOX[2]) - DUST_BOX[2] / 2;
+    a.setXYZ(i, cx + x, cy + y, cz + z);
+  }
+  a.needsUpdate = true;
 }

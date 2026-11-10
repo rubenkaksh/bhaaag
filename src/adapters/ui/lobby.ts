@@ -1,5 +1,12 @@
 import './lobby.css';
 import { formatTime } from './hud';
+import {
+  GRAPHICS_TIERS,
+  TIER_INFO,
+  loadGraphicsTier,
+  saveGraphicsTier,
+} from '../render/graphicsTier';
+import type { GraphicsTier } from '../render/graphicsTier';
 
 // Lobby / start page (T273). DOM + inline SVG only: no images, no network.
 // The game is created by the caller on the first PLAY, so nothing ticks
@@ -56,7 +63,13 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
   lobby.innerHTML =
     ART +
     '<div class="head"><h1>Zipline Tole</h1><p class="tag">Slide the Kathmandu rooftops at sunset</p></div>' +
-    '<div class="mid"><button id="lobby-play" type="button">PLAY</button><p id="lobby-best"></p></div>' +
+    '<div class="mid"><button id="lobby-play" type="button">PLAY</button><p id="lobby-best"></p>' +
+    '<div id="lobby-gfx" role="radiogroup" aria-label="Graphics quality"><span class="lbl">Graphics</span>' +
+    GRAPHICS_TIERS.map(
+      (t) =>
+        `<button type="button" role="radio" data-tier="${t}" title="${TIER_INFO[t].desc}">${TIER_INFO[t].label}</button>`,
+    ).join('') +
+    '</div><p id="lobby-gfx-desc"></p></div>' +
     '<div class="how">' +
     '<div class="desk"><b>Move</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>' +
     '<div class="desk"><b>Look</b> mouse</div>' +
@@ -77,6 +90,24 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
   if (playQ === null || bestQ === null) throw new Error('lobby markup');
   const playBtn: HTMLButtonElement = playQ;
   const bestEl: HTMLElement = bestQ;
+
+  // Graphics tier (graphics-spec "Implemented tiers"): saved at once; a running scene applies
+  // it live via GRAPHICS_TIER_EVENT. The lobby doubles as the pause menu (Esc / MENU).
+  const gfxDesc = lobby.querySelector<HTMLElement>('#lobby-gfx-desc');
+  const gfxBtns = lobby.querySelectorAll<HTMLButtonElement>('#lobby-gfx button');
+  function showTier(tier: GraphicsTier): void {
+    for (const b of gfxBtns) b.setAttribute('aria-checked', String(b.dataset.tier === tier));
+    if (gfxDesc !== null) gfxDesc.textContent = TIER_INFO[tier].desc;
+  }
+  for (const b of gfxBtns) {
+    b.addEventListener('click', () => {
+      const t = GRAPHICS_TIERS.find((x) => x === b.dataset.tier);
+      if (t === undefined) return;
+      saveGraphicsTier(t);
+      showTier(t);
+    });
+  }
+  showTier(loadGraphicsTier());
 
   const menu = document.createElement('button');
   menu.id = 'menu-btn';

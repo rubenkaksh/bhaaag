@@ -6,11 +6,15 @@ import {
   HERO_AIRBORNE,
   HERO_ATTACHED,
   HERO_DEAD,
+  HERO_EV_LANDED,
+  HERO_EV_PERFECT,
   HERO_EV_RELEASED,
   HERO_GROUNDED,
+  HERO_HANGING,
   HeroState,
+  copyHeroState,
 } from '../../src/core/hero';
-import { BTN_HOOK, BTN_JUMP, BTN_REEL, InputFrame } from '../../src/core/input';
+import { AXIS_MAX, BTN_HOOK, BTN_JUMP, BTN_REEL, InputFrame } from '../../src/core/input';
 import { AABB } from '../../src/core/math/aabb';
 import { Vec3 } from '../../src/core/math/vec3';
 import { step } from '../../src/core/sim';
@@ -118,7 +122,7 @@ describe('gameplay: rope ride', () => {
       let v = 0;
       for (let i = 0; i < 600 && s.mode === HERO_ATTACHED; i++) {
         v = s.hook.v;
-        step(s, i < 40 && brake ? frame(BTN_REEL, 0) : IDLE, w, cfg);
+        step(s, i >= 60 && i < 100 && brake ? frame(BTN_REEL, 0) : IDLE, w, cfg);
       }
       expect(s.dead).toBe(0);
       return v;
@@ -148,16 +152,16 @@ describe('gameplay: momentum chain', () => {
   function chainWorld(): World {
     const w = new World();
     addSolid(w, box(-5, 0, -10, 5, 8, 12));
-    addSolid(w, box(-5, -20, 38, 5, -2, 60));
-    addAnchor(w, 0, -1.5, 38);
+    addSolid(w, box(-5, -20, 34, 5, -2, 60));
+    addAnchor(w, 0, -1.5, 34);
     w.killPlaneY = -30;
     return w;
   }
   // Lands with ~8 m/s forward, then fires `wait` ticks later; returns the rope v0.
-  function chainV0(wait: number): number {
+  function chainV0(wait: number, landSpeed = 8): number {
     const w = chainWorld();
-    const s = hero(0, 10, 0, 0);
-    s.vz = 8;
+    const s = hero(0, 10, 2, 0); // lands close enough to the edge that the chord clears the roof
+    s.vz = landSpeed;
     for (let i = 0; i < 300 && s.grounded === 0; i++) step(s, IDLE, w, cfg);
     expect(s.grounded).toBe(1);
     run(s, w, wait);
@@ -167,9 +171,10 @@ describe('gameplay: momentum chain', () => {
     return s.hook.v;
   }
 
-  it('(d) firing within 0.4 s of landing seeds v0; after 0.5 s it does not', () => {
+  it('(d) firing within 0.4 s of landing seeds v0 from the carried speed; once stopped it does not', () => {
     expect(chainV0(12)).toBeGreaterThan(cfg.rope.launchSpeed + 0.5);
-    expect(chainV0(30)).toBeCloseTo(cfg.rope.launchSpeed, 9);
+    expect(chainV0(12)).toBeGreaterThan(chainV0(30)); // friction eats the carry after the window
+    expect(chainV0(120)).toBeCloseTo(cfg.rope.launchSpeed, 9); // at rest: plain launch speed
   });
 });
 
@@ -184,5 +189,194 @@ describe('gameplay: kill plane', () => {
     const y = s.py;
     run(s, w, 10, frame(BTN_JUMP, BTN_JUMP));
     expect(s.py).toBe(y);
+  });
+});
+
+describe('gameplay: grounded momentum seeds the rope', () => {
+  function fireV0(vz: number): number {
+    const w = twoRoofs();
+    const s = hero(0, 10, -5, 1);
+    s.vz = vz; // chainT is 0: not inside the chain window
+    aimAt(s, w, 0);
+    step(s, frame(0, BTN_HOOK), w, cfg);
+    expect(s.hook.anchorId).toBe(0);
+    return s.hook.v;
+  }
+
+  it('a run-up outside the chain window seeds v0 above launchSpeed; standing does not', () => {
+    expect(fireV0(0)).toBeCloseTo(cfg.rope.launchSpeed, 9);
+    expect(fireV0(cfg.hero.run)).toBeGreaterThan(cfg.rope.launchSpeed + 1.5);
+    expect(fireV0(cfg.hero.run)).toBeLessThanOrEqual(cfg.hero.run);
+  });
+
+  it('a chain (carried speed above run speed) seeds more than a run-up', () => {
+    // Lands on the high roof at 11 m/s (carryCap 12 keeps it), fires 0.2 s later.
+    const w = new World();
+    addSolid(w, box(-5, 0, -10, 5, 8, 12));
+    addSolid(w, box(-5, -20, 38, 5, -2, 60));
+    addAnchor(w, 0, -1.5, 38);
+    w.killPlaneY = -30;
+    const s = hero(0, 10, 0, 0);
+    s.vz = 11;
+    for (let i = 0; i < 300 && s.grounded === 0; i++) step(s, IDLE, w, cfg);
+    expect(s.chainT).toBeGreaterThan(0);
+    run(s, w, 12);
+    aimAt(s, w, 0);
+    step(s, frame(0, BTN_HOOK), w, cfg);
+    expect(s.hook.anchorId).toBe(0);
+    expect(s.hook.v).toBeGreaterThan(cfg.hero.run + 2);
+  });
+
+  it('an airborne shot seeds from carried speed only inside the chain window', () => {
+    const fire = (chainT: number): number => {
+      const w = twoRoofs();
+      const s = hero(0, 10.5, -5, 0);
+      s.vz = 11;
+      s.chainT = chainT;
+      aimAt(s, w, 0);
+      step(s, frame(0, BTN_HOOK), w, cfg);
+      expect(s.hook.anchorId).toBe(0);
+      return s.hook.v;
+    };
+    expect(fire(0.2)).toBeGreaterThan(cfg.hero.run);
+    expect(fire(0)).toBeCloseTo(cfg.rope.launchSpeed, 9);
+  });
+
+  it('with no input, speed bleeds at skidDecel in the chain window, then at friction', () => {
+    const w = new World();
+    addSolid(w, box(-5, 0, -10, 5, 8, 60));
+    const s = hero(0, 8, 0, 1);
+    s.vz = 12;
+    s.chainT = 0.2;
+    step(s, IDLE, w, cfg);
+    expect(s.vz).toBeCloseTo(12 - cfg.landing.skidDecel / cfg.fixedHz, 9);
+    s.chainT = 0;
+    const before = s.vz;
+    step(s, IDLE, w, cfg);
+    expect(s.vz).toBeCloseTo(before - cfg.hero.friction / cfg.fixedHz, 9);
+  });
+
+  it('holding forward through the chain window keeps the carry; pulling back brakes hard', () => {
+    const go = (moveY: number, chainT: number): number => {
+      const w = new World();
+      addSolid(w, box(-5, 0, -10, 5, 8, 60));
+      const s = hero(0, 8, 0, 1);
+      s.yaw = 0;
+      s.camYaw = 0;
+      s.vz = 12;
+      s.chainT = chainT;
+      const f = new InputFrame();
+      f.moveY = moveY;
+      step(s, f, w, cfg);
+      return s.vz;
+    };
+    expect(go(AXIS_MAX, 0.2)).toBeCloseTo(12 - cfg.landing.skidDecel / cfg.fixedHz, 9);
+    expect(go(AXIS_MAX, 0)).toBeCloseTo(12 - cfg.hero.accel / cfg.fixedHz, 9);
+    expect(go(-AXIS_MAX, 0.2)).toBeCloseTo(12 - cfg.hero.accel / cfg.fixedHz, 9);
+  });
+
+  it('landing keeps horizontal speed up to carryCap', () => {
+    const w = new World();
+    addSolid(w, box(-5, 0, -10, 5, 8, 40));
+    const s = hero(0, 8.3, 0, 0);
+    s.vz = 20;
+    let hs = 0;
+    for (let i = 0; i < 60 && (s.eventBits & HERO_EV_LANDED) === 0; i++) {
+      step(s, IDLE, w, cfg);
+      hs = Math.hypot(s.vx, s.vz);
+    }
+    expect(s.grounded).toBe(1);
+    expect(hs).toBeCloseTo(cfg.landing.carryCap, 6);
+  });
+});
+
+describe('gameplay: timed release', () => {
+  const span = (s: HeroState): number => s.hook.len - cfg.rope.trolleyStop;
+
+  // Rides until the rope fraction reaches `frac`; stops one tick earlier when `before` is set.
+  function rideTo(frac: number, before = false): { s: HeroState; w: World } {
+    const w = twoRoofs();
+    const s = hero(0, 10, -1, 1);
+    fireAndAttach(s, w);
+    for (let i = 0; i < 600 && s.hook.s / span(s) < frac; i++) {
+      const snap = new HeroState();
+      copyHeroState(snap, s);
+      step(s, IDLE, w, cfg);
+      if (before && s.hook.s / span(s) >= frac) {
+        copyHeroState(s, snap);
+        break;
+      }
+    }
+    expect(s.mode).toBe(HERO_ATTACHED);
+    return { s, w };
+  }
+
+  it('JUMP inside the window adds the boost along the horizontal chord and sets PERFECT', () => {
+    const { s, w } = rideTo(0.85);
+    const chordVz = s.hook.dirZ * s.hook.v;
+    step(s, frame(0, BTN_JUMP), w, cfg);
+    expect(s.eventBits & HERO_EV_PERFECT).toBe(HERO_EV_PERFECT);
+    expect(s.eventBits & HERO_EV_RELEASED).toBe(HERO_EV_RELEASED);
+    expect(s.perfect).toBe(1);
+    expect(s.vz).toBeCloseTo(chordVz + cfg.release.jumpFwd + cfg.release.perfectBoost, 6);
+  });
+
+  it('JUMP just before the window is the plain release: no boost, no event', () => {
+    const { s, w } = rideTo(cfg.release.perfectLo, true);
+    expect(s.hook.s / span(s)).toBeLessThan(cfg.release.perfectLo);
+    const chordVz = s.hook.dirZ * s.hook.v;
+    step(s, frame(0, BTN_JUMP), w, cfg);
+    expect(s.eventBits & HERO_EV_PERFECT).toBe(0);
+    expect(s.perfect).toBe(0);
+    expect(s.vz).toBeCloseTo(chordVz + cfg.release.jumpFwd, 6);
+  });
+
+  it('a hang JUMP is never timed', () => {
+    const s = hero(0, 5, 0, 0);
+    s.mode = HERO_HANGING;
+    step(s, frame(0, BTN_JUMP), twoRoofs(), cfg);
+    expect(s.eventBits & HERO_EV_PERFECT).toBe(0);
+  });
+
+  it('a timed release lands with up to carryCap + perfectBoost; a plain landing is capped at carryCap', () => {
+    function landSpeed(perfect: number): number {
+      const w = new World();
+      addSolid(w, box(-5, 0, -10, 5, 8, 40));
+      const s = hero(0, 8.3, 0, 0);
+      s.vz = 20;
+      s.perfect = perfect;
+      let hs = 0;
+      for (let i = 0; i < 60 && (s.eventBits & HERO_EV_LANDED) === 0; i++) {
+        step(s, IDLE, w, cfg);
+        hs = Math.hypot(s.vx, s.vz);
+      }
+      expect(s.grounded).toBe(1);
+      expect(s.perfect).toBe(0); // consumed by the landing
+      return hs;
+    }
+    expect(landSpeed(0)).toBeCloseTo(cfg.landing.carryCap, 6);
+    expect(landSpeed(1)).toBeCloseTo(cfg.landing.carryCap + cfg.release.perfectBoost, 6);
+  });
+
+  it('firing a new rope forfeits the timed-release carry', () => {
+    const { s, w } = rideTo(0.85);
+    step(s, frame(0, BTN_JUMP), w, cfg);
+    expect(s.perfect).toBe(1);
+    run(s, w, 10); // past the hook cooldown
+    s.hookCd = 0;
+    s.hookIntentT = 0;
+    s.perfect = 1;
+    const w2 = twoRoofs();
+    s.px = 0;
+    s.py = 10;
+    s.pz = -1;
+    s.vx = 0;
+    s.vy = 0;
+    s.vz = 0;
+    s.grounded = 1;
+    s.mode = HERO_GROUNDED;
+    aimAt(s, w2, 0);
+    step(s, frame(0, BTN_HOOK), w2, cfg);
+    expect(s.perfect).toBe(0);
   });
 });

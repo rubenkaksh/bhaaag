@@ -61,6 +61,51 @@
 #hud-timer.debug {
   top: 64px;
 }
+#hud-hop {
+  top: calc(var(--pad) + clamp(28px, 4.6vh, 50px) + 4px + env(safe-area-inset-top, 0px));
+  left: calc(var(--pad) + env(safe-area-inset-left, 0px));
+  z-index: 30;
+  font-size: clamp(12px, 2.1vh, 22px);
+  padding: 0.2em 0.7em;
+  border-radius: 0.4em;
+  background: var(--panel);
+  color: var(--gold);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+/* Altitude strip: right edge, clear of the pause button (top) and action buttons (bottom). */
+#hud-alt {
+  --alt: 0%;
+  top: 20vh;
+  bottom: 38vh;
+  right: calc(6px + env(safe-area-inset-right, 0px));
+  z-index: 28;
+  width: 6px;
+  border-radius: 3px;
+  background: rgba(30, 18, 14, 0.55);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+#hud-alt .alt-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: var(--alt);
+  border-radius: 3px;
+  background: rgba(255, 200, 58, 0.35);
+}
+#hud-alt .alt-dot {
+  position: absolute;
+  left: -3px;
+  top: var(--alt);
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 2px solid #2a1a0e;
+  box-sizing: border-box;
+}
 #hud-pause {
   top: calc(var(--pad) + env(safe-area-inset-top, 0px));
   right: calc(var(--pad) + env(safe-area-inset-right, 0px));
@@ -128,8 +173,22 @@
 #hud-reticle.off {
   display: none;
 }
+#hud-reason {
+  top: calc(50% + 22px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  font: 700 14px/1.2 var(--font);
+  color: #fff6e4;
+  text-shadow: 0 1px 3px rgba(40, 20, 20, 0.8);
+  pointer-events: none;
+  white-space: nowrap;
+}
+#hud-reason.off {
+  display: none;
+}
 #hud-waypoint {
-  --dia: clamp(22px, 5.5vh, 40px);
+  --dia: clamp(28px, 7vh, 52px);
   --stem: calc(var(--dia) * 0.6);
   top: 0;
   left: 0;
@@ -155,7 +214,18 @@
   bottom: var(--stem);
   width: var(--dia);
   height: var(--dia);
-  filter: drop-shadow(0 0 6px rgba(255, 200, 58, 0.7));
+  filter: drop-shadow(0 0 3px #2a1a0e) drop-shadow(0 0 10px rgba(255, 200, 58, 0.95));
+  animation: wp-pulse 1.1s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+@keyframes wp-pulse {
+  0%,
+  100% {
+    scale: 1;
+  }
+  50% {
+    scale: 1.18;
+  }
 }
 #hud-waypoint .wp-label {
   position: absolute;
@@ -165,7 +235,9 @@
   padding: 0.15em 0.5em;
   border-radius: 0.35em;
   background: var(--panel);
-  font-size: clamp(12px, 2.2vh, 22px);
+  font-size: clamp(13px, 2.5vh, 24px);
+  color: var(--gold);
+  border: 1px solid var(--gold);
   white-space: nowrap;
 }
 #hud-waypoint.flip .wp-label {
@@ -421,6 +493,9 @@
 
 /* Reduced motion: every animation above off; static end states remain. */
 @media (prefers-reduced-motion: reduce) {
+  #hud-waypoint .wp-dia {
+    animation: none;
+  }
   #hud-objective.in-a,
   #hud-objective.in-b,
   #hud-objective.in-a span,

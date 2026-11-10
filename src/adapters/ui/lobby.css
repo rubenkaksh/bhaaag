@@ -15,7 +15,10 @@
     max(2vh, env(safe-area-inset-bottom, 0px)) max(3vw, env(safe-area-inset-left, 0px));
   background: #5b2b53;
   color: #fff6e4;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
   text-align: center;
   user-select: none;
   -webkit-user-select: none;
@@ -37,7 +40,10 @@
 }
 #lobby h1 {
   margin: 0;
-  font: 900 clamp(30px, 11vh, 120px) / 1 Georgia, 'Times New Roman', serif;
+  font:
+    900 clamp(30px, 11vh, 120px) / 1 Georgia,
+    'Times New Roman',
+    serif;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #ffd35a;
@@ -62,7 +68,10 @@
 }
 #lobby-play {
   padding: 0.35em 1.8em;
-  font: 900 clamp(22px, 8vh, 84px) / 1 system-ui, -apple-system, sans-serif;
+  font:
+    900 clamp(22px, 8vh, 84px) / 1 system-ui,
+    -apple-system,
+    sans-serif;
   letter-spacing: 0.1em;
   color: #3a2410;
   background: linear-gradient(180deg, #ffe08a 0%, #ffc83a 55%, #e8a21e 100%);
@@ -84,7 +93,10 @@
 }
 #lobby-best {
   margin: 0;
-  font: 700 clamp(12px, 3.2vh, 32px) / 1 ui-monospace, Menlo, monospace;
+  font:
+    700 clamp(12px, 3.2vh, 32px) / 1 ui-monospace,
+    Menlo,
+    monospace;
   color: #ffd35a;
   text-shadow: 0 1px 4px rgba(40, 14, 30, 0.9);
 }
@@ -124,7 +136,10 @@
   border-radius: 4px;
   background: #fff6e4;
   color: #3a2410;
-  font: 700 0.9em ui-monospace, Menlo, monospace;
+  font:
+    700 0.9em ui-monospace,
+    Menlo,
+    monospace;
 }
 #menu-btn {
   position: fixed;
@@ -132,7 +147,10 @@
   right: calc(10px + env(safe-area-inset-right, 0px));
   z-index: 35;
   padding: 6px 12px;
-  font: 700 12px/1 system-ui, -apple-system, sans-serif;
+  font:
+    700 12px/1 system-ui,
+    -apple-system,
+    sans-serif;
   letter-spacing: 0.08em;
   color: #fff6e4;
   background: rgba(40, 14, 30, 0.55);
@@ -142,4 +160,48 @@
 }
 #menu-btn.off {
   display: none;
+}
+/* Graphics tier choice (graphics-spec "Implemented tiers"): a small pill row under the best time. */
+#lobby-gfx {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.3em 0.5em;
+  border-radius: 999px;
+  background: rgba(40, 14, 30, 0.62);
+  font-size: clamp(10px, 2.4vh, 22px);
+}
+#lobby-gfx .lbl {
+  padding: 0 0.3em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffd35a;
+}
+#lobby-gfx button {
+  padding: 0.25em 0.9em;
+  font:
+    700 1em/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #fff6e4;
+  background: transparent;
+  border: 1px solid rgba(255, 246, 228, 0.4);
+  border-radius: 999px;
+  cursor: pointer;
+}
+#lobby-gfx button[aria-checked='true'] {
+  color: #3a2410;
+  background: #ffd35a;
+  border-color: #ffd35a;
+}
+#lobby-gfx button:focus-visible {
+  outline: 2px solid #fff6e4;
+  outline-offset: 2px;
+}
+#lobby-gfx-desc {
+  margin: -0.8vh 0 0;
+  font-size: clamp(10px, 2.2vh, 20px);
+  color: #fff6e4;
+  text-shadow: 0 1px 4px rgba(40, 14, 30, 0.9);
 }

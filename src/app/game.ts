@@ -14,27 +14,41 @@ import {
   HERO_EV_DIED,
   HERO_EV_HOOKED,
   HERO_EV_LANDED,
+  HERO_EV_PERFECT,
   HERO_EV_RELEASED,
   newHeroState,
 } from '../core/hero';
-import { HOOK_FLYING, HOOK_IDLE, NO_ANCHOR, AimResult, pickAnchorAssisted } from '../core/hook';
+import {
+  HOOK_FLYING,
+  HOOK_IDLE,
+  NO_ANCHOR,
+  AimResult,
+  aimReason,
+  pickAnchorAssisted,
+} from '../core/hook';
 import { BTN_ACTION, BTN_HOOK, BTN_REEL, BTN_RESTART, newInputFrame } from '../core/input';
 import { aabbContainsPoint } from '../core/math/aabb';
+import { PreviewResult, PREVIEW_NONE, previewShot } from '../core/preview';
 import { step } from '../core/sim';
 import { Vec3 } from '../core/math/vec3';
 import { loadWorldFromJson } from '../content/load';
 import { DesktopInput } from '../adapters/input/desktop';
 import { TouchInput } from '../adapters/input/touch';
+import { Sfx } from '../adapters/audio/sfx';
 import { CameraRig, updateCamera } from '../adapters/render/cameraRig';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
 import { createGameScene } from '../adapters/render/scene';
 import { DebugHud } from '../adapters/ui/debugHud';
 import { Hud } from '../adapters/ui/hud';
+import { altitudeFraction } from '../adapters/ui/progress';
+import { aimReasonText } from '../adapters/ui/aimReasonText';
+import { AimPreviewView } from '../adapters/render/aimPreviewView';
 import { WaypointView } from '../adapters/render/waypointView';
 import {
   formatDistance,
   newWaypointScreen,
+  padHeightBelow,
   projectWaypoint,
   WAYPOINT_HIDE_M,
 } from '../adapters/ui/waypointMath';
@@ -47,6 +61,7 @@ import {
   AE_FIRE,
   AE_JUMP,
   AE_LAND,
+  AE_PERFECT,
   AE_RELEASE,
   landAmp,
 } from '../adapters/render/animEvents';
@@ -162,9 +177,12 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
   const wpView = new Vector3();
   const ropeView = new RopeView();
   gs.scene.add(ropeView.group);
+  const previewView = new AimPreviewView();
+  gs.scene.add(previewView.group);
   const cameraFx = new CameraFx();
   const dust = new DustPuff();
   gs.scene.add(dust.mesh);
+  const sfx = new Sfx();
   let animEv = 0;
   let animImpact = 0;
   // Debug HUD is opt-in via ?debug (plan section 8, m1-review F6).
@@ -185,6 +203,11 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
   const feet = new Vec3(0, 0, 0);
   const stepDt = 1 / cfg.fixedHz;
   const aim = new AimResult();
+  const previewOut = new PreviewResult();
+  const previewStep = 1 / cfg.aim.previewHz;
+  let previewTarget = NO_ANCHOR; // anchor the reticle found this step (NO_ANCHOR = none)
+  let previewId = NO_ANCHOR; // anchor the current previewOut belongs to
+  let previewAcc = 0;
 
   let phase: Phase = 'pan';
   let panT = 0;
@@ -225,7 +248,15 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
     feet.y = cur.py;
     feet.z = cur.pz;
     const speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
-    updateCamera(curRig, feet, camYawToRig(cur.camYaw), cur.camPitch, speed, world.solids, cfg.camera);
+    updateCamera(
+      curRig,
+      feet,
+      camYawToRig(cur.camYaw),
+      cur.camPitch,
+      speed,
+      world.solids,
+      cfg.camera,
+    );
   }
 
   const hudUi = new Hud(root, debug, () => restart());
@@ -241,6 +272,9 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
     brakeLatch = false;
     animEv = 0;
     animImpact = 0;
+    previewTarget = NO_ANCHOR;
+    previewId = NO_ANCHOR;
+    hudUi.setAimReason('');
     cameraFx.reset();
     hudUi.hideToast();
     hudUi.hideWin();
@@ -298,6 +332,10 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
       }
       if ((ev & HERO_EV_RELEASED) !== 0) animEv |= AE_RELEASE;
       if ((ev & HERO_EV_HOOKED) !== 0) animEv |= AE_FIRE;
+      if ((ev & HERO_EV_PERFECT) !== 0) {
+        animEv |= AE_PERFECT; // the release camera kick (AE_RELEASE) fires too
+        hudUi.pulseTimer();
+      }
       if ((ev & HERO_EV_CLING) !== 0) animEv |= AE_CLING;
       if ((ev & HERO_EV_DIED) !== 0) animEv |= AE_DIE;
       if (prev.mode !== HERO_ATTACHED && cur.mode === HERO_ATTACHED) animEv |= AE_ATTACH;
@@ -339,6 +377,9 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
         if (document.pointerLockElement !== null) document.exitPointerLock();
       }
       updateReticle();
+      updatePreview();
+    } else {
+      previewTarget = NO_ANCHOR;
     }
 
     copyRig(prevRig, curRig);
@@ -347,8 +388,10 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
 
   /** Gold + big when pickAnchor (same args the sim uses on press) finds a target. */
   function updateReticle(): void {
+    previewTarget = NO_ANCHOR;
     if (phase !== 'play' || cur.mode === HERO_ATTACHED || cur.hook.state !== HOOK_IDLE) {
       hudUi.setReticle(0);
+      hudUi.setAimReason('');
       return;
     }
     const cp = Math.cos(cur.camPitch);
@@ -368,7 +411,49 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
       coarse ? cfg.aim.magnetDegTouch : cfg.aim.magnetDegDesktop,
       aim,
     );
+    if (aim.anchorId !== NO_ANCHOR) {
+      hudUi.setAimReason('');
+    } else {
+      hudUi.setAimReason(
+        aimReasonText(
+          aimReason(
+            world,
+            cfg,
+            cur.px,
+            cur.py + cfg.rope.handToFeet,
+            cur.pz,
+            cur.px,
+            cur.py + cfg.hero.height * HEAD_FRAC,
+            cur.pz,
+            Math.sin(cur.camYaw) * cp,
+            Math.sin(cur.camPitch),
+            Math.cos(cur.camYaw) * cp,
+            cfg.rope.maxLen,
+            coarse ? cfg.aim.magnetDegTouch : cfg.aim.magnetDegDesktop,
+          ),
+        ),
+      );
+    }
     hudUi.setReticle(aim.anchorId !== NO_ANCHOR ? 2 : 1);
+    previewTarget = aim.anchorId;
+  }
+
+  /**
+   * Re-predicts the shot at aim.previewHz (and at once when the target changes) while an anchor is
+   * targeted and the hero may fire. Runs on scratch state inside previewShot: no events, no sim
+   * writes, so nothing here can reach the AE_ mapping or the sfx.
+   */
+  function updatePreview(): void {
+    if (previewTarget === NO_ANCHOR || cur.hookCd > 0 || cur.dead === 1) {
+      previewId = NO_ANCHOR;
+      return;
+    }
+    previewAcc += stepDt;
+    if (previewTarget !== previewId || previewAcc >= previewStep) {
+      previewAcc = 0;
+      previewId = previewTarget;
+      previewShot(cur, previewId, world, cfg, previewOut);
+    }
   }
 
   // Pan camera scratch.
@@ -400,7 +485,14 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
     const dz = tz - fz;
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
     const show = have && phase === 'play' && dist >= WAYPOINT_HIDE_M;
-    waypointView.update(show, tx, ty, tz, performance.now() / 1000);
+    waypointView.update(
+      show,
+      tx,
+      ty,
+      tz,
+      padHeightBelow(world.solids, tx, ty, tz),
+      performance.now() / 1000,
+    );
     if (!show) {
       hudUi.setWaypoint(false, 0, 0, false, 0, '', false);
       return;
@@ -440,6 +532,7 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
     hv.brake = cur.mode === HERO_ATTACHED && (frame.buttons & BTN_REEL) !== 0;
     hv.rolling = cur.rollT > 0;
     hv.events = animEv;
+    hv.ropeLen = cur.hook.len;
     hv.impact = animImpact;
     hv.win = phase === 'won' ? 1 : 0;
     hv.hookFlying = cur.hook.state === HOOK_FLYING ? 1 : 0;
@@ -470,6 +563,10 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
       dust.trigger(gp.x, gp.y, gp.z, landAmp(animImpact));
     }
     if ((animEv & AE_JUMP) !== 0) dust.trigger(gp.x, gp.y, gp.z, 0.2);
+    if ((animEv & AE_FIRE) !== 0) sfx.fire();
+    if ((animEv & AE_ATTACH) !== 0) sfx.attach();
+    if ((animEv & AE_LAND) !== 0) sfx.land(landAmp(animImpact));
+    if ((animEv & AE_DIE) !== 0) sfx.die();
     if ((animEv & AE_DIE) !== 0 && cur.deadCause === 3) dust.trigger(gp.x, gp.y, gp.z, 1);
     dust.update(frameDt);
     if ((animEv & AE_ATTACH) !== 0) {
@@ -485,9 +582,31 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
       Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz),
       cur.deadCause,
     );
+    const pa = previewId !== NO_ANCHOR && phase === 'play' ? world.anchors[previewId] : undefined;
+    if (pa !== undefined && previewOut.outcome !== PREVIEW_NONE) {
+      previewView.update(
+        previewOut.outcome,
+        hx,
+        hy,
+        hz,
+        pa.px,
+        pa.py,
+        pa.pz,
+        previewOut.x,
+        previewOut.y,
+        previewOut.z,
+      );
+    } else {
+      previewView.hide();
+    }
     updateLevelView(level, performance.now() / 1000, nextRouteIndex);
     hudUi.setTime(runT);
-    if (phase === 'pan') hudUi.setReticle(0);
+    hudUi.setHop(nextRouteIndex, world.route.length);
+    hudUi.setAltitude(altitudeFraction(cur.py, world.spawn.y, hasGoal ? goalCy : world.spawn.y));
+    if (phase === 'pan') {
+      hudUi.setReticle(0);
+      hudUi.setAimReason('');
+    }
 
     // Lerp the camera pose with the same alpha as the hero (m1-review F3).
     let camX = prevRig.pos.x + (curRig.pos.x - prevRig.pos.x) * alpha;
@@ -530,11 +649,17 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
 
   // Any key / pointer: skips the opening flyover and accepts the death restart.
   const onAnyInput = (): void => {
+    sfx.unlock();
     anyInput = true;
     if (phase === 'pan') panSkip = true;
   };
   window.addEventListener('keydown', onAnyInput, true);
   window.addEventListener('pointerdown', onAnyInput, true);
+  // pointerup (not pointerdown) is the user activation on touch browsers.
+  const onUnlockGesture = (): void => {
+    sfx.unlock();
+  };
+  window.addEventListener('pointerup', onUnlockGesture, true);
 
   resetHero();
   tickCamera();
@@ -577,14 +702,18 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
       window.removeEventListener('resize', gs.resize);
       window.removeEventListener('keydown', onAnyInput, true);
       window.removeEventListener('pointerdown', onAnyInput, true);
+      window.removeEventListener('pointerup', onUnlockGesture, true);
       portrait.removeEventListener('change', onOrientation);
       input.dispose();
       hudUi.destroy();
       ropeView.dispose();
+      previewView.dispose();
+      sfx.dispose();
       waypointView.dispose();
       gs.scene.remove(waypointView.group);
       gs.scene.remove(heroView.group);
       gs.scene.remove(ropeView.group);
+      gs.scene.remove(previewView.group);
       gs.scene.remove(dust.mesh);
       gs.dispose();
     },

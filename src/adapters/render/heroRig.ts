@@ -22,6 +22,7 @@ import {
   Vector2,
   Vector3,
 } from 'three';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { BufferGeometry, Material, Side } from 'three';
 import {
@@ -75,6 +76,7 @@ export const HERO_COLORS = {
 
 const HIP_X = 0.1;
 const THIGH = 0.43;
+const TIP_SWING = 0.7; // scarf tip extra bend relative to the first segment
 const SASH_SWING = 0.6; // sash tail follows the scarf channel at this ratio
 
 const _q = new Quaternion();
@@ -140,6 +142,30 @@ function hemLathe(profile: Vector2[], segs: number): BufferGeometry {
   pos.needsUpdate = true;
   g.computeVertexNormals();
   return g;
+}
+
+/** Tapers a vertical limb capsule: x/z scale lerps from `top` at +y to `bottom` at -y. No extra triangles. */
+function taper(g: BufferGeometry, top: number, bottom: number): BufferGeometry {
+  const pos = g.getAttribute('position');
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    if (y < lo) lo = y;
+    if (y > hi) hi = y;
+  }
+  for (let i = 0; i < pos.count; i++) {
+    const k = bottom + (top - bottom) * ((pos.getY(i) - lo) / (hi - lo));
+    pos.setX(i, pos.getX(i) * k);
+    pos.setZ(i, pos.getZ(i) * k);
+  }
+  pos.needsUpdate = true;
+  // Capsules duplicate the seam and pole vertices; weld them so recomputed normals have no crease.
+  g.deleteAttribute('uv');
+  g.deleteAttribute('normal');
+  const welded = mergeVertices(g, 1e-5);
+  welded.computeVertexNormals();
+  return welded;
 }
 
 function hemCylinder(rt: number, rb: number, h: number, segs: number): BufferGeometry {
@@ -224,6 +250,7 @@ export class HeroRig {
   readonly spine: Group;
   readonly head: Group;
   readonly scarfTail: Group;
+  readonly scarfTip: Group; // second scarf segment: lags the first for a secondary swing
   readonly sashTail: Group;
   readonly shoulderL: Group;
   readonly elbowL: Group;
@@ -270,13 +297,13 @@ export class HeroRig {
     const satchelGeo = new BoxGeometry(0.06, 0.16, 0.2);
     const headGeo = new SphereGeometry(0.14, 8, 6);
     const hairGeo = new SphereGeometry(0.153, 8, 4, 0, Math.PI * 2, 0, Math.PI * 0.6);
-    const upperArmGeo = new CapsuleGeometry(0.07, 0.17, 1, 6);
+    const upperArmGeo = taper(new CapsuleGeometry(0.07, 0.17, 1, 6), 1.15, 0.82);
     const bellGeo = new CylinderGeometry(0.065, 0.1, 0.22, 8, 1, true);
     const gloveL = gloveGeo(-1);
     const gloveR = gloveGeo(1);
-    const thighGeo = new CapsuleGeometry(0.085, 0.31, 1, 6);
+    const thighGeo = taper(new CapsuleGeometry(0.085, 0.31, 1, 6), 1.2, 0.8);
     const panelGeo = hemCylinder(0.115, 0.135, 0.26, 8);
-    const shinGeo = new CapsuleGeometry(0.07, 0.3, 1, 6);
+    const shinGeo = taper(new CapsuleGeometry(0.07, 0.3, 1, 6), 1.12, 0.72);
     const shoeGeo = new CapsuleGeometry(0.06, 0.13, 1, 6);
 
     this.root = new Group();
@@ -300,12 +327,17 @@ export class HeroRig {
     this.scarfTail = joint(this.spine, 0, 0.56, -0.12);
     // Two strips (merged), twisted so the tail shows a face from behind and the side.
     part(this.scarfTail, tailGeo, M.crimson, 0, 0, 0);
+    this.scarfTip = joint(this.scarfTail, 0, -0.42, 0);
+    part(this.scarfTip, new BoxGeometry(0.09, 0.2, 0.018), M.crimson, 0, -0.1, 0);
 
     this.head = joint(this.spine, 0, 0.6, 0);
     part(this.head, headGeo, M.skin, 0, 0.14, 0.008).scale.set(0.95, 1.03, 0.96);
     // Hair cap: open hemisphere tilted back, covers the crown and nape and
     // stops at the brow, so the small face shows from the front.
     part(this.head, hairGeo, M.hair, 0, 0.156, -0.012).rotation.x = -0.6;
+    // Volume: a top-knot and a short brow fringe so the head reads as hair, not a cap.
+    part(this.head, new SphereGeometry(0.06, 6, 4), M.hair, 0, 0.3, -0.03);
+    part(this.head, new BoxGeometry(0.2, 0.04, 0.05), M.hair, 0, 0.215, 0.115).rotation.x = 0.35;
 
     this.shoulderL = joint(this.spine, HERO_SHOULDER_X, HERO_SHOULDER_Y, 0);
     this.shoulderR = joint(this.spine, -HERO_SHOULDER_X, HERO_SHOULDER_Y, 0);
@@ -352,6 +384,7 @@ export function applyHeroChannels(rig: HeroRig, ch: Float64Array): void {
   rig.spine.rotation.set(ch[CH_SPINE_PITCH], ch[CH_SPINE_TWIST], 0);
   rig.head.rotation.x = ch[CH_HEAD_PITCH];
   rig.scarfTail.rotation.x = ch[CH_SCARF];
+  rig.scarfTip.rotation.x = ch[CH_SCARF] * TIP_SWING;
   rig.sashTail.rotation.x = ch[CH_SCARF] * SASH_SWING;
   rig.shoulderL.rotation.set(-ch[CH_SHOULDER_FLEX_L], 0, ch[CH_SHOULDER_RAISE_L]);
   rig.shoulderR.rotation.set(-ch[CH_SHOULDER_FLEX_R], 0, -ch[CH_SHOULDER_RAISE_R]);
