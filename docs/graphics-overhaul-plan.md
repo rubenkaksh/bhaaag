@@ -69,7 +69,7 @@ lived-in city. Code-grounded causes:
 - Files: `tools/makeTextureAtlas.py`, `tools/makeWallTextures.py`, `tileTexture.ts`,
   `levelView.ts`, `decor/kit.ts`, `public/assets/textures/`.
 - Accept: pilot-block screenshot beats `pilot-block-textured.png` on material read at 10 m;
-  textures stay under ~150 KB total added; no UV stretch on 13x10 m walls.
+  textures stay under ~150 KB total added; UV stretch on instanced walls accepted (ADR 0008, 2026-11-10).
 - Owner: Opus texture/UV direction; Sonnet implements; FLUX (schnell) generates tiles.
 
 ### P3 — Kill the sameness (set dressing and silhouettes)

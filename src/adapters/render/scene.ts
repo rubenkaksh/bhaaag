@@ -323,6 +323,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     level = buildLevelMeshes(world);
     scene.add(level);
     flagsDirty = true;
+    materialsDirty = true;
     return level;
   }
 
@@ -380,6 +381,11 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   }
 
   function dispose(): void {
+    scene.traverse((o) => {
+      const ud = o.userData as { lambert?: Material; standard?: Material };
+      ud.lambert?.dispose();
+      ud.standard?.dispose();
+    });
     window.removeEventListener(GRAPHICS_TIER_EVENT, onTierEvent);
     disposeComposer();
     sun.shadow.map?.dispose();
