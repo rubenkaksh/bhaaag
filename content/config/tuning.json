@@ -69,5 +69,9 @@
     "scoreHop": 25,
     "scoreClean": 10,
     "scorePerfect": 10
-  }
+  },
+  "line": { "zoneTol": 0.6 },
+  "tramp": { "vUp": 9, "jumpBonus": 1.5 },
+  "cushion": { "lockSec": 0.5 },
+  "climb": { "reachMin": 0.6, "reachMax": 2.2, "holdSec": 0.35, "vyMax": 8, "mantleFwd": 0.3 }
 }

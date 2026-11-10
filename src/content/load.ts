@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Vec3 } from '../core/math/vec3';
 import { AABB } from '../core/math/aabb';
-import { World, addSolid, addRamp, addAnchor, addRoof } from '../core/world';
+import { World, addSolid, addRamp, addAnchor, addRoof, addLine } from '../core/world';
 
 // Minimal test-world JSON schema (M1). Kit/layout/level schemas (M4) build
 // on this shape; for now the fixture is a flat list of boxes, ramps, anchors.
@@ -50,21 +50,43 @@ const anchorSchema = z.object({
   pos: vec3Tuple,
 });
 
-// Level extras (M4): all optional so the M1 testworld.json fixture keeps loading.
-const worldSchema = z.object({
-  version: z.literal(1),
-  spawn: vec3Tuple,
-  spawnYaw: z.number(),
-  killPlaneY: z.number(),
-  solids: z.array(boxSchema),
-  ramps: z.array(rampSchema),
-  roofs: z.array(roofSchema).optional(),
-  anchors: z.array(anchorSchema),
-  goal: boxSchema.optional(),
-  pads: z.array(boxSchema).optional(),
-  route: z.array(z.number().int()).optional(),
-  style: z.array(z.number().int()).optional(),
+// Fixed zipline (ADR 0011): zone slab on the launch roof, anchor id of the far end.
+const lineSchema = z.object({
+  zone: boxSchema,
+  anchor: z.number().int().min(0),
 });
+
+const flag = z.number().int().min(0).max(1);
+
+// Level extras (M4): all optional so the M1 testworld.json fixture keeps loading.
+// Strategy maze fields (ADR 0011) are optional too; absent = classic rules.
+const worldSchema = z
+  .object({
+    version: z.literal(1),
+    spawn: vec3Tuple,
+    spawnYaw: z.number(),
+    killPlaneY: z.number(),
+    solids: z.array(boxSchema),
+    ramps: z.array(rampSchema),
+    roofs: z.array(roofSchema).optional(),
+    anchors: z.array(anchorSchema),
+    goal: boxSchema.optional(),
+    pads: z.array(boxSchema).optional(),
+    route: z.array(z.number().int()).optional(),
+    style: z.array(z.number().int()).optional(),
+    lineOnly: flag.optional(),
+    climb: flag.optional(),
+    lines: z.array(lineSchema).optional(),
+    tramps: z.array(boxSchema).optional(),
+    cushions: z.array(boxSchema).optional(),
+    hazards: z.array(boxSchema).optional(),
+  })
+  .refine(
+    (w) => w.lines === undefined || w.lines.every((l) => l.anchor < w.anchors.length),
+    { message: 'lines: anchor id out of range' },
+  );
+
+export type LevelJson = z.input<typeof worldSchema>;
 
 function describeZodError(err: z.ZodError): string {
   const parts: string[] = [];
@@ -142,5 +164,26 @@ export function loadWorldFromObject(obj: unknown): World {
       w.style.push(data.style[i]);
     }
   }
+  if (data.lineOnly !== undefined) w.lineOnly = data.lineOnly;
+  if (data.climb !== undefined) w.climb = data.climb;
+  if (data.lines !== undefined) {
+    for (let i = 0; i < data.lines.length; i++) {
+      const l = data.lines[i];
+      addLine(w, new AABB(toVec3(l.zone.min), toVec3(l.zone.max)), l.anchor);
+    }
+  }
+  pushBoxes(w.tramps, data.tramps);
+  pushBoxes(w.cushions, data.cushions);
+  pushBoxes(w.hazards, data.hazards);
   return w;
+}
+
+function pushBoxes(
+  dst: AABB[],
+  src: { min: [number, number, number]; max: [number, number, number] }[] | undefined,
+): void {
+  if (src === undefined) return;
+  for (let i = 0; i < src.length; i++) {
+    dst.push(new AABB(toVec3(src[i].min), toVec3(src[i].max)));
+  }
 }

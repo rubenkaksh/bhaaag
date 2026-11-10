@@ -24,7 +24,7 @@ All rules are geometric, 60 Hz, tuning-driven (`content/config/tuning.json`), no
 | **Jump** | grounded, JUMP | Existing `hero.jump` (4.5 m/s, ~1.03 m apex) with run momentum. Unchanged. |
 | **Trampoline** | airborne, landing on a `World.tramps` slab (feet within 0.05 m of its top) | Never lethal. `vy = tramp.vUp` (9 m/s, ~4.1 m apex) `+ tramp.jumpBonus` (1.5) if JUMP is held at contact; horizontal speed kept, capped at `landing.carryCap`; event `HERO_EV_BOUNCE`; hero stays `HERO_AIRBORNE`. Checked before the hard-landing kill rule. |
 | **Cushion** | airborne, landing on a `World.cushions` slab | Never lethal at any speed. Velocity -> 0, `landLockT = cushion.lockSec` (0.5 s, move input ignored while > 0), event `HERO_EV_CUSHION`, grounded. The haystack role: rare, visible, a destination. |
-| **Ledge grab** | airborne, horizontal sweep blocked by solid `i`, the solid's top is in `[py + climb.reachMin, py + climb.reachMax]` (0.6..2.2 m above feet), `|vy| <= climb.vyMax` (8), head room free | Hero -> `HERO_HANGING` with `hangLedgeY`, `hangNx/Nz` (wall normal), `climbT = 0`; event `HERO_EV_GRAB`. Rope cling (`wallHit`, below `vCling`) also records the ledge when it is within reach, so Mantle works after a rope cling. |
+| **Ledge grab** | `world.climb === 1`, airborne, horizontal sweep blocked by solid `i`, the solid's top is in `[py + climb.reachMin, py + climb.reachMax]` (0.6..2.2 m above feet), `|vy| <= climb.vyMax` (8), head room free | Hero -> `HERO_HANGING` with `hangLedgeY`, `hangNx/Nz` (wall normal), `climbT = 0`; event `HERO_EV_GRAB`. Rope cling (`wallHit`, below `vCling`) also records the ledge when it is within reach, so Mantle works after a rope cling. Gated by the level flag `climb` (0 in L1/Chase) so their rope-preview verdicts stay bit-identical; the owner may switch it on for L1 later. |
 | **Mantle / climb** | hanging, CLIMB held for `climb.holdSec` (0.35 s) | Hero placed on the ledge: `py = hangLedgeY`, pushed inward by `hero.radius + climb.mantleFwd`, grounded, velocity 0; event `HERO_EV_MANTLE`. JUMP while hanging = existing wall jump; DROP = let go. Balcony -> roof: balcony drop is 3 m, jump apex 1.03 m + reach 2.2 m >= 3 m, so a jump from the balcony against the wall grabs the roof edge. |
 | **Drop** | grounded, walk off an edge | Existing fall; lethal above `landing.vyRoll` unless the target is a cushion/trampoline. |
 | **Hazard** | feet inside a `World.hazards` AABB | `killHero(DEAD_HAZARD)` (cause already exists, unused). Generator paints the open hillside between houses as hazard bands so "fell to the ground" is an instant restart, not a walk. |
@@ -62,8 +62,9 @@ instant restart. `HeroState.landLockT` (already present, unused) becomes live.
 ### 3. Level format (JSON + zod, `src/content/load.ts`)
 
 `version: 1` schema extended with optional fields (old files keep loading):
-`lineOnly?: 0|1`, `lines?: [{ zone: box, anchor: int }]`, `tramps?: box[]`, `cushions?: box[]`,
-`hazards?: box[]`. `World` gains `lineOnly`, `lines: ZipLine[]`, `tramps`, `cushions`, `hazards`.
+`lineOnly?: 0|1`, `climb?: 0|1`, `lines?: [{ zone: box, anchor: int }]`, `tramps?: box[]`,
+`cushions?: box[]`, `hazards?: box[]`. `World` gains `lineOnly`, `climb`, `lines: ZipLine[]`,
+`tramps`, `cushions`, `hazards`.
 The schema stays the format contract even though the maze is generated at runtime (the test validates
 the generator output through `loadWorldFromObject`).
 

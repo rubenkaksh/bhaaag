@@ -109,6 +109,16 @@ const schema = z.strictObject({
     scoreClean: num,
     scorePerfect: num,
   }),
+  line: z.strictObject({ zoneTol: num }),
+  tramp: z.strictObject({ vUp: num, jumpBonus: num }),
+  cushion: z.strictObject({ lockSec: num }),
+  climb: z.strictObject({
+    reachMin: num,
+    reachMax: num,
+    holdSec: num,
+    vyMax: num,
+    mantleFwd: num,
+  }),
 });
 
 describe('tuning.json', () => {

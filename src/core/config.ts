@@ -116,6 +116,24 @@ export type Tuning = {
     scoreClean: number;
     scorePerfect: number;
   };
+  // --- Strategy maze (ADR 0011, appended) ---
+  line: {
+    zoneTol: number; // feet may be this far above/below a zone slab and still count
+  };
+  tramp: {
+    vUp: number; // bounce vertical speed, m/s
+    jumpBonus: number; // added when JUMP is held at contact
+  };
+  cushion: {
+    lockSec: number; // move input ignored this long after a cushion landing
+  };
+  climb: {
+    reachMin: number; // ledge top at least this far above the feet to grab
+    reachMax: number; // ...and at most this far
+    holdSec: number; // CLIMB held this long while hanging mantles
+    vyMax: number; // |vy| above this is too fast to grab
+    mantleFwd: number; // extra inward push past the radius when standing up
+  };
 };
 
 export const DEFAULT_TUNING: Tuning = {
@@ -234,5 +252,22 @@ export const DEFAULT_TUNING: Tuning = {
     scoreHop: 25,
     scoreClean: 10,
     scorePerfect: 10,
+  },
+  line: {
+    zoneTol: 0.6,
+  },
+  tramp: {
+    vUp: 9,
+    jumpBonus: 1.5,
+  },
+  cushion: {
+    lockSec: 0.5,
+  },
+  climb: {
+    reachMin: 0.6,
+    reachMax: 2.2,
+    holdSec: 0.35,
+    vyMax: 8,
+    mantleFwd: 0.3,
   },
 };

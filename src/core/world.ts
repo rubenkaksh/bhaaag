@@ -60,6 +60,19 @@ export class Anchor {
   }
 }
 
+// Fixed zipline (ADR 0011): standing inside zone (a thin slab on a launch roof) and pressing
+// HOOK fires the rope at world.anchors[anchorId] without aiming. Only consulted when
+// World.lineOnly is 1.
+export class ZipLine {
+  zone: AABB;
+  anchorId: number;
+
+  constructor(zone: AABB, anchorId: number) {
+    this.zone = zone;
+    this.anchorId = anchorId;
+  }
+}
+
 // Runtime world: flat arrays, int ids (= array index). Y-up, 1 unit = 1 m.
 export class World {
   solids: AABB[];
@@ -74,6 +87,13 @@ export class World {
   pads: AABB[]; // safe landing pads (cream), one per roof
   route: number[]; // ordered anchor ids = runner's vision (next anchor pulses)
   style: number[]; // parallel to solids: 0 ground, 1 house wall, 2 roof, 3 wall/danger
+  // Strategy maze features (ADR 0011). Empty lists and lineOnly 0 = classic behaviour.
+  lineOnly: number; // 1: the hook fires only from a ZipLine zone (no free aim)
+  climb: number; // 1: airborne wall contact grabs a ledge in reach; CLIMB mantles
+  lines: ZipLine[];
+  tramps: AABB[]; // thin slabs on roof tops: landing bounces (never lethal)
+  cushions: AABB[]; // thin slabs on roof tops: landing is absorbed (never lethal)
+  hazards: AABB[]; // volumes that kill on contact (open hillside between houses)
 
   constructor() {
     this.solids = [];
@@ -87,7 +107,19 @@ export class World {
     this.pads = [];
     this.route = [];
     this.style = [];
+    this.lineOnly = 0;
+    this.climb = 0;
+    this.lines = [];
+    this.tramps = [];
+    this.cushions = [];
+    this.hazards = [];
   }
+}
+
+// Appends a fixed zipline and returns its id (= index into w.lines).
+export function addLine(w: World, zone: AABB, anchorId: number): number {
+  w.lines.push(new ZipLine(zone, anchorId));
+  return w.lines.length - 1;
 }
 
 // Appends box and returns its id (= index into w.solids).
