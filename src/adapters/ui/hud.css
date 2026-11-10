@@ -1,6 +1,11 @@
 /* Minimal in-game HUD: timer, hint, reticle, toast, win overlay.
    All non-interactive except the win overlay. z-index sits above the touch
-   zones (10) and buttons (20), below the rotate overlay (100). */
+   zones (10) and buttons (20), below the lobby (60). */
+:root {
+  --hud-top: var(--pad);
+  --hud-side: var(--pad);
+  --controls-h: 0px;
+}
 .hud {
   position: fixed;
   pointer-events: none;

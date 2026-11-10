@@ -1,4 +1,5 @@
-import { startGame, readBestTime } from './game';
+import { startGame } from './game';
+import { bestLabel, readBest } from './modes/mode';
 import type { GameHandle } from './game';
 import { createLobby } from '../adapters/ui/lobby';
 
@@ -7,36 +8,30 @@ if (!(canvas instanceof HTMLCanvasElement)) {
   throw new Error('canvas#game not found');
 }
 
-// Touch devices: ask for fullscreen + landscape where the browser allows it.
+// Touch devices: ask for fullscreen where the browser allows it. Orientation is not locked:
+// portrait and landscape are both playable.
 function requestImmersive(): void {
   if (!window.matchMedia('(pointer: coarse)').matches) return;
   try {
-    const p = document.documentElement.requestFullscreen?.();
-    if (p !== undefined) {
-      p.then(
-        () => {
-          const o = screen.orientation as ScreenOrientation & {
-            lock?: (o: string) => Promise<void>;
-          };
-          o.lock?.('landscape').catch(() => undefined);
-        },
-        () => undefined,
-      );
-    }
+    void document.documentElement.requestFullscreen?.().catch(() => undefined);
   } catch {
-    // Fullscreen / orientation lock unsupported or denied: just play.
+    // Fullscreen unsupported or denied: just play.
   }
 }
 
 // The game is created on the first PLAY, so nothing ticks behind the lobby.
-// GameLoop pauses on document.hidden; game.ts wires the resize handler.
+// GameLoop pauses on document.hidden; game.ts wires the viewport watcher.
 let game: GameHandle | null = null;
 const lobby = createLobby(document.body, {
-  getBest: readBestTime,
-  onPlay: () => {
+  getBestLabel: (mode) => bestLabel(mode, readBest(mode)),
+  onPlay: (mode) => {
     lobby.hide();
     requestImmersive();
-    if (game === null) game = startGame(canvas, document.body);
+    if (game !== null && game.mode !== mode) {
+      game.destroy();
+      game = null;
+    }
+    if (game === null) game = startGame(canvas, document.body, mode);
     else game.resume();
   },
   onMenu: () => {

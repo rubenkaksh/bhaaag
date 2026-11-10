@@ -396,9 +396,13 @@ function collectBodies(w: World): Body[] {
   return out;
 }
 
+// Ground height used by house dressing. buildDecor swaps it to the flat plane when scenery is off
+// (the chase mode draws its own endless ground), then restores the hillside.
+let groundY: (x: number, z: number) => number = terrainY;
+
 /** Lowest visible wall height at a point just outside a face: the ground, or a neighbour's roof. */
 function visLow(bodies: Body[], x: number, z: number): number {
-  let y = terrainY(x, z);
+  let y = groundY(x, z);
   for (let i = 0; i < bodies.length; i++) {
     const b = bodies[i];
     if (x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1 && b.top > y) y = b.top;
@@ -565,8 +569,8 @@ function dressHouses(B: Builder, bodies: Body[]): void {
           B.colRaw(STONE),
         );
         if (!h.decoy && B.room('pot', 2)) {
-          B.pot(cxh - 1.5, terrainY(cxh - 1.5, z0 - 0.5), z0 - 0.5);
-          B.pot(cxh + 1.5, terrainY(cxh + 1.5, z0 - 0.5), z0 - 0.5);
+          B.pot(cxh - 1.5, groundY(cxh - 1.5, z0 - 0.5), z0 - 0.5);
+          B.pot(cxh + 1.5, groundY(cxh + 1.5, z0 - 0.5), z0 - 0.5);
         }
       }
       if (!h.decoy) {
@@ -907,22 +911,35 @@ function forest(B: Builder, bodies: Body[], seed: number): number[] {
   return [base.canopy, base.trunk, base.conifer];
 }
 
+export type DecorOpts = { scenery?: boolean };
+
 /** Builds the non-collider scenery. Deterministic for a given (world, seed). */
-export function buildDecor(world: World, seed = 1729): Group {
+export function buildDecor(world: World, seed = 1729, opts: DecorOpts = {}): Group {
+  const scenery = opts.scenery !== false;
   const B = new Builder(world, mulberry32(seed));
   const g = new Group();
   g.name = 'decor';
   const bodies = collectBodies(world);
 
-  dressHouses(B, bodies);
-  stringHouses(B, bodies);
-  hillTrees(B, bodies, seed);
-  fieldWalls(B, seed);
-  const base = forest(B, bodies, seed);
+  let base: number[];
+  groundY = scenery ? terrainY : (_x, z) => planeY(z);
+  try {
+    dressHouses(B, bodies);
+    stringHouses(B, bodies);
+    if (scenery) {
+      hillTrees(B, bodies, seed);
+      fieldWalls(B, seed);
+      base = forest(B, bodies, seed);
+    } else {
+      base = [B.kit.used.canopy, B.kit.used.trunk, B.kit.used.conifer];
+    }
+  } finally {
+    groundY = terrainY;
+  }
 
   g.add(B.kit.finish());
-  const ground = buildGroundMesh();
-  g.add(ground);
+  const ground = scenery ? buildGroundMesh() : null;
+  if (ground !== null) g.add(ground);
   if (B.strings.length > 0) {
     const sg = new BufferGeometry();
     sg.setAttribute('position', new Float32BufferAttribute(B.strings, 3));
@@ -931,9 +948,10 @@ export function buildDecor(world: World, seed = 1729): Group {
     ls.frustumCulled = false;
     g.add(ls);
   }
-  g.add(buildBirds());
+  if (scenery) g.add(buildBirds());
   const instanced = Object.values(B.kit.meshes).filter((m) => m.count > 0).length;
-  const groundTris = ground.geometry.index !== null ? ground.geometry.index.count / 3 : 0;
+  const groundTris =
+    ground !== null && ground.geometry.index !== null ? ground.geometry.index.count / 3 : 0;
   const stats: DecorStats = {
     triangles: B.kit.triangles() + groundTris + 10,
     instancedMeshes: instanced,

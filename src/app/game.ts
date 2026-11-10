@@ -50,6 +50,7 @@ import {
   newWaypointScreen,
   padHeightBelow,
   projectWaypoint,
+  waypointTopPx,
   WAYPOINT_HIDE_M,
 } from '../adapters/ui/waypointMath';
 import { Vector3 } from 'three';
@@ -68,14 +69,19 @@ import {
 import { CameraFx } from '../adapters/render/cameraFx';
 import { DustPuff } from '../adapters/render/dustPuff';
 import { GameLoop } from './loop';
+import { framingFor } from '../adapters/render/framing';
+import { readBest, writeBest } from './modes/mode';
+import type { GameMode } from './modes/mode';
+import { readViewport, watchViewport } from './viewport';
+import type { ViewportLayout } from './viewport';
 
 const RESTART_ACCEPT_S = 0.3; // death: accept restart input after this
 const RESTART_AUTO_S = 0.8; // death: auto-restart after this
 const PAN_S = 2.5; // opening flyover from the goal back to the hero
 const HEAD_FRAC = 0.9; // same aim-ray origin the sim uses (core/sim.ts)
-const BEST_KEY = 'bhagdori.best.l1';
 
 export type GameHandle = {
+  mode: GameMode;
   pause: () => void;
   resume: () => void;
   restart: () => void;
@@ -89,26 +95,9 @@ const DEATH_MSG: Record<number, string> = {
   [DEAD_HAZARD]: 'Hit a hazard',
 };
 
-function loadBest(): number {
-  try {
-    const v = Number(localStorage.getItem(BEST_KEY));
-    return Number.isFinite(v) && v > 0 ? v : 0;
-  } catch {
-    return 0;
-  }
-}
-
-/** Best time for the lobby (0 = none yet). */
+/** Best time for the lobby (0 = none yet). Thin wrapper kept for older callers. */
 export function readBestTime(): number {
-  return loadBest();
-}
-
-function saveBest(t: number): void {
-  try {
-    localStorage.setItem(BEST_KEY, String(t));
-  } catch {
-    // Private mode / blocked storage: best time just is not kept.
-  }
+  return readBest('classic');
 }
 
 function smooth(p: number): number {
@@ -162,12 +151,18 @@ function copyRig(dst: CameraRig, src: CameraRig): void {
 
 type Phase = 'pan' | 'play' | 'dead' | 'won';
 
-export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHandle {
+export function startGame(
+  canvas: HTMLCanvasElement,
+  root: HTMLElement,
+  mode: GameMode = 'classic',
+): GameHandle {
+  // Dragon Chase lands with Track 3; until then every mode runs the classic descent.
+  if (mode === 'chase') console.info('[zipline] chase mode is not built yet: running classic');
   const cfg = mergeTuning();
+  let camCfg = cfg.camera;
   const world = loadWorldFromJson(levelText);
   const gs = createGameScene(canvas);
   const level = gs.buildWorld(world);
-  window.addEventListener('resize', gs.resize);
 
   const heroView = new HeroView();
   gs.scene.add(heroView.group);
@@ -218,8 +213,11 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
   let anyInput = false;
   let brakeLatch = false;
   let brakeWas = false;
-  let userPaused = false;
-  let best = loadBest();
+  let viewport: ViewportLayout = readViewport();
+  let lensShiftPx = 0;
+  let jsMs = 0;
+  let stepMs = 0;
+  let best = readBest('classic');
 
   function resetHero(): void {
     copyHeroState(cur, newHeroState());
@@ -255,7 +253,7 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
       cur.camPitch,
       speed,
       world.solids,
-      cfg.camera,
+      camCfg,
     );
   }
 
@@ -286,6 +284,12 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
   }
 
   function onStep(): void {
+    const t0 = debug ? performance.now() : 0;
+    stepBody();
+    if (debug) stepMs += performance.now() - t0;
+  }
+
+  function stepBody(): void {
     copyHeroState(prev, cur);
     input.sample(frame);
     frame.moveX = -frame.moveX;
@@ -370,7 +374,7 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
         phase = 'won';
         if (best === 0 || runT < best) {
           best = runT;
-          saveBest(best);
+          writeBest('classic', best);
         }
         hudUi.showWin(runT, best);
         hudUi.pulseTimer();
@@ -502,8 +506,8 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
     wpView.set(tx, ty + 2.2, tz).applyMatrix4(cam.matrixWorldInverse);
     const w = window.innerWidth;
     const h = window.innerHeight;
-    // Keep clear of the timer pill (top pad + timer height + 8).
-    const top = Math.max(10, h * 0.028) + Math.max(32, h * 0.054) + 8;
+    // Keep clear of the timer pill.
+    const top = waypointTopPx(w, h, viewport.orientation === 'portrait');
     projectWaypoint(
       wpScreen,
       wpView.x,
@@ -515,6 +519,7 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
       h,
       top,
       28,
+      lensShiftPx,
     );
     hudUi.setWaypoint(
       true,
@@ -528,6 +533,7 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
   }
 
   function onRender(alpha: number, frameDt: number): void {
+    const r0 = debug ? performance.now() : 0;
     const hv = heroView.input;
     hv.brake = cur.mode === HERO_ATTACHED && (frame.buttons & BTN_REEL) !== 0;
     hv.rolling = cur.rollT > 0;
@@ -640,7 +646,12 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
     }
     updateWaypoint(hx, hy - cfg.rope.handToFeet, hz);
     if (input instanceof TouchInput) input.render();
+    if (debug) {
+      jsMs += (stepMs + (performance.now() - r0) - jsMs) * 0.1;
+      stepMs = 0;
+    }
     gs.render();
+    if (debug) (window as unknown as { __ztStats?: unknown }).__ztStats = { ...gs.frameStats(), jsMs };
     const info = gs.renderer.info.render;
     hud?.update(cur, info.calls, info.triangles);
     animEv = 0;
@@ -668,42 +679,36 @@ export function startGame(canvas: HTMLCanvasElement, root: HTMLElement): GameHan
   const loop = new GameLoop({ fixedHz: cfg.fixedHz, onStep, onRender });
   loop.start();
 
-  // Portrait on a touch device shows the rotate overlay: pause the sim and
-  // clear input so a held thumb cannot drive the hero under the overlay
-  // (m1-review F4). Landscape resumes.
-  const portrait = window.matchMedia('(orientation: portrait) and (pointer: coarse)');
-  const onOrientation = (e: MediaQueryListEvent): void => {
-    if (e.matches) {
-      loop.pause();
-      if (input instanceof TouchInput) input.reset();
-    } else if (!userPaused) {
-      loop.resume();
-    }
+  // Portrait and landscape are both playable: re-frame on every viewport change.
+  const applyViewport = (v: ViewportLayout, flipped: boolean): void => {
+    viewport = v;
+    gs.resize();
+    const fr = framingFor(v, cfg.camera);
+    camCfg = fr.camera;
+    gs.setLensShift(fr.lensShiftY);
+    lensShiftPx = -fr.lensShiftY * v.h; // positive view offset moves the image up
+    document.documentElement.style.setProperty('--lens-shift', String(fr.lensShiftY));
+    if (flipped && input instanceof TouchInput) input.reset();
   };
-  portrait.addEventListener('change', onOrientation);
-  if (portrait.matches) {
-    loop.pause();
-    if (input instanceof TouchInput) input.reset();
-  }
+  applyViewport(viewport, false);
+  const unwatchViewport = watchViewport(applyViewport);
 
   return {
+    mode,
     pause(): void {
-      userPaused = true;
       loop.pause();
       if (input instanceof TouchInput) input.reset();
     },
     resume(): void {
-      userPaused = false;
-      if (!portrait.matches) loop.resume();
+      loop.resume();
     },
     restart,
     destroy(): void {
       loop.stop();
-      window.removeEventListener('resize', gs.resize);
+      unwatchViewport();
       window.removeEventListener('keydown', onAnyInput, true);
       window.removeEventListener('pointerdown', onAnyInput, true);
       window.removeEventListener('pointerup', onUnlockGesture, true);
-      portrait.removeEventListener('change', onOrientation);
       input.dispose();
       hudUi.destroy();
       ropeView.dispose();

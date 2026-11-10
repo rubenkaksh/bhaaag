@@ -16,7 +16,9 @@ export function newWaypointScreen(): WaypointScreen {
 /**
  * Projects a view-space point (camera looks down -z) to screen pixels.
  * tanHalfFov = tan(vertical fov / 2). `top` is the lowest-y the marker may take
- * (below the HUD timer), `m` the edge inset. Writes into `out`, allocates nothing.
+ * (below the HUD timer), `m` the edge inset. `shiftY` is the screen-space pixels the camera lens
+ * shift moves the image down (added to the projected y; 0 = no shift). Writes into `out`,
+ * allocates nothing.
  */
 export function projectWaypoint(
   out: WaypointScreen,
@@ -29,6 +31,7 @@ export function projectWaypoint(
   h: number,
   top: number,
   m: number,
+  shiftY = 0,
 ): WaypointScreen {
   const behind = vz > -near;
   let sx: number;
@@ -42,7 +45,7 @@ export function projectWaypoint(
     const nx = vx / d / (tanHalfFov * (w / h));
     const ny = vy / d / tanHalfFov;
     sx = (nx * 0.5 + 0.5) * w;
-    sy = (0.5 - ny * 0.5) * h;
+    sy = (0.5 - ny * 0.5) * h + shiftY;
   }
   const inside = !behind && sx >= m && sx <= w - m && sy >= top && sy <= h - m;
   out.edge = !inside;
@@ -98,4 +101,14 @@ export function padHeightBelow(
     }
   }
   return best;
+}
+
+/**
+ * Lowest-y the waypoint marker may take: clear of the timer pill (top pad + timer height + 8).
+ * Landscape reproduces the original formula; portrait uses it until Track 2 tunes the layout.
+ */
+// Track 2 will use w and portrait; Track 0 keeps the landscape formula for both.
+/* eslint-disable-next-line @typescript-eslint/no-unused-vars */
+export function waypointTopPx(_w: number, h: number, _portrait: boolean): number {
+  return Math.max(10, h * 0.028) + Math.max(32, h * 0.054) + 8;
 }

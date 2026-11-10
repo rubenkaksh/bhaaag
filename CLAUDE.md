@@ -20,7 +20,7 @@ Full spec: `docs/zipline-plan.md` (read the relevant section before each milesto
 - Health: one-hit death. No pips. Wall impact above `vCling` kills (default 7.5 m/s, range 7-8); below it the hero clings. Rough landings only cost time.
 - Hand-brake: hold REEL while Attached (~10 m/s² decel, no new button). It is the skill answer to "too low".
 - Momentum carry: landing turns horizontal speed into run speed (cap ~8 m/s), a roll keeps it; firing within 0.4 s of landing seeds `v0` from it. Aiming works at full speed while moving.
-- Orientation: landscape-first on phones (decided 2026-11-05). In portrait show a "rotate your phone" overlay and pause the sim. Portrait layout is a later stretch goal, not MVP0.
+- Orientation: portrait and landscape both playable (decided 2026-11-10); no rotate overlay. Supersedes the 2026-11-05 landscape-first decision.
 - Touch scheme: tap-to-aim on an anchor, one contextual action button (Hook, Release, Mantle/Brake), JUMP; DROP is a swipe down.
 - Feel model details: `docs/adr/0001-feel-model.md`.
 - ~~Preview help: release window shown in L1a/L1b, colour only in L1c.~~ DROPPED by lean-scope item 4 (no L1a/L1b/L1c ladder).

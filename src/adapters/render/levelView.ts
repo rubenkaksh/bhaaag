@@ -196,8 +196,14 @@ function dressingMeshes(world: World): Mesh[] {
   return out;
 }
 
+export type BuildLevelOpts = {
+  /** Hillside ground, forest, hill trees, field walls, birds and the rope post. Default true. */
+  scenery?: boolean;
+};
+
 /** Level geometry: one merged mesh per colour (styles, pads, goal, pitched roofs) plus anchor spheres. */
-export function buildLevelMeshes(world: World): Group {
+export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group {
+  const scenery = opts.scenery !== false;
   const g = new Group();
   g.name = 'level';
   g.userData.route = world.route.slice();
@@ -233,8 +239,8 @@ export function buildLevelMeshes(world: World): Group {
 
   const dress = dressingMeshes(world);
   for (let i = 0; i < dress.length; i++) g.add(dress[i]);
-  g.add(buildDecor(world));
-  g.add(buildRopePost(world));
+  g.add(buildDecor(world, undefined, { scenery }));
+  if (scenery) g.add(buildRopePost(world));
 
   const sphere = new SphereGeometry(ANCHOR_R, 12, 8);
   for (let i = 0; i < world.anchors.length; i++) {

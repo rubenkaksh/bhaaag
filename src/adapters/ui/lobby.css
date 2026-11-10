@@ -1,5 +1,4 @@
-/* Lobby / start page: full-screen overlay above the game (z 60), below the
-   rotate overlay (100). Everything sizes from vmin/vh so it fits 640x360 and
+/* Lobby / start page: full-screen overlay above the game (z 60), above the HUD. Everything sizes from vmin/vh so it fits 640x360 and
    1920x1080 without scrolling. Palette: gold, cream, terracotta. */
 #lobby {
   position: fixed;
@@ -162,7 +161,8 @@
   display: none;
 }
 /* Graphics tier choice (graphics-spec "Implemented tiers"): a small pill row under the best time. */
-#lobby-gfx {
+#lobby-gfx,
+#lobby-mode {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -178,7 +178,8 @@
   text-transform: uppercase;
   color: #ffd35a;
 }
-#lobby-gfx button {
+#lobby-gfx button,
+#lobby-mode button {
   padding: 0.25em 0.9em;
   font:
     700 1em/1.2 system-ui,
@@ -190,12 +191,14 @@
   border-radius: 999px;
   cursor: pointer;
 }
-#lobby-gfx button[aria-checked='true'] {
+#lobby-gfx button[aria-checked='true'],
+#lobby-mode button[aria-checked='true'] {
   color: #3a2410;
   background: #ffd35a;
   border-color: #ffd35a;
 }
-#lobby-gfx button:focus-visible {
+#lobby-gfx button:focus-visible,
+#lobby-mode button:focus-visible {
   outline: 2px solid #fff6e4;
   outline-offset: 2px;
 }

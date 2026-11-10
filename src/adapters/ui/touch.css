@@ -1,10 +1,8 @@
 /*
- * Touch UI shell (M1-T09b) — landscape-first.
+ * Touch UI shell (M1-T09b). Portrait and landscape are both playable.
  *
  * The touch layer exists only on coarse-pointer devices (phones/tablets).
  * On a desktop mouse it stays display:none, so the canvas keeps every event.
- * The rotate overlay is the one exception: it is also coarse-only, and it
- * appears only while the device is in portrait (ADR: pause the sim there).
  */
 
 :root {
@@ -178,34 +176,5 @@
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-}
-
-/* ------------------------------------------------------------------ *
- * Rotate overlay — shown ONLY in portrait on a touch device.
- * Dark sunset gradient, high z-index so it covers canvas + buttons.
- * ------------------------------------------------------------------ */
-#rotate {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
-    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
-  background: linear-gradient(180deg, #1d3a5c 0%, #5b2b53 45%, #a8443f 75%, #e08a4e 100%);
-  color: #fff;
-  font: 600 20px/1.4 system-ui, -apple-system, sans-serif;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  overscroll-behavior: none;
-}
-
-@media (orientation: portrait) and (pointer: coarse) {
-  #rotate {
-    display: flex;
   }
 }

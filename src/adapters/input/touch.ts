@@ -1,7 +1,7 @@
 // Touch input adapter (M1-T09a). Adapter layer: DOM + Pointer Events,
 // closures allowed. Fills the core InputFrame; src/core never imports this.
-// Landscape only (locked decision 2026-11-05): portrait shows the rotate
-// overlay and pauses the sim, so this adapter needs no orientation logic.
+// Portrait and landscape are both playable (decided 2026-11-10): game.ts calls reset() on an
+// orientation flip, so this adapter needs no orientation logic of its own.
 //
 // Control map (plan 4.7 + ADR 0001):
 //   Move    floating stick in #stick-zone (left). The stick base appears
@@ -185,7 +185,7 @@ export class TouchInput {
 
   /**
    * Clear every live input: stick, held buttons, pressed edges, look
-   * accumulators and pending tap. Called on pause (portrait rotate overlay)
+   * accumulators and pending tap. Called on pause or an orientation flip
    * so a thumb that is still down under the overlay cannot keep driving the
    * sim when the game resumes (m1-review F4).
    */

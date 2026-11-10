@@ -1,5 +1,4 @@
 import './lobby.css';
-import { formatTime } from './hud';
 import {
   GRAPHICS_TIERS,
   TIER_INFO,
@@ -7,6 +6,8 @@ import {
   saveGraphicsTier,
 } from '../render/graphicsTier';
 import type { GraphicsTier } from '../render/graphicsTier';
+import { GAME_MODES, MODE_INFO, loadMode, saveMode } from '../../app/modes/mode';
+import type { GameMode } from '../../app/modes/mode';
 
 // Lobby / start page (T273). DOM + inline SVG only: no images, no network.
 // The game is created by the caller on the first PLAY, so nothing ticks
@@ -46,9 +47,9 @@ const ART = `<svg id="lobby-art" viewBox="0 0 160 90" preserveAspectRatio="xMidY
 </svg>`;
 
 export type LobbyHandlers = {
-  onPlay: () => void;
+  onPlay: (mode: GameMode) => void;
   onMenu: () => void;
-  getBest: () => number;
+  getBestLabel: (mode: GameMode) => string;
 };
 
 export type Lobby = {
@@ -63,7 +64,13 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
   lobby.innerHTML =
     ART +
     '<div class="head"><h1>Zipline Tole</h1><p class="tag">Slide the Kathmandu rooftops at sunset</p></div>' +
-    '<div class="mid"><button id="lobby-play" type="button">PLAY</button><p id="lobby-best"></p>' +
+    '<div class="mid">' +
+    '<div id="lobby-mode" role="radiogroup" aria-label="Game mode">' +
+    GAME_MODES.map(
+      (m) => `<button type="button" role="radio" data-mode="${m}">${MODE_INFO[m].label}</button>`,
+    ).join('') +
+    '</div>' +
+    '<button id="lobby-play" type="button">PLAY</button><p id="lobby-best"></p>' +
     '<div id="lobby-gfx" role="radiogroup" aria-label="Graphics quality"><span class="lbl">Graphics</span>' +
     GRAPHICS_TIERS.map(
       (t) =>
@@ -81,7 +88,7 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
     '<div class="touch-only"><b>Aim</b> drag right side</div>' +
     '<div class="touch-only"><b>HOOK / BRAKE</b> big button</div>' +
     '<div class="touch-only"><b>JUMP</b> button</div>' +
-    '<div class="hint">Best played with your phone in landscape</div>' +
+    '<div class="hint">Portrait or landscape, both work</div>' +
     '</div>';
   root.appendChild(lobby);
 
@@ -109,6 +116,23 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
   }
   showTier(loadGraphicsTier());
 
+  // Game mode: saved at once; PLAY / RESUME starts (or switches to) the chosen mode.
+  const modeBtns = lobby.querySelectorAll<HTMLButtonElement>('#lobby-mode button');
+  let mode: GameMode = loadMode(undefined, new URLSearchParams(location.search).get('mode'));
+  function showMode(): void {
+    for (const b of modeBtns) b.setAttribute('aria-checked', String(b.dataset.mode === mode));
+    bestEl.textContent = h.getBestLabel(mode);
+  }
+  for (const b of modeBtns) {
+    b.addEventListener('click', () => {
+      const m = GAME_MODES.find((x) => x === b.dataset.mode);
+      if (m === undefined) return;
+      mode = m;
+      saveMode(m);
+      showMode();
+    });
+  }
+
   const menu = document.createElement('button');
   menu.id = 'menu-btn';
   menu.type = 'button';
@@ -120,15 +144,10 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
   let shown = true;
   let started = false;
 
-  function refreshBest(): void {
-    const b = h.getBest();
-    bestEl.textContent = b > 0 ? 'Best time ' + formatTime(b) : 'No best time yet';
-  }
-
   function show(): void {
     shown = true;
     if (document.pointerLockElement) document.exitPointerLock();
-    refreshBest();
+    showMode();
     playBtn.textContent = started ? 'RESUME' : 'PLAY';
     lobby.classList.remove('off');
     menu.classList.add('off');
@@ -143,7 +162,7 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
   }
 
   playBtn.addEventListener('click', () => {
-    h.onPlay();
+    h.onPlay(mode);
   });
   menu.addEventListener('click', () => {
     h.onMenu();
@@ -152,6 +171,7 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
     if (e.key === 'Escape' && !shown) h.onMenu();
   });
 
+  showMode();
   show();
   return { show, hide, visible: () => shown };
 }

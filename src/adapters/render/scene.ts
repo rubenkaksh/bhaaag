@@ -120,6 +120,25 @@ export type GameScene = {
   buildWorld: (world: World) => Group;
   render: () => void;
   dispose: () => void;
+  /** Cloud opacity scale 0..1 (re-applied after every applyConfig). */
+  setCloudCover: (k: number) => void;
+  /** Vertical lens shift as a fraction of the viewport height (camera.setViewOffset); 0 clears it. */
+  setLensShift: (fracY: number) => void;
+  /** Re-runs shadow flags and material swaps for groups added after buildWorld. */
+  refreshFlags: () => void;
+  frameStats: () => FrameStats;
+};
+
+export type FrameStats = {
+  calls: number;
+  triangles: number;
+  shadowCasters: number;
+  pixelRatio: number;
+  width: number;
+  height: number;
+  textures: number;
+  geometries: number;
+  programs: number;
 };
 
 // ADR 0005 D4 + graphics-spec "Implemented tiers". Low: haze fog, warm key light ~78 degrees
@@ -161,6 +180,8 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   let composer: EffectComposer | null = null;
   let flagsDirty = true;
   let materialsDirty = false;
+  let cloudCover = 1;
+  let lensShift = 0;
 
   // Scratch for the shadow follow (no per-frame allocation).
   const sunDir = new Vector3();
@@ -252,6 +273,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
       if (o !== undefined) o.visible = rich;
     }
     dust.visible = rich;
+    applyCloudCover();
     applyForest();
     flagsDirty = true;
     materialsDirty = true;
@@ -314,6 +336,63 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     });
   }
 
+  const cloudBase = new Map<Material, number>();
+  function applyCloudCover(): void {
+    for (const n of ['clouds', 'cloudsHigh']) {
+      const o = sky.getObjectByName(n);
+      if (o === undefined) continue;
+      o.traverse((c) => {
+        const m = (c as Mesh).material as Material | Material[] | undefined;
+        if (m === undefined) return;
+        for (const mm of Array.isArray(m) ? m : [m]) {
+          let b = cloudBase.get(mm);
+          if (b === undefined) {
+            b = mm.opacity;
+            cloudBase.set(mm, b);
+          }
+          mm.opacity = b * cloudCover;
+        }
+      });
+    }
+  }
+
+  function setCloudCover(k: number): void {
+    cloudCover = Math.min(1, Math.max(0, k));
+    applyCloudCover();
+  }
+
+  function setLensShift(fracY: number): void {
+    lensShift = fracY;
+    resize();
+  }
+
+  function refreshFlags(): void {
+    flagsDirty = true;
+    materialsDirty = true;
+  }
+
+  function frameStats(): FrameStats {
+    const info = renderer.info;
+    let shadowCasters = 0;
+    if (cfg.shadow !== null) {
+      scene.traverse((o) => {
+        if ((o as Mesh).isMesh === true && o.castShadow && o.visible) shadowCasters++;
+      });
+    }
+    renderer.getSize(size);
+    return {
+      calls: info.render.calls,
+      triangles: info.render.triangles,
+      shadowCasters,
+      pixelRatio: renderer.getPixelRatio(),
+      width: size.x,
+      height: size.y,
+      textures: info.memory.textures,
+      geometries: info.memory.geometries,
+      programs: info.programs?.length ?? 0,
+    };
+  }
+
   function setTier(tier: GraphicsTier): void {
     if (tier === cfg.tier) return;
     cfg = renderConfigFor(tier, coarse);
@@ -333,6 +412,8 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     composer?.setPixelRatio(renderer.getPixelRatio());
     composer?.setSize(w, h);
     camera.aspect = w / h;
+    if (lensShift !== 0) camera.setViewOffset(w, h, 0, lensShift * h, w, h);
+    else camera.clearViewOffset();
     camera.updateProjectionMatrix();
   }
 
@@ -431,5 +512,9 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     buildWorld,
     render,
     dispose,
+    setCloudCover,
+    setLensShift,
+    refreshFlags,
+    frameStats,
   };
 }

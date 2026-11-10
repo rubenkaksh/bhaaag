@@ -21,3 +21,6 @@ Opus (high) specifies the hero rig and pose set; smaller agents implement. Proce
 
 ## Amendment 2026-11-09 (graphics overhaul, `docs/graphics-overhaul-plan.md` s9)
 Owner approved: higher default tier on capable devices, small textures, set-dressing clutter and atmosphere (clouds, god-ray cards, birds, dust) on Medium/High. Still out: custom shaders (P6), GLB, extra levels. Hero rework (P5) is on hold until the owner lifts the mannequin lock.
+
+## Amendment 2026-11-10 (portrait play and a Dragon Chase score mode, owner lifted)
+Owner lifted two items: portrait is playable (no rotate overlay; the layout adapts, see `docs/three-track-plan.md`), and a second mode, Dragon Chase (score based, endless), joins Classic L1. Still out: any further modes, extra levels, custom shaders, GLB.

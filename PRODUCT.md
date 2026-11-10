@@ -4,7 +4,7 @@
 
 ## Platform
 
-Web (three.js, Vite). Landscape-first on phones; desktop (pointer lock + WASD) and touch from day one. Hosting: Cloudflare Pages.
+Web (three.js, Vite). Landscape and portrait on phones; desktop (pointer lock + WASD) and touch from day one. Hosting: Cloudflare Pages.
 
 ## Users
 
@@ -23,7 +23,7 @@ Stated in `docs/lean-scope.md` ("Dropped, do NOT build") and `CLAUDE.md`:
 - Level validator / never-dead-end proof, replay traces, golden-test gates, CI deploy gates.
 - Multi-level content, assist ladder, level select, GLB asset pipeline.
 - Melee combat (MVP1 backlog, do not build yet).
-- Portrait layout (later stretch goal, not MVP0).
+- Modes beyond Classic L1 and Dragon Chase.
 - Health pips or checkpoints beyond near-instant restart (one-hit death).
 Stated in `CLAUDE.md` Locked decisions and `docs/lean-scope.md` Budget: no hand-written custom shaders, no GLB hero model (procedural primitives and stock materials). Small baked textures allowed since 2026-11-09 (graphics overhaul).
 

@@ -87,7 +87,7 @@ export interface GameLoopOptions {
 /**
  * requestAnimationFrame-driven loop around {@link Accumulator}. Pauses while
  * the document is hidden and resumes without a catch-up burst. {@link pause}
- * / {@link resume} do the same on demand (e.g. the portrait rotate overlay).
+ * / {@link resume} do the same on demand (e.g. the lobby menu).
  */
 export class GameLoop {
   private readonly accumulator: Accumulator;
