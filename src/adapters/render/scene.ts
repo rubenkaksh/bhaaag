@@ -56,6 +56,7 @@ export type GameScene = {
   resize: () => void;
   /** Builds the level meshes (replacing any previous level) and returns their group. */
   buildWorld: (world: World) => Group;
+  setBlobWorld: (world: World) => void;
   render: () => void;
   dispose: () => void;
   /** Cloud opacity scale 0..1 (re-applied after every applyConfig). */
@@ -158,7 +159,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     // The post-processing chunk loads lazily; the plain render path runs until it arrives.
     void createComposer(renderer, scene, camera, cfg).then((c) => {
       if (c === null) return;
-      if (seq !== composerSeq) {
+      if (disposed || seq !== composerSeq) {
         for (const p of c.passes) p.dispose();
         c.dispose();
         return;
@@ -371,6 +372,11 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     camera.updateProjectionMatrix();
   }
 
+  /** Chase has no buildWorld; the blob still needs a world to find the ground. */
+  function setBlobWorld(world: World): void {
+    worldRef = world;
+  }
+
   function buildWorld(world: World): Group {
     if (level !== null) scene.remove(level);
     worldRef = world;
@@ -400,7 +406,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
 
   // Frame-time governor (D-A): an auto-chosen tier above Low falls back to Low once if the
   // first seconds run slower than ~20 fps-equivalent budget. Explicit choices are never touched.
-  let govActive = (isTierAuto() || coarse) && cfg.tier !== 'low';
+  let govActive = (isTierAuto() || (coarse && cfg.tier === 'medium')) && cfg.tier !== 'low';
   let govLast = 0;
   let govFrames = 0;
   let govSum = 0;
@@ -456,6 +462,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
 
   function dispose(): void {
     disposed = true;
+    composerSeq++;
     scene.traverse((o) => {
       const ud = o.userData as { lambert?: Material; standard?: Material };
       ud.lambert?.dispose();
@@ -480,6 +487,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     setTier,
     resize,
     buildWorld,
+    setBlobWorld,
     render,
     dispose,
     setCloudCover,

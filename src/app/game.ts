@@ -186,6 +186,7 @@ export function startGame(
   const gs = createGameScene(canvas);
   const level: Group | null = cs === null ? gs.buildWorld(world) : null;
   // Chase views: no classic scenery; own rows, endless ground and dragon.
+  if (cs !== null) gs.setBlobWorld(world);
   const rowsView = isChase ? new ChaseRowsView(() => gs.refreshFlags()) : null;
   const treesFor = (t: string): number => (t === 'low' ? 8 : t === 'medium' ? 16 : 26);
   let viewTier = gs.getTier();
@@ -308,6 +309,7 @@ export function startGame(
       if (!fixedSeed) chaseSeed = (Math.random() * 2147483647) | 0;
       cs = newChaseState(chaseSeed, 0, cfg);
       world = cs.rw.world;
+      gs.setBlobWorld(world);
       rowsView?.invalidate();
       ground?.snap(0, true);
       roared = false;

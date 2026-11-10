@@ -38,6 +38,19 @@ const ANCHOR_R = 0.5;
 const RING_IN = 0.72;
 const RING_OUT = 0.92;
 const RING_SEGS = 16;
+// Per-vertex cos/sin * radius for the ring quads (a0 in, a0 out, a1 out, a1 in), built once.
+const RING_COS = new Float64Array(RING_SEGS * 4);
+const RING_SIN = new Float64Array(RING_SEGS * 4);
+for (let s = 0; s < RING_SEGS; s++) {
+  const a0 = (s / RING_SEGS) * Math.PI * 2;
+  const a1 = ((s + 1) / RING_SEGS) * Math.PI * 2;
+  const angs = [a0, a0, a1, a1];
+  const rs = [RING_IN, RING_OUT, RING_OUT, RING_IN];
+  for (let v = 0; v < 4; v++) {
+    RING_COS[s * 4 + v] = Math.cos(angs[v]) * rs[v];
+    RING_SIN[s * 4 + v] = Math.sin(angs[v]) * rs[v];
+  }
+}
 const COLOR_PAD_EDGE = '#6b4a30'; // dark timber border so a cream pad reads against cream roofs
 const PAD_LIFT = 0.03;
 
@@ -316,16 +329,9 @@ function buildAnchorRings(world: World): Mesh {
       const k = i === target ? 1.25 : 1;
       let o = i * per * 3;
       for (let s = 0; s < RING_SEGS; s++) {
-        const a0 = (s / RING_SEGS) * Math.PI * 2;
-        const a1 = ((s + 1) / RING_SEGS) * Math.PI * 2;
-        for (const [ang, r] of [
-          [a0, RING_IN],
-          [a0, RING_OUT],
-          [a1, RING_OUT],
-          [a1, RING_IN],
-        ] as const) {
-          const c = Math.cos(ang) * r * k;
-          const sn = Math.sin(ang) * r * k;
+        for (let v = 0; v < 4; v++) {
+          const c = RING_COS[s * 4 + v] * k;
+          const sn = RING_SIN[s * 4 + v] * k;
           pos[o++] = a.px + right.x * c + up.x * sn;
           pos[o++] = a.py + right.y * c + up.y * sn;
           pos[o++] = a.pz + right.z * c + up.z * sn;

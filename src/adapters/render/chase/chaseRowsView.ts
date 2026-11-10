@@ -1,7 +1,7 @@
 // Draws the live rows of the endless world. When a slot is rewritten (version/epoch change) the
 // whole group is rebuilt from a small local-frame World (buildRowsWorld) with the unchanged
 // buildLevelMeshes pipeline, then shifted into place by (0, GRADE*dz, dz).
-import { Group, Mesh } from 'three';
+import { Group, InstancedMesh, Mesh } from 'three';
 import type { Material } from 'three';
 import { World } from '../../../core/world';
 import { GRADE } from '../../../core/chase/rows';
@@ -10,6 +10,7 @@ import { buildLevelMeshes, updateLevelView } from '../levelView';
 
 function disposeGroup(g: Group): void {
   g.traverse((o) => {
+    if ((o as InstancedMesh).isInstancedMesh === true) (o as InstancedMesh).dispose();
     const m = o as Mesh;
     if (m.isMesh !== true) return;
     m.geometry.dispose();

@@ -19,7 +19,7 @@ body.mode-chase #hud-objective {
 }
 #chase-cloud {
   inset: 0;
-  z-index: 25;
+  z-index: 15;
   opacity: 0;
   background:
     radial-gradient(ellipse at 50% 55%, rgba(236, 234, 240, 0.92) 0%, rgba(214, 216, 226, 0.88) 45%, rgba(176, 182, 198, 0.82) 100%),
