@@ -57,7 +57,7 @@ const SLOPE_BASE = -10;
 const BRICK = ['#9c5640', '#8c4a38', '#a8634a'];
 const LIME = ['#d9c6aa', '#cfb99a', '#e0cfb4'];
 const WOOD = ['#4a2c1c', '#5a3622'];
-const TILE = ['#b5441c', '#a33d1a', '#c04e22'];
+const TILE = ['#923618', '#97391a', '#8c3b1c'];
 const CONCRETE = '#a99a88';
 const TANKS = ['#26282c', '#2e6b47'];
 const SOLAR = '#2b4a73';
@@ -84,7 +84,7 @@ const PLASTER = [
   '#d4a89a',
   '#c8c0a8',
 ];
-const TILE_FILL = ['#9c3a1c', '#8e3418', '#a33d1a', '#833018', '#94421f', '#7d2f1a', '#a24a26'];
+const TILE_FILL = ['#923618', '#8e3418', '#97391a', '#833018', '#8c3b1c', '#7d2f1a', '#8a3d1f'];
 const FOREST_FLOOR = '#4f6a38';
 const FOREST_CANOPY = ['#46683a', '#587a3a', '#3f5e34', '#6a8a3e'];
 const WIN_D = 0.118; // window depth unit: sticks out 1.6 x this = 0.19 m

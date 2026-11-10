@@ -17,9 +17,27 @@ const hexes = (src: string): string[] => src.match(/#[0-9a-fA-F]{6}/g) ?? [];
 
 const fill = hexes(/const TILE_FILL = \[([^\]]*)\]/.exec(decor)![1]);
 const gold = /const COLOR_ANCHOR = '(#[0-9a-fA-F]{6})'/.exec(level)![1];
-const danger = hexes(/const COLOR_STYLE = \[([^\]]*)\]/.exec(level)![1])[3];
+const dangerIdx = Number(/const DANGER_STYLE = (\d+)/.exec(level)![1]);
+const danger = hexes(/const COLOR_STYLE = \[([^\]]*)\]/.exec(level)![1])[dangerIdx];
+const tile = hexes(/const TILE = \[([^\]]*)\]/.exec(decor)![1]);
+const pitched = /const COLOR_TILE_ROOF = '(#[0-9a-fA-F]{6})'/.exec(level)![1];
+// Roof tint jitter reaches x1.12 (placeDecor); test the brightest case.
+const bright = (h: string): string =>
+  '#' +
+  rgb(h)
+    .map((v) =>
+      Math.min(255, Math.round(v * 1.12))
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('');
 
+// NOTE: source-hex stand-in for the plan's sampled-pixel check; lighting, ACES and fog are not modelled.
 describe('colour language', () => {
+  it('pitched roof and gold stay apart', () => {
+    expect(dist(gold, pitched)).toBeGreaterThan(60);
+    expect(dist(danger, pitched)).toBeGreaterThan(20);
+  });
   it('reads the palette', () => {
     expect(fill.length).toBeGreaterThanOrEqual(5);
   });
@@ -32,7 +50,7 @@ describe('colour language', () => {
       const c = rgb(h);
       return 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
     };
-    for (const f of fill) {
+    for (const f of [...fill, ...tile].map(bright)) {
       expect(lum(danger) - lum(f)).toBeGreaterThan(5);
       expect(dist(danger, f)).toBeGreaterThan(20);
     }
