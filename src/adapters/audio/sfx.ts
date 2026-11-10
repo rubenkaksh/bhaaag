@@ -192,6 +192,24 @@ export class Sfx {
     });
   }
 
+  /** Chase: low rushing wind whose loudness follows how close the dragon is (k 0..1). */
+  wind(k: number): void {
+    const noise = this.noise;
+    const a = Math.min(1, Math.max(0, Number.isFinite(k) ? k : 0));
+    if (noise === null || a <= 0.02) return;
+    this.run((ctx, master, now) => {
+      noiseBurst(ctx, master, noise, now, 0.2, 0.05 + 0.25 * a);
+    });
+  }
+
+  /** Chase: the dragon's roar when the gap is about to close. */
+  roar(): void {
+    this.run((ctx, master, now) => {
+      tone(ctx, master, 'sawtooth', 120, 38, now, 0.9, 0.45, 500);
+      tone(ctx, master, 'square', 70, 30, now, 1.1, 0.25, 300);
+    });
+  }
+
   dispose(): void {
     const ctx = this.ctx;
     this.ctx = null;

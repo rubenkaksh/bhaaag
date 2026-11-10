@@ -95,6 +95,20 @@ const schema = z.strictObject({
   }),
   assist: z.strictObject({ slowmoScale: num, slowmoSec: num }),
   fixedHz: num,
+  chase: z.strictObject({
+    startGap: num,
+    v0: num,
+    accel: num,
+    vMax: num,
+    gapMax: num,
+    rubberK: num,
+    catchGap: num,
+    fogGap: num,
+    slots: num,
+    scoreHop: num,
+    scoreClean: num,
+    scorePerfect: num,
+  }),
 });
 
 describe('tuning.json', () => {

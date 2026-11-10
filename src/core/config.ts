@@ -101,6 +101,21 @@ export type Tuning = {
     slowmoSec: number;
   };
   fixedHz: number;
+  // --- Dragon Chase (Track 3, appended) ---
+  chase: {
+    startGap: number;
+    v0: number;
+    accel: number;
+    vMax: number;
+    gapMax: number;
+    rubberK: number;
+    catchGap: number;
+    fogGap: number;
+    slots: number;
+    scoreHop: number;
+    scoreClean: number;
+    scorePerfect: number;
+  };
 };
 
 export const DEFAULT_TUNING: Tuning = {
@@ -206,4 +221,18 @@ export const DEFAULT_TUNING: Tuning = {
     slowmoSec: 0.4,
   },
   fixedHz: 60,
+  chase: {
+    startGap: 36,
+    v0: 4.4,
+    accel: 0.045,
+    vMax: 13.5,
+    gapMax: 45,
+    rubberK: 0.4,
+    catchGap: 2.5,
+    fogGap: 22,
+    slots: 6,
+    scoreHop: 25,
+    scoreClean: 10,
+    scorePerfect: 10,
+  },
 };
