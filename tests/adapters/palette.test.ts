@@ -1,0 +1,40 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+
+// Graphics overhaul plan fix 2: gold (interactive) and terracotta (danger) must stay visually
+// distinct from the filler roof tones. Palette constants are parsed from source so the test
+// follows edits; distance is measured in lightness-weighted RGB (a cheap perceptual proxy).
+const rgb = (h: string): number[] => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const dist = (a: string, b: string): number => {
+  const x = rgb(a);
+  const y = rgb(b);
+  return Math.hypot(2 * (x[0] - y[0]), 4 * (x[1] - y[1]), 3 * (x[2] - y[2])) / 3;
+};
+
+const decor = readFileSync('src/adapters/render/decor/placeDecor.ts', 'utf8');
+const level = readFileSync('src/adapters/render/levelView.ts', 'utf8');
+const hexes = (src: string): string[] => src.match(/#[0-9a-fA-F]{6}/g) ?? [];
+
+const fill = hexes(/const TILE_FILL = \[([^\]]*)\]/.exec(decor)![1]);
+const gold = /const COLOR_ANCHOR = '(#[0-9a-fA-F]{6})'/.exec(level)![1];
+const danger = hexes(/const COLOR_STYLE = \[([^\]]*)\]/.exec(level)![1])[3];
+
+describe('colour language', () => {
+  it('reads the palette', () => {
+    expect(fill.length).toBeGreaterThanOrEqual(5);
+  });
+  it('gold anchors stay far from every filler roof tone', () => {
+    for (const f of fill) expect(dist(gold, f)).toBeGreaterThan(60);
+  });
+  it('danger terracotta is a distinct hue-lightness step from the filler tones', () => {
+    // The filler is deliberately darker and browner than the hot danger colour.
+    const lum = (h: string): number => {
+      const c = rgb(h);
+      return 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
+    };
+    for (const f of fill) {
+      expect(lum(danger) - lum(f)).toBeGreaterThan(5);
+      expect(dist(danger, f)).toBeGreaterThan(20);
+    }
+  });
+});

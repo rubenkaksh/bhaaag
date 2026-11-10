@@ -84,7 +84,7 @@ const PLASTER = [
   '#d4a89a',
   '#c8c0a8',
 ];
-const TILE_FILL = ['#b5441c', '#a33d1a', '#c04e22', '#9c3a1c', '#bf5a2c', '#8e3418', '#c9622e'];
+const TILE_FILL = ['#9c3a1c', '#8e3418', '#a33d1a', '#833018', '#94421f', '#7d2f1a', '#a24a26'];
 const FOREST_FLOOR = '#4f6a38';
 const FOREST_CANOPY = ['#46683a', '#587a3a', '#3f5e34', '#6a8a3e'];
 const WIN_D = 0.118; // window depth unit: sticks out 1.6 x this = 0.19 m

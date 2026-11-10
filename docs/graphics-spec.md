@@ -44,8 +44,8 @@ Code: `src/adapters/render/graphicsTier.ts` (pure settings + `renderConfigFor`),
 
 | Tier | Default for | Lighting | Shadows | Post | Pixel ratio cap |
 |---|---|---|---|---|---|
-| Low | touch / mobile UA / <=4 cores / <=4 GB | today's stock look, unchanged (no tone mapping) | none | none | 2 (1.5 touch) |
-| Medium | other devices | lower warm sun (~19 deg, same azimuth), hemisphere fill, ACES exposure 1.2, sRGB out, haze fog 38-260 m | PCF 1024, radius 3, 26 m half-frustum following the camera focus, texel-snapped | none | 2 (1.5 touch) |
+| Low | <=4 cores / <=4 GB, or the frame-time governor (avg >22 ms) | stock materials, ACES exposure 1.1, fog 60-320 m (amended 2026-11-10, ADR 0008) | none | none | 2 (1.5 touch) |
+| Medium | other devices, including phones (default raised 2026-11-09) | lower warm sun (~19 deg, same azimuth), hemisphere fill, ACES exposure 1.2, sRGB out, haze fog 38-260 m | PCF 1024, radius 3, 26 m half-frustum following the camera focus, texel-snapped | none | 2 (1.5 touch) |
 | High | player choice (target: iPhone 13) | as Medium | PCF 2048, radius 2, 34 m half-frustum | UnrealBloomPass 0.22 / 0.35 / threshold 0.85 via EffectComposer (MSAA 4) + OutputPass | 2 (1.5 touch) |
 
 - three 0.187 removed `PCFSoftShadowMap`; `PCFShadowMap` with `shadow.radius` is the soft path.
