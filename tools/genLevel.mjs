@@ -2,48 +2,49 @@
 // Generates content/levels/l1.json (the one Kathmandu rooftop descent).
 // Plain Node ESM, no deps, deterministic. Run: node tools/genLevel.mjs
 //
-// Layout (docs/graphics-spec.md, docs/level-layout.md): a packed hill village. Houses are 8 x 9 m,
-// their walls run 8 m (2-3 storeys) down to the hill plot they stand on; there are no foundation
-// walls. The hill under the route is a staircase of flat plots (one per house), each fenced on its
-// downhill edge so a hero who falls cannot walk down the village to the goal. Every plot has a
-// stair up to its own house roof, so a survivable fall costs time and is never a dead end.
+// Layout (docs/level-layout.md, redesign 2026-11-10): ONE smooth hillside, a single planar ramp
+// at GRADE_DEG, with ten houses on it in a straight line down the fall line (x = 0). Houses come
+// in attached rows ("clusters": 4 rows of 2 route houses, each house one step lower than the one
+// above it) joined by rope hops across open hillside, plus two danger decoys beside the lane.
+// Nothing else stands on the hill: no side villages, no plots, no fences. The mountains and the
+// forested foothills are scenery (src/adapters/render/terrain.ts, backdrop.ts).
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 // Tunables (1 unit = 1 m, Y up, the hill descends toward -Z).
-const HOPS = 7;
-const SPACING = 18; // roof centre z step: a 9 m gap between neighbouring houses
-const DROP = 4; // roof top y step (roof-to-roof height difference)
-const HALF_X = 4; // house half width (8 m footprint)
-const HALF_Z = 4.5; // house half depth (9 m footprint)
-const WALL_H = 8; // roof top down to the plot it stands on (2-3 storeys, ends on the ground)
+export const GRADE_DEG = 20;
+export const GRADE = Math.tan((GRADE_DEG * Math.PI) / 180); // metres of drop per metre of z
+export const GROUND_Y0 = -8; // hill surface height at z = 0 (so the first roof top is y = 0)
+const WALL_H = 8; // roof top above the hill surface at the house centre
+// The second house of each row is a lower annex: its wall is ROW_DROP shorter, so the roof steps down
+// GRADE * 7 + ROW_DROP between the attached houses. A bigger in-row step makes the rope hop between
+// rows less steep (the receiving house stands higher over the launching one), which widens the strip
+// of the launching roof from which the hook chord clears the roof surface (see tests/content/hillside).
+export const ROW_DROP = 2.6;
 const ROOF_T = 0.6; // roof slab thickness
-const THICK = 3; // start roof S0 only
+const HALF_X = 4; // house half width (8 m footprint)
+const HALF_Z = 3.5; // house half depth (7 m footprint): attached houses step down GRADE * 7 m
+const CLUSTERS = [2, 2, 2, 2]; // route houses per attached row
+const GAP = 13; // open hillside between rows, edge to edge
 const BALCONY_DEPTH = 1.8;
-const BALCONY_DROP = 3; // balcony floor below the roof top
+const BALCONY_DROP = 3;
 const ANCHOR_H = 1.6; // anchor height above the roof top (the rope end meets the roof)
-const ANCHOR_Z = 1; // anchor offset from the roof centre toward the previous roof
-const X_OFF = 5; // houses alternate x = -5 / +5 across the lane
-const DECOY_X = 12; // decoy house centre offset, on the far side of the lane from its own roof
-const CURB_H = 0.4; // roof parapet: within step-up, so it never blocks a run
+const ANCHOR_Z = 1; // anchor offset from the first roof's centre toward the uphill edge
+const CURB_H = 0.4; // roof parapet: within step-up, never blocks a run
 const CURB_T = 0.25;
-const CURB_GAP = 2; // half width of the launch gap at the middle of the lane and downhill edges
 const PLINTH_H = 0.8; // tank plinth: a jump-up under 1 m
-const DECOY_ROOFS = [2, 4, 6];
-// Decoys that wear a pitched tile roof (ADR 0002): landable but slippery, so a hook there ends in a
-// slide off the eave into the house's own plot (a roll; the rescue stair leads back) or a fall.
-const PITCHED_DECOYS = [2, 4];
-const PITCH_RISE = 2; // eave (decoy top) to ridge: 2 m over a 3.5 m half span = 29.7 deg
-const PLOT_HALF_X = 30; // plot (hill step) half width; past it the hill falls away (kill)
-const PLOT_THICK = 4; // > DROP, so a plot's downhill face closes the step to the next plot
-const GOAL_RUN = 22; // the last plot runs this far past house 7's centre (goal area)
-const FENCE_H = 2.6; // over jump (1.0 m) + edge grab (1.4 m): plots never connect on foot
-const FENCE_T = 0.3;
-const STAIR_GAP = 0.6; // stair stands this far off the outer wall (eave brackets fit between)
-const STAIR_W = 1.4;
-const STAIR_RISE = 0.35; // <= hero.stepUp (0.4)
-const STAIR_TOP = 1.5; // top platform depth (z) at the uphill end; the outer curb is open there
-const STAIR_PAST = 2.5; // the stair starts this far downhill of the house's downhill wall
+const DECOY_X = 12; // decoy house centre offset from the lane
+const DECOY_ROWS = [1, 3]; // decoy beside the first house of row 1 (left) and row 3 (right)
+const DECOY_PITCHED = [1]; // row 1's decoy wears a pitched tile roof (landable but slippery)
+const PITCH_RISE = 2;
+// Hill collider: one ramp, enclosed by invisible barrier walls (style 5, never drawn).
+export const HILL_HALF_X = 34;
+export const HILL_Z_MAX = 26;
+export const HILL_Z_MIN = -104;
+const WALL_T = 2;
+const GOAL_RUN = 9; // the haystack runs this far past the last house's downhill edge
+
+export const STYLE_HIDDEN = 5;
 
 const r = (n) => Math.round(n * 1000) / 1000;
 const box = (x0, y0, z0, x1, y1, z1) => ({
@@ -51,12 +52,25 @@ const box = (x0, y0, z0, x1, y1, z1) => ({
   max: [r(x1), r(y1), r(z1)],
 });
 
-/** Route house i (0 = the start roof S0): centre, roof top and plot top. */
-export function houseAt(i) {
-  const cx = i === 0 ? 0 : i % 2 === 0 ? X_OFF : -X_OFF;
-  const cz = -SPACING * i;
-  const top = -DROP * i;
-  return { cx, cz, top, plot: top - WALL_H };
+/** Hill surface height at z (the planar ramp). */
+export function hillY(z) {
+  return GRADE * z + GROUND_Y0;
+}
+
+/** Route houses in order, each { cx, cz, top, ground, row, k }. cz = footprint centre z. */
+export function routeHouses() {
+  const out = [];
+  let edge = HALF_Z; // uphill edge of the first row's first house, so house 0 is centred on z = 0
+  for (let row = 0; row < CLUSTERS.length; row++) {
+    for (let k = 0; k < CLUSTERS[row]; k++) {
+      const cz = edge - HALF_Z;
+      const ground = hillY(cz);
+      out.push({ cx: 0, cz, top: ground + WALL_H - (k === 0 ? 0 : ROW_DROP), ground, row, k });
+      edge -= 2 * HALF_Z;
+    }
+    edge -= GAP;
+  }
+  return out;
 }
 
 export function generateLevel() {
@@ -69,130 +83,109 @@ export function generateLevel() {
     solids.push(b);
     style.push(s);
   };
+  const houses = routeHouses();
+  const last = houses[houses.length - 1];
 
-  // Ground slab (0, far below: falling off the hill kills), start roof S0 (1).
-  add(box(-60, -90, -230, 60, -89, 20), 0);
-  add(box(-5, -THICK, -4, 5, 0, 4), 2);
+  // Kill slab far below (0). The hill itself is the ramp below.
+  add(box(-120, -120, -260, 120, -119, 60), 0);
 
-  for (let i = 1; i <= HOPS; i++) {
-    const { cx, cz, top, plot } = houseAt(i);
-    // Roof slab, then the walls down to the plot the house stands on.
-    add(box(cx - HALF_X, top - ROOF_T, cz - HALF_Z, cx + HALF_X, top, cz + HALF_Z), 2);
-    add(box(cx - HALF_X, plot, cz - HALF_Z, cx + HALF_X, top - ROOF_T, cz + HALF_Z), 1);
-    anchors.push({ pos: [r(cx), r(top + ANCHOR_H), r(cz + ANCHOR_Z)] });
-    pads.push(box(cx - HALF_X + 1, top, cz - HALF_Z + 1, cx + HALF_X - 1, top, cz + HALF_Z - 1));
+  // Houses: roof slab (style 2), then the wall down to the lowest hill point under the footprint
+  // (style 1), so the downhill face meets the slope and the uphill face is partly buried.
+  for (const h of houses) {
+    const x0 = h.cx - HALF_X;
+    const x1 = h.cx + HALF_X;
+    const z0 = h.cz - HALF_Z;
+    const z1 = h.cz + HALF_Z;
+    add(box(x0, h.top - ROOF_T, z0, x1, h.top, z1), 2);
+    add(box(x0, hillY(z0), z0, x1, h.top - ROOF_T, z1), 1);
+    pads.push(box(x0 + 1, h.top, z0 + 1, x1 - 1, h.top, z1 - 1));
+  }
+  // Anchors: the first house of each row after the first (the rope target of the hop before it).
+  const rowFirst = houses.filter((h) => h.k === 0 && h.row > 0);
+  for (const h of rowFirst) {
+    anchors.push({ pos: [r(h.cx), r(h.top + ANCHOR_H), r(h.cz + ANCHOR_Z)] });
   }
 
-  // Decoys: a danger-coloured house across the lane, standing on the same plot, with an anchor at
-  // the same height as the real one. It is hookable; it leads nowhere.
-  for (const i of DECOY_ROOFS) {
-    const { cx, cz, top, plot } = houseAt(i);
-    const dx = -Math.sign(cx) * DECOY_X;
-    add(box(dx - 3.5, plot, cz - 4.5, dx + 3.5, top - 0.6, cz + 4.5), 3);
-    // ridge along z through the anchor's x: the anchor (top + 1.6) is a finial 0.2 m above it
-    if (PITCHED_DECOYS.includes(i)) {
-      const b = box(dx - 3.5, top - 0.6, cz - 4.5, dx + 3.5, top - 0.6 + PITCH_RISE, cz + 4.5);
+  // Decoys: a danger-coloured house beside the lane, same top and anchor height as the real
+  // first house of its row. Hookable; it leads nowhere.
+  for (let d = 0; d < DECOY_ROWS.length; d++) {
+    const row = DECOY_ROWS[d];
+    const h = houses.find((q) => q.row === row && q.k === 0);
+    const dx = d === 0 ? -DECOY_X : DECOY_X;
+    const x0 = dx - 3.5;
+    const x1 = dx + 3.5;
+    const z0 = h.cz - HALF_Z;
+    const z1 = h.cz + HALF_Z;
+    add(box(x0, hillY(z0), z0, x1, h.top - 0.6, z1), 3);
+    if (DECOY_PITCHED.includes(row)) {
+      const b = box(x0, h.top - 0.6, z0, x1, h.top - 0.6 + PITCH_RISE, z1);
       roofs.push({ ...b, ridge: 1 });
     }
-    anchors.push({ pos: [r(dx), r(top + ANCHOR_H), r(cz + ANCHOR_Z)] });
+    anchors.push({ pos: [r(dx), r(h.top + ANCHOR_H), r(h.cz + ANCHOR_Z)] });
   }
 
-  // Hill plots (style 0), one per house: plot i runs from midway to the house above to midway to
-  // the house below. Plot 0 reaches back behind the spawn, the last plot carries the goal area.
-  for (let i = 0; i <= HOPS; i++) {
-    const { cz, plot } = houseAt(i);
-    const zMax = i === 0 ? 30 : cz + SPACING / 2;
-    const zMin = i === HOPS ? cz - GOAL_RUN : cz - SPACING / 2;
-    add(box(-PLOT_HALF_X, plot - PLOT_THICK, zMin, PLOT_HALF_X, plot, zMax), 0);
-  }
-
-  // Balconies: a timber ledge on each house's lane-facing wall.
-  for (let i = 1; i <= HOPS; i++) {
-    const { cx, cz, top } = houseAt(i);
-    const dir = cx < 0 ? 1 : -1; // toward the lane axis
-    const face = cx + dir * HALF_X;
-    const x0 = Math.min(face, face + dir * BALCONY_DEPTH);
-    const x1 = Math.max(face, face + dir * BALCONY_DEPTH);
+  // Balconies: a timber ledge on a side wall of each route house, alternating sides.
+  houses.forEach((h, i) => {
+    const dir = i % 2 === 0 ? 1 : -1;
+    const face = h.cx + dir * HALF_X;
+    const xa = Math.min(face, face + dir * BALCONY_DEPTH);
+    const xb = Math.max(face, face + dir * BALCONY_DEPTH);
     add(
-      box(x0, top - BALCONY_DROP - 0.3, cz - HALF_Z + 1, x1, top - BALCONY_DROP, cz + HALF_Z - 1),
+      box(xa, h.top - BALCONY_DROP - 0.3, h.cz - HALF_Z + 1, xb, h.top - BALCONY_DROP, h.cz + HALF_Z - 1),
       1,
     );
-  }
-  // Roof parapets and tank plinths (style 4). The uphill (arrival) edge stays open: the hero
-  // crosses it at speed. The downhill edge is walled on its outer half only and the lane edge on
-  // its uphill half only: the diagonal rope to the next house leaves over the lane-downhill corner. The outer edge is open for
-  // its last STAIR_TOP metres uphill, where the rescue stair arrives.
-  for (let i = 1; i <= HOPS; i++) {
-    const { cx, cz, top } = houseAt(i);
-    const dir = cx < 0 ? 1 : -1;
-    const x0 = cx - HALF_X;
-    const x1 = cx + HALF_X;
-    const z0 = cz - HALF_Z;
-    const z1 = cz + HALF_Z;
-    const y1 = top + CURB_H;
-    const outer = dir > 0 ? [x0, x0 + CURB_T] : [x1 - CURB_T, x1];
-    const lane = dir > 0 ? [x1 - CURB_T, x1] : [x0, x0 + CURB_T];
-    add(box(outer[0], top, z0, outer[1], y1, z1 - STAIR_TOP), 4);
-    add(box(lane[0], top, cz + CURB_GAP, lane[1], y1, z1), 4);
-    if (dir > 0) add(box(x0, top, z0, cx - CURB_GAP, y1, z0 + CURB_T), 4);
-    else add(box(cx + CURB_GAP, top, z0, x1, y1, z0 + CURB_T), 4);
-    const tx = dir > 0 ? x0 + 1.1 : x1 - 1.1;
-    add(box(tx - 0.8, top, cz - 3.2, tx + 0.8, top + PLINTH_H, cz - 1.6), 4);
-  }
+  });
 
-  // Plot fences (style 1) on the downhill edge of plots 0..HOPS-1: the plots never connect on foot.
-  for (let i = 0; i < HOPS; i++) {
-    const { cz, plot } = houseAt(i);
-    const z = cz - SPACING / 2;
-    add(box(-PLOT_HALF_X, plot, z, PLOT_HALF_X, plot + FENCE_H, z + FENCE_T), 1);
-  }
+  // Roof curbs along both side edges and a tank plinth (style 4). Both ends stay open: the hero
+  // arrives over the uphill edge and leaves over the downhill one.
+  houses.forEach((h, i) => {
+    const x0 = h.cx - HALF_X;
+    const x1 = h.cx + HALF_X;
+    const z0 = h.cz - HALF_Z;
+    const z1 = h.cz + HALF_Z;
+    const y1 = h.top + CURB_H;
+    add(box(x0, h.top, z0, x0 + CURB_T, y1, z1), 4);
+    add(box(x1 - CURB_T, h.top, z0, x1, y1, z1), 4);
+    const tx = i % 2 === 0 ? x0 + 1.1 : x1 - 1.1;
+    add(box(tx - 0.8, h.top, h.cz - 1.6, tx + 0.8, h.top + PLINTH_H, h.cz), 4);
+  });
 
-  // Rescue stairs (style 1): every plot has a flight up its own house's outer wall, rising uphill,
-  // ending on a platform STAIR_RISE under the roof beside the open end of the outer curb.
-  for (let i = 0; i <= HOPS; i++) {
-    const { cx, cz, top, plot } = houseAt(i);
-    const hx = i === 0 ? 5 : HALF_X; // S0 is 10 x 8 m
-    const hz = i === 0 ? 4 : HALF_Z;
-    const out = i === 0 ? 1 : cx < 0 ? -1 : 1; // away from the lane (S0: away from house 1)
-    const face = cx + out * hx;
-    const sa = face + out * STAIR_GAP;
-    const sb = sa + out * STAIR_W;
-    const xs0 = Math.min(sa, sb);
-    const xs1 = Math.max(sa, sb);
-    const zTop = cz + hz;
-    const zPlat = zTop - STAIR_TOP;
-    const zStart = cz - hz - STAIR_PAST;
-    const platY = top - STAIR_RISE;
-    const n = Math.ceil((platY - plot) / STAIR_RISE) - 1; // steps below the platform
-    const rise = (platY - plot) / (n + 1);
-    const tread = (zPlat - zStart) / n;
-    for (let k = 0; k < n; k++) {
-      add(
-        box(xs0, plot, zStart + k * tread, xs1, plot + (k + 1) * rise, zStart + (k + 1) * tread),
-        1,
-      );
-    }
-    // platform: from the wall face out over the stair width, at the uphill end
-    const px0 = Math.min(face, sb);
-    const px1 = Math.max(face, sb);
-    add(box(px0, plot, zPlat, px1, platY, zTop), 1);
-  }
+  // Invisible barrier walls (style 5) keep the hero on the collider hill: sides, back, front.
+  const wallTop = 40;
+  const wallBot = -120;
+  add(box(-HILL_HALF_X - WALL_T, wallBot, HILL_Z_MIN - WALL_T, -HILL_HALF_X, wallTop, HILL_Z_MAX + WALL_T), STYLE_HIDDEN);
+  add(box(HILL_HALF_X, wallBot, HILL_Z_MIN - WALL_T, HILL_HALF_X + WALL_T, wallTop, HILL_Z_MAX + WALL_T), STYLE_HIDDEN);
+  add(box(-HILL_HALF_X, wallBot, HILL_Z_MAX, HILL_HALF_X, wallTop, HILL_Z_MAX + WALL_T), STYLE_HIDDEN);
+  add(box(-HILL_HALF_X, wallBot, HILL_Z_MIN - WALL_T, HILL_HALF_X, wallTop, HILL_Z_MIN), STYLE_HIDDEN);
 
-  const last = houseAt(HOPS);
+  const zLow = hillY(HILL_Z_MIN);
+  const ramps = [
+    {
+      min: [-HILL_HALF_X, r(zLow), HILL_Z_MIN],
+      max: [HILL_HALF_X, r(zLow), HILL_Z_MAX],
+      slopeAxis: 2, // rises toward +z
+      rise: r(hillY(HILL_Z_MAX) - zLow),
+    },
+  ];
+
+  // Goal haystack: 2 m over the hill at its near edge (out of jump reach from the ground),
+  // entered by running off the last house's downhill edge (the leap of faith).
+  const zEdge = last.cz - HALF_Z;
+  const goal = box(-6, hillY(zEdge) + 2, zEdge - GOAL_RUN, 6, last.top - 2, zEdge - 0.5);
+
   return {
     version: 1,
     spawn: [0, 0, 0],
     spawnYaw: 3.14159,
     killPlaneY: -95,
     solids,
-    ramps: [],
+    ramps,
     roofs,
     anchors,
-    // The haystack: 2 m over the last plot (out of jump reach from it), entered by running off
-    // roof 7's downhill edge (the leap of faith).
-    goal: box(-12, last.plot + 2, last.cz - HALF_Z - 13, 6, last.top - 2, last.cz - HALF_Z - 0.5),
+    goal,
     pads,
-    route: [0, 1, 2, 3, 4, 5, 6],
+    // anchors 0..2 are the route (first house of rows 1..3), 3..4 the decoys
+    route: rowFirst.map((_, i) => i),
     style,
   };
 }
@@ -202,6 +195,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const level = generateLevel();
   writeFileSync(out, JSON.stringify(level, null, 2) + '\n');
   console.log(
-    `wrote ${out}: ${level.solids.length} solids, ${level.roofs.length} roofs, ${level.anchors.length} anchors, ${level.pads.length} pads`,
+    `wrote ${out}: ${level.solids.length} solids, ${level.ramps.length} ramps, ${level.roofs.length} roofs, ${level.anchors.length} anchors, ${level.pads.length} pads`,
   );
 }

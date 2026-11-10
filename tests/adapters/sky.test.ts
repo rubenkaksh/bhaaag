@@ -4,19 +4,15 @@ import { describe, expect, it } from 'vitest';
 import { pixelRatioFor } from '../../src/adapters/render/scene';
 import {
   HAZE,
-  MOUNTAIN_SEGMENTS,
   SUN_AZ_DEG,
   SUN_DIR,
   SUN_EL_DEG,
-  buildMountains,
   buildSkyView,
   buildDust,
   updateDust,
   DUST_COUNT,
   skyColorAt,
 } from '../../src/adapters/render/skyView';
-
-const DEG = Math.PI / 180;
 
 function triangles(o: Object3D): number {
   let n = 0;
@@ -80,11 +76,10 @@ describe('sun placement (ADR 0005 D4, raised by ADR 0006 L-SKY)', () => {
     expect(Math.hypot(p.getX(1), p.getY(1))).toBeCloseTo(170, 5);
   });
 
-  it('draws the dome before the core and both before the mountains (ADR 0006)', () => {
+  it('draws the dome before the core and both before the backdrop (ADR 0006)', () => {
     const sky = buildSkyView();
     expect((sky.getObjectByName('skyDome') as Mesh).renderOrder).toBe(-2);
     expect((sky.getObjectByName('sunCore') as Mesh).renderOrder).toBe(-1);
-    expect(buildMountains().renderOrder).toBe(0);
   });
 });
 
@@ -109,86 +104,9 @@ describe('horizon haze (ADR 0006 L-SKY)', () => {
   });
 });
 
-describe('mountains (ADR 0005 D4)', () => {
-  it('forms a ring of strips around (0, -110) at radii 360 to 480', () => {
-    const m = buildMountains();
-    const p = m.geometry.attributes.position;
-    let minR = Infinity;
-    let maxR = -Infinity;
-    for (let i = 0; i < p.count; i++) {
-      const r = Math.hypot(p.getX(i), p.getZ(i) + 110);
-      minR = Math.min(minR, r);
-      maxR = Math.max(maxR, r);
-    }
-    expect(minR).toBeCloseTo(360, 3);
-    expect(maxR).toBeCloseTo(480, 3);
-  });
-
-  it('drops every strip bottom to y -200 so no gap shows', () => {
-    const p = buildMountains().geometry.attributes.position;
-    let lowest = Infinity;
-    for (let i = 0; i < p.count; i++) lowest = Math.min(lowest, p.getY(i));
-    expect(lowest).toBe(-200);
-  });
-
-  it('is deterministic for a seed', () => {
-    const a = buildMountains().geometry.attributes.position.array;
-    const b = buildMountains().geometry.attributes.position.array;
-    expect(Array.from(a)).toEqual(Array.from(b));
-  });
-
-  it('keeps the sun ray below SUN_EL - 1.5 degrees off every ridge for the whole route (ADR 0006)', () => {
-    const p = buildMountains().geometry.attributes.position;
-    const layerStride = MOUNTAIN_SEGMENTS * 2; // top/bottom vertex pairs
-    const layers: { x: number; y: number; z: number }[][] = [];
-    for (let L = 0; L * layerStride < p.count; L++) {
-      const tops: { x: number; y: number; z: number }[] = [];
-      for (let i = 0; i < MOUNTAIN_SEGMENTS; i++) {
-        const vi = L * layerStride + 2 * i;
-        tops.push({ x: p.getX(vi), y: p.getY(vi), z: p.getZ(vi) });
-      }
-      layers.push(tops);
-    }
-    expect(layers.length).toBe(3);
-    // Horizontal sun-azimuth ray, 2D segment intersection against each layer's top polyline.
-    const hx = Math.sin(SUN_AZ_DEG * DEG);
-    const hz = -Math.cos(SUN_AZ_DEG * DEG);
-    const limit = SUN_EL_DEG - 1.5;
-    for (let z = 10; z >= -210; z -= 5) {
-      for (const x of [-7, 0, 7]) {
-        const ey = 4 + 0.37 * z;
-        for (const tops of layers) {
-          let hitY = Number.NaN;
-          let hitD = Number.NaN;
-          for (let i = 0; i < tops.length; i++) {
-            const a = tops[i];
-            const b = tops[(i + 1) % tops.length];
-            const wx = a.x - x;
-            const wz = a.z - z;
-            const rx = b.x - a.x;
-            const rz = b.z - a.z;
-            const den = hx * rz - hz * rx;
-            if (den === 0) continue;
-            const t = (wx * rz - wz * rx) / den; // distance along the ray
-            const u = (wx * hz - wz * hx) / den; // position along the segment
-            if (t >= 0 && u >= -1e-9 && u <= 1 + 1e-9) {
-              hitY = a.y + (b.y - a.y) * u;
-              hitD = t;
-              break;
-            }
-          }
-          expect(Number.isNaN(hitD)).toBe(false);
-          const el = (Math.atan2(hitY - ey, hitD) * 180) / Math.PI;
-          expect(el).toBeLessThanOrEqual(limit);
-        }
-      }
-    }
-  });
-});
-
-describe('sky triangle budget (ADR 0005 D10: sky + mountains <= 3k)', () => {
-  it('keeps sky and mountains under 3000 triangles', () => {
-    const total = triangles(buildSkyView() as Group) + triangles(buildMountains());
+describe('sky triangle budget (ADR 0005 D10; mountains moved to backdrop.ts)', () => {
+  it('keeps the sky under 3000 triangles', () => {
+    const total = triangles(buildSkyView() as Group);
     expect(total).toBeLessThan(3000);
     expect(total).toBeGreaterThan(0);
   });

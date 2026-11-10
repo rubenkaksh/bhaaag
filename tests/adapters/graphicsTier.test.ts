@@ -114,7 +114,7 @@ describe('tier -> render config', () => {
     expect(c.bloom).toBeNull();
     expect(c.sun).toEqual({ color: '#ffb469', intensity: 3.0, dir: [70, 38, -15] });
     expect(c.hemi).toEqual({ sky: '#ffc99c', ground: '#5b4656', intensity: 1.0 });
-    expect(c.fog).toEqual({ color: HAZE, near: 60, far: 320 });
+    expect(c.fog).toEqual({ color: HAZE, near: 70, far: 480 });
   });
 
   it('medium adds ACES, a lower warm sun and 1024 soft shadows, no bloom', () => {

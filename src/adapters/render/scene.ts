@@ -28,7 +28,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import type { World } from '../../core/world';
 import { buildLevelMeshes } from './levelView';
-import { buildDust, buildMountains, buildSkyView, updateDust } from './skyView';
+import { buildDust, buildSkyView, updateDust } from './skyView';
 import { buildBackdrop } from './backdrop';
 import {
   GRAPHICS_TIER_EVENT,
@@ -146,8 +146,6 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   scene.add(sky);
   const dust = buildDust();
   scene.add(dust);
-  const mountains = buildMountains();
-  scene.add(mountains);
   const backdropRoot = new Group();
   backdropRoot.name = 'backdropRoot';
   backdropRoot.add(buildBackdrop(cfg.tier));
@@ -158,7 +156,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   const hemi = new HemisphereLight(cfg.hemi.sky, cfg.hemi.ground, cfg.hemi.intensity);
   scene.add(hemi);
 
-  const camera = new PerspectiveCamera(60, 1, 0.1, 1000);
+  const camera = new PerspectiveCamera(60, 1, 0.1, 3000);
   let level: Group | null = null;
   let composer: EffectComposer | null = null;
   let flagsDirty = true;
@@ -254,6 +252,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
       if (o !== undefined) o.visible = rich;
     }
     dust.visible = rich;
+    applyForest();
     flagsDirty = true;
     materialsDirty = true;
     resize();
@@ -289,7 +288,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
 
   /** Shadow flags on lit opaque meshes; the sky, mountains and backdrop are skipped. */
   function applyFlags(o: Object3D, on: boolean): void {
-    if (o === sky || o === mountains || o === backdropRoot) return;
+    if (o === sky || o === backdropRoot) return;
     if (o instanceof Mesh) {
       const lit = on && isLit(o);
       o.receiveShadow = lit;
@@ -303,6 +302,16 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
       }
     }
     for (const c of o.children) applyFlags(c, on);
+  }
+
+  // Forest thinning per tier (decor/placeDecor exposes setForestDensity on its group).
+  function applyForest(): void {
+    if (level === null) return;
+    const f = cfg.tier === 'low' ? 0.3 : cfg.tier === 'medium' ? 0.7 : 1;
+    level.traverse((o) => {
+      const fn = o.userData.setForestDensity as ((d: number) => void) | undefined;
+      if (fn !== undefined) fn(f);
+    });
   }
 
   function setTier(tier: GraphicsTier): void {
@@ -331,6 +340,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     if (level !== null) scene.remove(level);
     level = buildLevelMeshes(world);
     scene.add(level);
+    applyForest();
     flagsDirty = true;
     materialsDirty = true;
     return level;

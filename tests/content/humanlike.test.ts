@@ -65,8 +65,8 @@ function play(v: number, style: Style): Outcome {
 
   for (let hop = 0; hop < w.route.length; hop++) {
     const a = w.anchors[w.route[hop]];
-    const roof = hop === 0 ? w.solids[1] : w.solids[2 + 2 * (hop - 1)];
-    const target = w.solids[2 + 2 * hop];
+    const roof = w.solids[1 + 2 * (2 * hop + 1)]; // last roof of this row (rope leaves from its edge)
+    const target = w.solids[1 + 2 * (2 * (hop + 1))]; // first roof of the next row
     // Metres before the edge when the thumb comes down (negative = after leaving the edge).
     const fireDist = u(0, 5) - (style.lateTicks > 0 ? u(0, 1) * (style.lateTicks / 60) * cfg.hero.run : 0);
     if (style.frozenAim) aimAt(a.px, a.py, a.pz); // aim once at hop start, then just run
@@ -146,7 +146,7 @@ describe('l1 casual-human playthrough', () => {
       for (let v = 0; v < VARIANTS; v++) results.push(play(v, STYLES[name]));
       const rows: string[] = [];
       const hopRate: number[] = [];
-      for (let h = 0; h < 7; h++) {
+      for (let h = 0; h < 3; h++) {
         const reached = results.filter((o) => o.hops.length > h);
         const okc = reached.filter((o) => o.hops[h]).length;
         hopRate.push(reached.length === 0 ? 0 : okc / reached.length);

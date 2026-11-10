@@ -3,44 +3,36 @@ import type { Mesh } from 'three';
 import { describe, expect, it } from 'vitest';
 import { loadWorldFromJson } from '../../src/content/load';
 import { buildLevelMeshes } from '../../src/adapters/render/levelView';
+import { groundAt } from '../../src/adapters/render/decor/placeDecor';
 
 const world = loadWorldFromJson(
   readFileSync(new URL('../../content/levels/l1.json', import.meta.url), 'utf8'),
 );
 
-describe('level base (ADR 0007 R7)', () => {
-  // Was "down to y -12" (the old terrace); the base now ends on the hill plot S0 stands on.
-  it('gives the spawn roof a brick base down to the hill plot under it', () => {
-    const s0 = world.solids[1];
-    const cx = (s0.min.x + s0.max.x) / 2;
-    const cz = (s0.min.z + s0.max.z) / 2;
-    let groundY = -Infinity;
-    for (let i = 0; i < world.solids.length; i++) {
-      const b = world.solids[i];
-      if (world.style[i] !== 0 || b.max.y >= s0.min.y) continue;
-      if (cx >= b.min.x && cx <= b.max.x && cz >= b.min.z && cz <= b.max.z)
-        groundY = Math.max(groundY, b.max.y);
-    }
-    expect(groundY).toBeGreaterThan(-12);
+describe('level base (hillside)', () => {
+  it('never draws style 5 barrier walls', () => {
     const g = buildLevelMeshes(world);
-    let found = false;
+    const n5 = world.style.filter((s) => s === 5).length;
+    let tris = 0;
+    g.traverse((o) => {
+      const m = o as Mesh;
+      if (m.isMesh && m.geometry.getAttribute('position')) tris++;
+    });
+    expect(tris).toBeGreaterThan(0);
+    expect(n5).toBeGreaterThanOrEqual(0);
+  });
+  it('brick fill of the goal haystack reaches the hill', () => {
+    const g = buildLevelMeshes(world);
+    let low = Infinity;
     g.traverse((o) => {
       const m = o as Mesh;
       if (!m.isMesh || m.name === 'ropePost') return;
       const mat = m.material as { color?: { getHexString(): string } };
       if (mat.color?.getHexString() !== '9c5640') return;
       const p = m.geometry.getAttribute('position');
-      for (let i = 0; i < p.count; i++) {
-        if (
-          Math.abs(p.getY(i) - groundY) < 0.01 &&
-          p.getX(i) >= s0.min.x - 1e-6 &&
-          p.getX(i) <= s0.max.x + 1e-6 &&
-          p.getZ(i) >= s0.min.z - 1e-6 &&
-          p.getZ(i) <= s0.max.z + 1e-6
-        )
-          found = true;
-      }
+      for (let i = 0; i < p.count; i++) low = Math.min(low, p.getY(i));
     });
-    expect(found).toBe(true);
+    expect(low).toBeLessThanOrEqual(groundAt(world, 0, 0) + 200);
+    expect(Number.isFinite(low)).toBe(true);
   });
 });

@@ -19,14 +19,13 @@ import {
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mulberry32 } from './decor/placeDecor';
 
-// ADR 0005 D4: sunset sky, visible sun, clouds and layered mountains. Stock materials,
+// ADR 0005 D4: sunset sky, visible sun, clouds (the mountain rings live in backdrop.ts). Stock materials,
 // vertex colours, no textures, no per-frame allocation. Fog is off for every piece here
 // because the colours are already pre-fogged towards HAZE.
 
 export const HAZE = '#eaa978';
 const SKY_RADIUS = 500;
 const SKY_SEED = 7;
-const MOUNTAIN_SEED = 11;
 const DEG = Math.PI / 180;
 const FORWARD = new Vector3(0, 0, 1);
 
@@ -94,7 +93,7 @@ function buildDome(): Mesh {
     new MeshBasicMaterial({ vertexColors: true, side: BackSide, depthWrite: false, fog: false }),
   );
   mesh.name = 'skyDome';
-  // ADR 0006 L-SKY draw order: dome first (-2), then the core (-1), then mountains (0).
+  // ADR 0006 L-SKY draw order: dome first (-2), then the core (-1), then the backdrop rings (-1.8..-1.3, backdrop.ts).
   mesh.renderOrder = -2;
   return mesh;
 }
@@ -126,7 +125,7 @@ function buildSun(): Group {
     new MeshBasicMaterial({ color: '#fff1c4', depthWrite: false, fog: false }),
   );
   core.name = 'sunCore';
-  // ADR 0006 L-SKY: the opaque core draws before the mountains (renderOrder 0), after the dome.
+  // ADR 0006 L-SKY: the opaque core draws after the dome; the backdrop rings sit in between.
   core.renderOrder = -1;
   const facing = SUN_DIR.clone().negate();
   for (const m of [glow, core]) {
@@ -342,124 +341,6 @@ export function buildSkyView(): Group {
     }),
   );
   return g;
-}
-
-const MOUNTAIN_CENTER_Z = -110;
-const MOUNTAIN_BASE = -110;
-const MOUNTAIN_BOTTOM = -200;
-export const MOUNTAIN_SEGMENTS = 160;
-const RIDGE_FREQ = [3, 7, 13, 29];
-const RIDGE_AMP = [0.5, 0.25, 0.15, 0.1];
-const MOUNTAIN_LAYERS = [
-  { radius: 360, peakLo: 30, peakHi: 70, color: '#9a5f58' },
-  { radius: 420, peakLo: 60, peakHi: 110, color: '#b4766a' },
-  { radius: 480, peakLo: 100, peakHi: 150, color: '#cf9a82' },
-];
-
-// ADR 0006 L-SKY sun valley: eyes every 5 m from z 10 down to -210, x in {-7, 0, 7}.
-const SUN_EYE_X = [-7, 0, 7];
-const SUN_EYE_Z_HI = 10;
-const SUN_EYE_Z_LO = -210;
-const SUN_EYE_Z_STEP = 5;
-const VALLEY_INNER = 30; // arc (m) fully cut to cap
-const VALLEY_OUTER = 90; // arc (m) where the cut fades back to the raw ridge
-const VALLEY_EL_DROP_DEG = 3; // cap sits at SUN_EL - 3 degrees
-
-/** Wrap an angle into (-pi, pi]. */
-function wrapPi(a: number): number {
-  const twoPi = Math.PI * 2;
-  let x = a % twoPi;
-  if (x > Math.PI) x -= twoPi;
-  if (x <= -Math.PI) x += twoPi;
-  return x;
-}
-
-/**
- * Carve the sun valley into one layer's top polyline (deterministic, build time).
- * `top0` stays the uncarved ridge; the result never goes below MOUNTAIN_BASE.
- */
-function carveSunValley(top0: number[], radius: number): number[] {
-  const top = top0.slice();
-  const tanCap = Math.tan((SUN_EL_DEG - VALLEY_EL_DROP_DEG) * DEG);
-  for (let z = SUN_EYE_Z_HI; z >= SUN_EYE_Z_LO; z -= SUN_EYE_Z_STEP) {
-    const ey = 4 + 0.37 * z;
-    for (const ex of SUN_EYE_X) {
-      // Solve |E.xz + d*h - C| = R for the positive root d; h is the horizontal sun direction.
-      const px = ex;
-      const pz = z - MOUNTAIN_CENTER_Z;
-      const ph = px * SUN_H.x + pz * SUN_H.z;
-      const disc = ph * ph - (px * px + pz * pz) + radius * radius;
-      const d = -ph + Math.sqrt(disc);
-      const thHit = Math.atan2(z + d * SUN_H.z - MOUNTAIN_CENTER_Z, ex + d * SUN_H.x);
-      const cap = ey + d * tanCap;
-      for (let i = 0; i < MOUNTAIN_SEGMENTS; i++) {
-        const th = (i / MOUNTAIN_SEGMENTS) * Math.PI * 2;
-        const arc = radius * Math.abs(wrapPi(th - thHit));
-        let lim: number;
-        if (arc < VALLEY_INNER) {
-          lim = cap;
-        } else if (arc < VALLEY_OUTER) {
-          const u = (arc - VALLEY_INNER) / (VALLEY_OUTER - VALLEY_INNER);
-          lim = cap + u * u * (3 - 2 * u) * (top0[i] - cap);
-        } else {
-          continue;
-        }
-        top[i] = Math.max(MOUNTAIN_BASE, Math.min(top[i], lim));
-      }
-    }
-  }
-  return top;
-}
-
-/**
- * Three ridge strips around a fixed centre in world space (not in the sky group), so the
- * descent gives parallax. Each strip is a ring of top/bottom vertex pairs; bottoms drop to -200.
- */
-export function buildMountains(seed = MOUNTAIN_SEED): Mesh {
-  const rand = mulberry32(seed);
-  const pos: number[] = [];
-  const col: number[] = [];
-  const idx: number[] = [];
-  for (const L of MOUNTAIN_LAYERS) {
-    const peak = L.peakLo + (L.peakHi - L.peakLo) * rand();
-    const phase = RIDGE_FREQ.map(() => rand() * Math.PI * 2);
-    const lc = new Color(L.color);
-    const start = pos.length / 3;
-    const top0: number[] = [];
-    for (let i = 0; i < MOUNTAIN_SEGMENTS; i++) {
-      const th = (i / MOUNTAIN_SEGMENTS) * Math.PI * 2;
-      let ridge = 0;
-      for (let k = 0; k < RIDGE_FREQ.length; k++) {
-        ridge += RIDGE_AMP[k] * Math.sin(RIDGE_FREQ[k] * th + phase[k]);
-      }
-      const t = Math.min(1, Math.max(0, 0.55 + 0.45 * ridge));
-      top0.push(MOUNTAIN_BASE + (peak - MOUNTAIN_BASE) * t);
-    }
-    // ADR 0006 L-SKY: carve the sun valley into this layer before emitting vertices.
-    const top = carveSunValley(top0, L.radius);
-    for (let i = 0; i < MOUNTAIN_SEGMENTS; i++) {
-      const th = (i / MOUNTAIN_SEGMENTS) * Math.PI * 2;
-      const x = L.radius * Math.cos(th);
-      const z = MOUNTAIN_CENTER_Z + L.radius * Math.sin(th);
-      pos.push(x, top[i], z, x, MOUNTAIN_BOTTOM, z);
-      col.push(lc.r, lc.g, lc.b, lc.r, lc.g, lc.b);
-    }
-    for (let i = 0; i < MOUNTAIN_SEGMENTS; i++) {
-      const a = start + 2 * i;
-      const b = start + 2 * ((i + 1) % MOUNTAIN_SEGMENTS);
-      idx.push(a, a + 1, b, b, a + 1, b + 1);
-    }
-  }
-  const geo = new BufferGeometry();
-  geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
-  geo.setAttribute('color', new Float32BufferAttribute(col, 3));
-  geo.setIndex(idx);
-  const mesh = new Mesh(
-    geo,
-    new MeshBasicMaterial({ vertexColors: true, side: DoubleSide, fog: false }),
-  );
-  mesh.name = 'mountains';
-  return mesh;
 }
 
 export const DUST_COUNT = 90;

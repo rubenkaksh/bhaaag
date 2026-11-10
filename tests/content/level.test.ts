@@ -33,9 +33,9 @@ function aimAt(s: HeroState, w: World, id: number): void {
 describe('level l1', () => {
   it('loads with the expected shape', () => {
     const w = loadWorldFromJson(text);
-    expect(w.anchors.length).toBe(10);
-    expect(w.route.length).toBe(7);
-    expect(w.pads.length).toBe(7);
+    expect(w.anchors.length).toBe(5);
+    expect(w.route.length).toBe(3);
+    expect(w.pads.length).toBe(8);
     expect(w.style.length).toBe(w.solids.length);
     const s0 = w.solids[1];
     expect(w.spawn.y).toBe(s0.max.y);
@@ -50,7 +50,7 @@ describe('level l1', () => {
     expect(generateLevel()).toEqual(JSON.parse(text));
   });
 
-  it('a scripted bot hooks all 7 hops and reaches roof 7 alive', () => {
+  it('a scripted bot hooks all 3 hops and lands on the first roof of each row alive', () => {
     const w = loadWorldFromJson(text);
     const s = new HeroState();
     s.px = w.spawn.x;
@@ -62,7 +62,7 @@ describe('level l1', () => {
       const id = w.route[hop];
       for (let i = 0; i < 20; i++) step(s, IDLE, w, cfg); // settle
       // Sprint to within 0.8 m of the far edge of the current roof, then aim and fire.
-      const here = hop === 0 ? w.solids[1] : w.solids[2 + 2 * (hop - 1)];
+      const here = w.solids[1 + 2 * (2 * hop + 1)]; // last roof of this row
       aimAt(s, w, id);
       const run = new InputFrame();
       run.moveY = AXIS_MAX;
@@ -85,7 +85,7 @@ describe('level l1', () => {
       expect(rode, 'hop ' + (hop + 1) + ' rode the rope').toBe(true);
       expect(s.dead, 'hop ' + (hop + 1) + ' survived (cause ' + s.deadCause + ')').toBe(0);
       const a = w.anchors[id];
-      const roof = w.solids[2 + 2 * hop];
+      const roof = w.solids[1 + 2 * (2 * (hop + 1))]; // first roof of the next row
       const info = `hop ${hop + 1} mode ${s.mode} pos ${s.px.toFixed(1)},${s.py.toFixed(1)},${s.pz.toFixed(1)} ticks ${ticks}`;
       expect(s.grounded, info).toBe(1);
       expect(s.py).toBeCloseTo(roof.max.y, 3);

@@ -72,7 +72,14 @@ describe('previewShot on the real l1', () => {
         s.yaw = w.spawnYaw;
         stands.push(['spawn', s]);
       } else {
-        const roof = w.solids[2 + 2 * (hop - 1)]; // the roof the previous hop lands on
+        const first = w.solids[1 + 2 * (2 * hop)]; // the roof the previous hop lands on
+        stands.push([
+          'first roof ctr',
+          hero((first.min.x + first.max.x) / 2, first.max.y, (first.min.z + first.max.z) / 2),
+        ]);
+      }
+      {
+        const roof = w.solids[1 + 2 * (2 * hop + 1)]; // last roof of the row: the rope leaves from here
         const cx = (roof.min.x + roof.max.x) / 2;
         const cz = (roof.min.z + roof.max.z) / 2;
         stands.push(['roof centre', hero(cx, roof.max.y, cz)]);
@@ -105,8 +112,8 @@ describe('previewShot on the real l1', () => {
     for (let id = 0; id < w.anchors.length; id++) {
       if (w.route.indexOf(id) >= 0) continue;
       let hookable = false;
-      for (let r = 0; r < 7 && !hookable; r++) {
-        const roof = w.solids[2 + 2 * r];
+      for (let r = 0; r < 8 && !hookable; r++) {
+        const roof = w.solids[1 + 2 * r];
         const s = hero((roof.min.x + roof.max.x) / 2, roof.max.y, (roof.min.z + roof.max.z) / 2);
         previewShot(s, id, w, cfg, out);
         if (out.outcome !== PREVIEW_NONE) hookable = true;

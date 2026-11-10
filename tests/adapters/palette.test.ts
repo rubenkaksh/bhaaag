@@ -15,11 +15,13 @@ const decor = readFileSync('src/adapters/render/decor/placeDecor.ts', 'utf8');
 const level = readFileSync('src/adapters/render/levelView.ts', 'utf8');
 const hexes = (src: string): string[] => src.match(/#[0-9a-fA-F]{6}/g) ?? [];
 
-const fill = hexes(/const TILE_FILL = \[([^\]]*)\]/.exec(decor)![1]);
+const plaster = hexes(/const PLASTER = \[([^\]]*)\]/.exec(decor)![1]);
+const brick = hexes(/const BRICK = \[([^\]]*)\]/.exec(decor)![1]);
+const fill = [...plaster, ...brick];
 const gold = /const COLOR_ANCHOR = '(#[0-9a-fA-F]{6})'/.exec(level)![1];
 const dangerIdx = Number(/const DANGER_STYLE = (\d+)/.exec(level)![1]);
 const danger = hexes(/const COLOR_STYLE = \[([^\]]*)\]/.exec(level)![1])[dangerIdx];
-const tile = hexes(/const TILE = \[([^\]]*)\]/.exec(decor)![1]);
+const tile: string[] = [];
 const pitched = /const COLOR_TILE_ROOF = '(#[0-9a-fA-F]{6})'/.exec(level)![1];
 // Roof tint jitter reaches x1.12 (placeDecor); test the brightest case.
 const bright = (h: string): string =>
@@ -50,9 +52,11 @@ describe('colour language', () => {
       const c = rgb(h);
       return 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
     };
-    for (const f of [...fill, ...tile].map(bright)) {
-      expect(lum(danger) - lum(f)).toBeGreaterThan(5);
+    // Plaster is far lighter than danger terracotta; brick differs by hue.
+    for (const f of [...plaster, ...tile].map(bright)) {
+      expect(Math.abs(lum(danger) - lum(f))).toBeGreaterThan(5);
       expect(dist(danger, f)).toBeGreaterThan(20);
     }
+    for (const f of brick) expect(dist(danger, f)).toBeGreaterThan(20);
   });
 });

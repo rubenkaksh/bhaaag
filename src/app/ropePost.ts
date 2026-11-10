@@ -209,7 +209,7 @@ export function buildRopePost(world: World): Group {
 
   const T = roof.max.y;
   // ADR says 0.75; the span then passes ~0.4 m from the roof edge, so 1.05 m meets the 0.5 m rule.
-  const px = roof.min.x - 1.05;
+  const px = roof.min.x - 2.6; // wide of the roof: the 20 deg span then clears the roof corner by 0.5 m
   const pz = roof.max.z - 1.2;
   const bottom = T - 6;
   const top = T + 2.4;
@@ -244,7 +244,7 @@ export function buildRopePost(world: World): Group {
   }
   parts.push(
     colouredBox(
-      roof.min.x - 1.2,
+      px - 0.3,
       bottom - 0.4,
       pz - 0.3,
       roof.min.x,

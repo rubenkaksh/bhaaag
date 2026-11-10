@@ -1,5 +1,5 @@
 // Skill-line gate for l1: four deterministic bots with perfect aim drive the real `step` through
-// the whole level (7 hops plus the leap of faith). Each line plays the same hops differently;
+// the whole level (3 hops plus the leap of faith). Each line plays the same hops differently;
 // the gates prove that technique (run-up, chaining, timed release) is worth time.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -67,8 +67,8 @@ function play(line: Line): Result {
   let landedTick = 0;
   for (let hop = 0; hop < w.route.length; hop++) {
     const a = w.anchors[w.route[hop]];
-    const roof = hop === 0 ? w.solids[1] : w.solids[2 + 2 * (hop - 1)];
-    const target = w.solids[2 + 2 * hop];
+    const roof = w.solids[1 + 2 * (2 * hop + 1)]; // last roof of this row (rope leaves from its edge)
+    const target = w.solids[1 + 2 * (2 * (hop + 1))]; // first roof of the next row
     let stillTicks = 0;
     let fireTick = -1;
     let top = 0;
@@ -89,6 +89,12 @@ function play(line: Line): Result {
         let want: boolean;
         if (!settled) {
           want = false;
+        } else if ((line === 'standing' || line === 'standing-instant') && hop > 0 && s.pz > roof.max.z) {
+          // The first house of a row cannot be crossed on momentum alone: keep walking until the
+          // hero stands on the row's last roof, then let go and stop there.
+          f.moveY = AXIS_MAX;
+          want = false;
+          stillTicks = 0;
         } else if (line === 'standing') {
           want = stillTicks >= STAND_WAIT_TICKS;
         } else if (line === 'standing-instant') {

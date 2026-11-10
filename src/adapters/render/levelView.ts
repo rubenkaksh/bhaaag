@@ -21,6 +21,7 @@ import { tileNormal, tileTexture } from './tileTexture';
 // ADR 0005 D3: terrace paving, whitewash walls, walkable roof, hot terracotta danger.
 const COLOR_STYLE = ['#8e7a66', '#d9c6aa', '#b9a68c', '#c4472a', '#a99a88']; // ground, wall, roof, danger, parapet
 const DANGER_STYLE = 3;
+const STYLE_HIDDEN = 5; // invisible barrier walls around the hill
 const STYLE_TEXTURE = ['stone_warm', '', 'terracotta_a', '', '']; // per style; '' keeps the flat colour
 const COLOR_BRICK = '#9c5640';
 const COLOR_WOOD = '#4a2c1c';
@@ -166,70 +167,25 @@ function gableMesh(world: World): Mesh {
 const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): AABB =>
   new AABB(new Vec3(x0, y0, z0), new Vec3(x1, y1, z1));
 
-function overlap(a0: number, a1: number, b0: number, b1: number): number {
-  return Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
-}
-
-// True if a style-1 wall (xz overlap >= 50 % of the roof, top within 0.1 m of its underside) supports it.
-function hasWallBelow(world: World, r: AABB): boolean {
-  const area = (r.max.x - r.min.x) * (r.max.z - r.min.z);
-  for (let j = 0; j < world.solids.length; j++) {
-    const sj = j < world.style.length ? world.style[j] : 1;
-    if (sj !== 1) continue;
-    const w = world.solids[j];
-    if (Math.abs(w.max.y - r.min.y) > 0.1) continue;
-    const ov =
-      overlap(r.min.x, r.max.x, w.min.x, w.max.x) * overlap(r.min.z, r.max.z, w.min.z, w.max.z);
-    if (ov >= 0.5 * area) return true;
-  }
-  return false;
-}
-
-// Highest style-0 top under (x, z) that is below maxY; -Infinity if none.
-function highestGroundUnder(world: World, x: number, z: number, maxY: number): number {
-  let best = -Infinity;
-  for (let j = 0; j < world.solids.length; j++) {
-    const sj = j < world.style.length ? world.style[j] : 1;
-    if (sj !== 0) continue;
-    const g = world.solids[j];
-    if (x < g.min.x || x > g.max.x || z < g.min.z || z > g.max.z) continue;
-    if (g.max.y <= maxY && g.max.y > best) best = g.max.y;
-  }
-  return best;
-}
-
 /**
- * Visual dressing for walkable houses and the goal house (ADR 0005 D5). Never above top - 0.3 m of
- * a wall collider, at most 0.12 m proud of its faces, so collider tops and edges stay honest.
+ * Visual dressing for the goal haystack (ADR 0005 D5): fills the footprint down to the hill so it
+ * never floats over the slope. House walls are dressed by decor/placeDecor (dressHouses).
  */
 function dressingMeshes(world: World): Mesh[] {
   const brick: AABB[] = [];
   const wood: AABB[] = [];
   const P = 0.1;
-  // House walls are dressed by decor/placeDecor (dressHouses); only S0 and the goal are dressed here.
-  // S0 base (ADR 0007 section 5): a style-2 roof with no style-1 wall directly below gets a
-  // flush brick box down to the highest style-0 top under its centre. Visual only.
-  for (let i = 0; i < world.solids.length; i++) {
-    const st = i < world.style.length ? world.style[i] : 1;
-    if (st !== 2) continue;
-    const r = world.solids[i];
-    if (!hasWallBelow(world, r)) {
-      const gy = highestGroundUnder(
-        world,
-        (r.min.x + r.max.x) / 2,
-        (r.min.z + r.max.z) / 2,
-        r.min.y,
-      );
-      if (gy < r.min.y) brick.push(box(r.min.x, gy, r.min.z, r.max.x, r.min.y, r.max.z));
-    }
-  }
   const out: Mesh[] = [];
-  // goal house: fills the goal footprint down to the terrace (visual only; kept clear of the last wall)
   const g = world.goal;
   if (g.max.y > g.min.y) {
-    const gy = groundAt(world, (g.min.x + g.max.x) / 2, g.min.z + 1);
+    // lowest hill point under the footprint, so the fill is never short on the downhill side
+    const gy = Math.min(
+      groundAt(world, g.min.x, g.min.z + 1),
+      groundAt(world, g.max.x, g.min.z + 1),
+      groundAt(world, (g.min.x + g.max.x) / 2, g.min.z + 1),
+    );
     if (gy < g.min.y) {
-      brick.push(box(g.min.x, gy, g.min.z, g.max.x, g.min.y, g.max.z - 1));
+      brick.push(box(g.min.x, gy - 0.3, g.min.z, g.max.x, g.min.y, g.max.z - 1));
       wood.push(
         box(g.min.x - P, g.min.y - 0.4, g.min.z - P, g.max.x + P, g.min.y - 0.1, g.max.z - 1 + P),
       );
@@ -249,7 +205,10 @@ export function buildLevelMeshes(world: World): Group {
     const boxes: AABB[] = [];
     for (let i = 0; i < world.solids.length; i++) {
       const s = i < world.style.length ? world.style[i] : 1;
-      if (s === st) boxes.push(world.solids[i]);
+      // the hidden barrier walls (style 5) are never drawn; neither is the kill slab far below
+      if (s === st && s !== STYLE_HIDDEN && world.solids[i].max.y > world.killPlaneY) {
+        boxes.push(world.solids[i]);
+      }
     }
     if (boxes.length > 0) {
       g.add(mergedMesh(boxes, COLOR_STYLE[st], st === DANGER_STYLE ? 0.2 : 0, STYLE_TEXTURE[st]));

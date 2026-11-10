@@ -2,6 +2,7 @@ import {
   BoxGeometry,
   BufferGeometry,
   Color,
+  ConeGeometry,
   CylinderGeometry,
   DoubleSide,
   Float32BufferAttribute,
@@ -37,7 +38,8 @@ export type PieceId =
   | 'wallBrick'
   | 'wallPlaster'
   | 'bracket'
-  | 'planter';
+  | 'planter'
+  | 'conifer';
 
 export const PIECE_IDS: PieceId[] = [
   'body',
@@ -57,26 +59,28 @@ export const PIECE_IDS: PieceId[] = [
   'wallPlaster',
   'bracket',
   'planter',
+  'conifer',
 ];
 
 export const PIECE_CAP: Record<PieceId, number> = {
-  body: 700,
+  body: 150,
   cornice: 50,
-  window: 700,
-  roof: 250,
+  window: 250,
+  roof: 20,
   rail: 170,
   deck: 28,
   tank: 50,
   parapet: 60,
   canopy: 640,
   trunk: 640,
-  flag: 400,
+  flag: 260,
   shutter: 60,
   pot: 110,
   wallBrick: 30,
   wallPlaster: 20,
   bracket: 155,
   planter: 20,
+  conifer: 700,
 };
 
 /** Tiled eave unit: apex height 0.49, corner radius 0.74 (4 sides, edges axis-aligned). */
@@ -362,6 +366,21 @@ function planterUnit(): BufferGeometry {
   return merge(parts);
 }
 
+/** Two stacked six-sided cones, unit radius and height: forest conifers on the upper slopes. */
+function coniferUnit(): BufferGeometry {
+  const parts: BufferGeometry[] = [];
+  for (let i = 0; i < 2; i++) {
+    const cone = new ConeGeometry(i === 0 ? 1 : 0.64, i === 0 ? 0.62 : 0.55, 6, 1, true);
+    cone.translate(0, i === 0 ? 0.31 : 0.725, 0);
+    cone.deleteAttribute('uv');
+    const flat = cone.toNonIndexed();
+    cone.dispose();
+    paintGrad(flat, 0, 1);
+    parts.push(flat);
+  }
+  return merge(parts);
+}
+
 function geometries(): Record<PieceId, BufferGeometry> {
   const trunk = new CylinderGeometry(0.15, 0.2, 1, 5, 1, true);
   trunk.translate(0, 0.5, 0);
@@ -384,6 +403,7 @@ function geometries(): Record<PieceId, BufferGeometry> {
     wallPlaster: wallBox(1.5),
     bracket: bracketUnit(),
     planter: planterUnit(),
+    conifer: coniferUnit(),
   };
 }
 

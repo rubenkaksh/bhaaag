@@ -24,3 +24,7 @@ Hero mesh cap raised 25 -> 28 (P5: second scarf segment, top-knot, brow fringe; 
 - **Standard materials on High only.** Decor walls and roofs swap to `MeshStandardMaterial` (roughness 0.92, metalness 0) in `scene.ts` `swapStandard`; Medium and Low keep Lambert to protect phones.
 - **No new tile images.** The existing six tiles plus normal maps stay (~58 KB normals); new tiles would need a generator that is not wired here. Licences: all tiles are in-repo procedural/own assets, nothing third-party added.
 - **Tree/tank contact slabs dropped:** they overflow the 150k decor tri cap and overlap plinth colliders.
+
+## Amendment 2026-11-10: mountain system
+
+The strip layers (backdrop himalaya/bands/skirt, skyView's three ridge rings) are replaced by six deterministic heightfield rings in `render/backdrop.ts` (massif with snow, three bluish ridges, two forest ridges anchored at the terrain edge). Budget: 4.6k / 9.2k / 18.2k triangles for Low / Medium / High (caps 6k / 14k / 30k), one draw call per ring (6). The old skirt ground plane is gone (terrain.ts replaces it). Camera far raised 1000 -> 3000 (rings reach about 2 km). Sun valley kept as a per-vertex elevation cap along the route; sky + mountains no longer share the 3k sky budget (sky alone is tested under 3k).
