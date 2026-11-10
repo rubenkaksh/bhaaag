@@ -221,4 +221,11 @@ describe('P4 atmosphere extras', () => {
       expect(Math.abs(a.getZ(i) + 30)).toBeLessThanOrEqual(18);
     }
   });
+  it('drifts motes over time', () => {
+    const d = buildDust();
+    updateDust(d, 0, 0, 0, 0);
+    const x0 = d.geometry.getAttribute('position').getX(0);
+    updateDust(d, 0, 0, 0, 10);
+    expect(d.geometry.getAttribute('position').getX(0)).not.toBe(x0);
+  });
 });

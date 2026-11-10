@@ -215,6 +215,8 @@ function buildRays(): Mesh {
 function buildClouds(
   rand: () => number,
   opts: {
+    azLo: number;
+    azHi: number;
     count: number;
     elLo: number;
     elHi: number;
@@ -223,6 +225,8 @@ function buildClouds(
     opacity: number;
     name: string;
   } = {
+    azLo: -40,
+    azHi: 60,
     count: CLOUD_COUNT,
     elLo: 4,
     elHi: 14,
@@ -239,7 +243,7 @@ function buildClouds(
   const q = new Quaternion();
   const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
   for (let k = 0; k < opts.count; k++) {
-    const az = lerp(-60, 80, rand()) * DEG;
+    const az = lerp(opts.azLo, opts.azHi, rand()) * DEG;
     const el = lerp(opts.elLo, opts.elHi, rand()) * DEG;
     const w = lerp(opts.wLo, opts.wHi, rand());
     const h = lerp(8, 14, rand());
@@ -326,6 +330,8 @@ export function buildSkyView(): Group {
   // Medium/High only (scene.ts toggles by name): a higher, paler second layer.
   g.add(
     buildClouds(mulberry32(SKY_SEED + 7), {
+      azLo: -60,
+      azHi: 80,
       count: 9,
       elLo: 16,
       elHi: 34,
@@ -464,10 +470,10 @@ export function buildDust(): Points {
   const geo = new BufferGeometry();
   geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(DUST_COUNT * 3), 3));
   const mat = new PointsMaterial({
-    color: '#ffd9a0',
+    color: '#d8c9b4',
     size: 0.09,
     transparent: true,
-    opacity: 0.55,
+    opacity: 0.4,
     depthWrite: false,
     blending: AdditiveBlending,
     fog: false,
@@ -478,17 +484,22 @@ export function buildDust(): Points {
   return pts;
 }
 
-/** Wraps each mote into the box around the camera and drifts it slowly; cheap CPU update of 90 points. */
+const DUST_R = new Float32Array(DUST_COUNT * 3);
+for (let i = 0; i < DUST_COUNT; i++) {
+  for (let k = 0; k < 3; k++) {
+    const h = Math.sin(i * [12.9898, 78.233, 39.425][k]) * [43758.5453, 12345.6789, 24681.357][k];
+    DUST_R[i * 3 + k] = h - Math.floor(h);
+  }
+}
+const wrap = (v: number, size: number): number => v - size * Math.floor(v / size);
+
+/** Wraps each mote into the box around the camera and drifts it slowly; 90 points, no per-frame allocation. */
 export function updateDust(pts: Points, cx: number, cy: number, cz: number, t: number): void {
   const a = pts.geometry.getAttribute('position');
   for (let i = 0; i < DUST_COUNT; i++) {
-    const h1 = Math.sin(i * 12.9898) * 43758.5453;
-    const h2 = Math.sin(i * 78.233) * 12345.6789;
-    const h3 = Math.sin(i * 39.425) * 24681.357;
-    const r1 = h1 - Math.floor(h1);
-    const r2 = h2 - Math.floor(h2);
-    const r3 = h3 - Math.floor(h3);
-    const wrap = (v: number, size: number): number => v - size * Math.floor(v / size);
+    const r1 = DUST_R[i * 3];
+    const r2 = DUST_R[i * 3 + 1];
+    const r3 = DUST_R[i * 3 + 2];
     const x = wrap(r1 * DUST_BOX[0] + t * 0.25 * (0.5 + r2), DUST_BOX[0]) - DUST_BOX[0] / 2;
     const y = wrap(r2 * DUST_BOX[1] - t * 0.12 * (0.5 + r3), DUST_BOX[1]) - DUST_BOX[1] / 2;
     const z = wrap(r3 * DUST_BOX[2] + t * 0.18 * (0.5 + r1), DUST_BOX[2]) - DUST_BOX[2] / 2;
