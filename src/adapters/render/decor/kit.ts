@@ -122,7 +122,9 @@ function paintColor(geo: BufferGeometry, hex: string): void {
 function paintGrad(geo: BufferGeometry, y0: number, y1: number): void {
   const span = Math.max(1e-6, y1 - y0);
   paint(geo, (y) => {
-    const c = 0.72 + 0.28 * Math.min(1, Math.max(0, (y - y0) / span));
+    // Baked ground-contact AO: darker, steeper foot (P1, strengthened 2026-11-10).
+    const u = Math.min(1, Math.max(0, (y - y0) / span));
+    const c = 0.6 + 0.4 * Math.pow(u, 0.75);
     return [c, c, c];
   });
 }

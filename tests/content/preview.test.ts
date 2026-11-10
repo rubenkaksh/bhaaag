@@ -41,15 +41,17 @@ describe('previewShot cost', () => {
     const s = hero(0, 10, -1);
     const out = new PreviewResult();
     previewShot(s, 0, w, cfg, out); // warm up
-    let worst = 0;
+    const times: number[] = [];
     for (let i = 0; i < 50; i++) {
       const t0 = performance.now();
       previewShot(s, 0, w, cfg, out);
-      worst = Math.max(worst, performance.now() - t0);
+      times.push(performance.now() - t0);
     }
-    console.log(`worst-case lethal preview: ${NAMES[out.outcome]} ${worst.toFixed(2)} ms`);
+    times.sort((a, b) => a - b);
+    const worst = times[Math.floor(times.length / 2)]; // median: one scheduler hiccup under parallel load must not fail the run
+    console.log(`median worst-case lethal preview: ${NAMES[out.outcome]} ${worst.toFixed(2)} ms`);
     expect(out.outcome).toBe(PREVIEW_LETHAL);
-    expect(worst).toBeLessThan(50); // loose: CI machines vary, the 2 ms budget is read from the log
+    expect(worst).toBeLessThan(25); // loose: CI machines vary, the 2 ms budget is read from the log
   });
 });
 

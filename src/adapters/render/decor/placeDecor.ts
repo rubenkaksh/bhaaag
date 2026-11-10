@@ -90,6 +90,8 @@ const FOREST_CANOPY = ['#46683a', '#587a3a', '#3f5e34', '#6a8a3e'];
 const WIN_D = 0.118; // window depth unit: sticks out 1.6 x this = 0.19 m
 const CANOPY = ['#5d7a3a', '#6f8a3f', '#4f6b34'];
 const TRUNK = '#4a3424';
+// Laundry lines (P3): muted cloth tones only, so gold/cream/terracotta keep their meaning.
+const LAUNDRY = ['#6b8fb5', '#8fae8a', '#a98fb8', '#7aa3a0'];
 const FLAGS = ['#2f62b8', '#f2efe4', '#c8322f', '#2f8a4f', '#d0a12e'];
 const FAR_LIME = '#cdb59a';
 const FAR_BRICK = '#a87a62';
@@ -892,10 +894,12 @@ function flagString(
   bx: number,
   by: number,
   bz: number,
+  laundry = false,
 ): void {
   const world = B.world;
   const len = Math.sqrt((bx - ax) ** 2 + (bz - az) ** 2);
-  const sag = 0.08 * len;
+  const sag = (laundry ? 0.05 : 0.08) * len;
+  const palette = laundry ? LAUNDRY : FLAGS;
   const N = 12;
   for (let k = 0; k <= N; k++) {
     const u = k / N;
@@ -928,7 +932,7 @@ function flagString(
       const dz = an.pz - fz;
       if (dx * dx + dy * dy + dz * dz < 16) near = true;
     }
-    if (!near) B.flag(fx, fy, fz, B.colRaw(FLAGS[k % FLAGS.length]), rotY + (k % 2) * Math.PI);
+    if (!near) B.flag(fx, fy, fz, B.colRaw(palette[k % palette.length]), rotY + (k % 2) * Math.PI);
   }
 }
 
@@ -1933,7 +1937,7 @@ export function buildDecor(world: World, seed = 1729): Group {
       if (Math.abs(h0.z0 - h1.z1) > 8) continue; // only touching or near neighbours (same terrace)
       const x = h0.xFace + (s > 0 ? 0.6 : -0.6);
       const ye = Math.max(h0.roofTop, h1.roofTop) + 2.2;
-      flagString(B, x, ye, h0.z1, x, ye, h1.z0);
+      flagString(B, x, ye, h0.z1, x, ye, h1.z0, i % 2 === 1);
     }
   }
   // four strings per pagoda, finial to the nearest rooftop height 10 m away diagonally

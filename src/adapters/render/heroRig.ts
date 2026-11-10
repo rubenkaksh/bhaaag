@@ -143,6 +143,26 @@ function hemLathe(profile: Vector2[], segs: number): BufferGeometry {
   return g;
 }
 
+/** Tapers a vertical limb capsule: x/z scale lerps from `top` at +y to `bottom` at -y. No extra triangles. */
+function taper(g: BufferGeometry, top: number, bottom: number): BufferGeometry {
+  const pos = g.getAttribute('position');
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    if (y < lo) lo = y;
+    if (y > hi) hi = y;
+  }
+  for (let i = 0; i < pos.count; i++) {
+    const k = bottom + (top - bottom) * ((pos.getY(i) - lo) / (hi - lo));
+    pos.setX(i, pos.getX(i) * k);
+    pos.setZ(i, pos.getZ(i) * k);
+  }
+  pos.needsUpdate = true;
+  g.computeVertexNormals();
+  return g;
+}
+
 function hemCylinder(rt: number, rb: number, h: number, segs: number): BufferGeometry {
   const g = new CylinderGeometry(rt, rb, h, segs, 1, true);
   roughHem(g, segs + 1, segs + 1);
@@ -272,13 +292,13 @@ export class HeroRig {
     const satchelGeo = new BoxGeometry(0.06, 0.16, 0.2);
     const headGeo = new SphereGeometry(0.14, 8, 6);
     const hairGeo = new SphereGeometry(0.153, 8, 4, 0, Math.PI * 2, 0, Math.PI * 0.6);
-    const upperArmGeo = new CapsuleGeometry(0.07, 0.17, 1, 6);
+    const upperArmGeo = taper(new CapsuleGeometry(0.07, 0.17, 1, 6), 1.15, 0.82);
     const bellGeo = new CylinderGeometry(0.065, 0.1, 0.22, 8, 1, true);
     const gloveL = gloveGeo(-1);
     const gloveR = gloveGeo(1);
-    const thighGeo = new CapsuleGeometry(0.085, 0.31, 1, 6);
+    const thighGeo = taper(new CapsuleGeometry(0.085, 0.31, 1, 6), 1.2, 0.8);
     const panelGeo = hemCylinder(0.115, 0.135, 0.26, 8);
-    const shinGeo = new CapsuleGeometry(0.07, 0.3, 1, 6);
+    const shinGeo = taper(new CapsuleGeometry(0.07, 0.3, 1, 6), 1.12, 0.72);
     const shoeGeo = new CapsuleGeometry(0.06, 0.13, 1, 6);
 
     this.root = new Group();
