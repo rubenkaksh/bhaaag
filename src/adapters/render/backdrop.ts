@@ -475,23 +475,31 @@ export function buildBackdrop(tier: BackdropTier): Group {
   const group = new Group();
   group.name = 'backdrop';
   const layers = backdropData(tier);
-  for (let i = 0; i < layers.length; i++) {
-    const l = layers[i];
-    const geo = new BufferGeometry();
-    geo.setAttribute('position', new BufferAttribute(l.positions, 3));
-    geo.setAttribute('color', new BufferAttribute(l.colors, 3));
-    const mat = new MeshBasicMaterial({
-      vertexColors: true,
-      side: DoubleSide,
-      fog: false, // pre-tinted towards HAZE
-      depthWrite: true,
-    });
-    const mesh = new Mesh(geo, mat);
-    mesh.name = l.name;
-    mesh.frustumCulled = false;
-    // After the sky dome (-2), before the sun core (-1). Depth sorts the rings themselves.
-    mesh.renderOrder = -1.8 + 0.1 * i;
-    group.add(mesh);
+  // One draw for every ring (ADR 0009): same material, and the opaque rings sort by depth.
+  let nv = 0;
+  for (const l of layers) nv += l.positions.length;
+  const positions = new Float32Array(nv);
+  const colors = new Float32Array(nv);
+  let off = 0;
+  for (const l of layers) {
+    positions.set(l.positions, off);
+    colors.set(l.colors, off);
+    off += l.positions.length;
   }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new BufferAttribute(positions, 3));
+  geo.setAttribute('color', new BufferAttribute(colors, 3));
+  const mat = new MeshBasicMaterial({
+    vertexColors: true,
+    side: DoubleSide,
+    fog: false, // pre-tinted towards HAZE
+    depthWrite: true,
+  });
+  const mesh = new Mesh(geo, mat);
+  mesh.name = 'backdropRings';
+  mesh.frustumCulled = false;
+  // After the sky dome (-2), before the sun core (-1).
+  mesh.renderOrder = -1.8;
+  group.add(mesh);
   return group;
 }

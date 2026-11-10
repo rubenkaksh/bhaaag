@@ -1,10 +1,8 @@
 import {
   ACESFilmicToneMapping,
-  BoxGeometry,
   DirectionalLight,
   Group,
   Fog,
-  HalfFloatType,
   HemisphereLight,
   Material,
   Mesh,
@@ -14,22 +12,19 @@ import {
   Object3D,
   PCFShadowMap,
   PerspectiveCamera,
-  PlaneGeometry,
   Scene,
+  Texture,
   Vector2,
   Vector3,
   WebGLRenderer,
-  WebGLRenderTarget,
   MeshLambertMaterial,
 } from 'three';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import type { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { createComposer } from './postFx';
+import { buildBlob, placeBlob } from './blob';
 import type { World } from '../../core/world';
 import { buildLevelMeshes } from './levelView';
 import { buildDust, buildSkyView, updateDust } from './skyView';
-import { buildBackdrop } from './backdrop';
 import {
   GRAPHICS_TIER_EVENT,
   isTierAuto,
@@ -42,65 +37,8 @@ import type { GraphicsTier, RenderConfig } from './graphicsTier';
 
 export { pixelRatioFor };
 
-export type HelloScene = {
-  resize: () => void;
-  frame: (timeSec: number) => void;
-};
-
 function coarsePointer(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
-}
-
-export function createHelloScene(canvas: HTMLCanvasElement): HelloScene {
-  const renderer = new WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(pixelRatioFor(window.devicePixelRatio, coarsePointer()));
-
-  const scene = new Scene();
-  scene.add(buildSkyView());
-
-  const ground = new Mesh(
-    new PlaneGeometry(200, 200),
-    new MeshStandardMaterial({ color: '#d8c9b8' }),
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -1;
-  scene.add(ground);
-
-  const box = new Mesh(new BoxGeometry(2, 2, 2), new MeshStandardMaterial({ color: '#f2f2f2' }));
-  scene.add(box);
-  const band = new Mesh(
-    new BoxGeometry(2.04, 0.2, 2.04),
-    new MeshStandardMaterial({ color: '#ff3b1f' }),
-  );
-  scene.add(band);
-
-  const sun = new DirectionalLight('#ffc080', 3.5);
-  sun.position.set(-20, 10, 10);
-  scene.add(sun);
-  scene.add(new HemisphereLight('#ffb27a', '#2a3a55', 0.6));
-
-  const camera = new PerspectiveCamera(60, 1, 0.1, 1000);
-  camera.position.set(6, 4, 8);
-  camera.lookAt(0, 0, 0);
-
-  function resize(): void {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-  }
-
-  function frame(timeSec: number): void {
-    const a = timeSec * 0.15;
-    const r = Math.sqrt(6 * 6 + 8 * 8);
-    camera.position.set(Math.cos(a) * r, 4, Math.sin(a) * r);
-    camera.lookAt(0, 0, 0);
-    renderer.render(scene, camera);
-  }
-
-  resize();
-  return { resize, frame };
 }
 
 export type GameScene = {
@@ -156,6 +94,7 @@ function isLit(o: Mesh): boolean {
 
 export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   const renderer = new WebGLRenderer({ canvas, antialias: true });
+  renderer.info.autoReset = false;
   const coarse = coarsePointer();
   let cfg: RenderConfig = renderConfigFor(loadGraphicsTier(), coarse);
 
@@ -167,7 +106,11 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   scene.add(dust);
   const backdropRoot = new Group();
   backdropRoot.name = 'backdropRoot';
-  backdropRoot.add(buildBackdrop(cfg.tier));
+  // The mountain rings are generated code (~17 KB): loaded lazily to keep the initial chunk small.
+  const backdropTier = cfg.tier;
+  void import('./backdrop').then((m) => {
+    if (!disposed) backdropRoot.add(m.buildBackdrop(backdropTier));
+  });
   scene.add(backdropRoot);
   const sun = new DirectionalLight(cfg.sun.color, cfg.sun.intensity);
   scene.add(sun);
@@ -176,7 +119,14 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   scene.add(hemi);
 
   const camera = new PerspectiveCamera(60, 1, 0.1, 3000);
+  let disposed = false;
   let level: Group | null = null;
+  let worldRef: World | null = null;
+  const blob = buildBlob();
+  scene.add(blob);
+  let heroRoot: Object3D | null = null;
+  let heroLookup = 0;
+  const heroPos = new Vector3();
   let composer: EffectComposer | null = null;
   let flagsDirty = true;
   let materialsDirty = false;
@@ -200,28 +150,22 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     composer = null;
   }
 
+  let composerSeq = 0;
   function buildComposer(): void {
     disposeComposer();
+    const seq = ++composerSeq;
     if (cfg.bloom === null) return;
-    renderer.getSize(size);
-    const pr = renderer.getPixelRatio();
-    const rt = new WebGLRenderTarget(size.x * pr, size.y * pr, {
-      type: HalfFloatType,
-      samples: cfg.composerSamples,
+    // The post-processing chunk loads lazily; the plain render path runs until it arrives.
+    void createComposer(renderer, scene, camera, cfg).then((c) => {
+      if (c === null) return;
+      if (seq !== composerSeq) {
+        for (const p of c.passes) p.dispose();
+        c.dispose();
+        return;
+      }
+      composer = c;
+      resize();
     });
-    const c = new EffectComposer(renderer, rt);
-    c.addPass(new RenderPass(scene, camera));
-    c.addPass(
-      new UnrealBloomPass(
-        new Vector2(size.x, size.y),
-        cfg.bloom.strength,
-        cfg.bloom.radius,
-        cfg.bloom.threshold,
-      ),
-    );
-    // OutputPass applies the renderer's tone mapping and sRGB conversion.
-    c.addPass(new OutputPass());
-    composer = c;
   }
 
   function applyConfig(): void {
@@ -266,8 +210,8 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
       sun.shadow.normalBias = sh.normalBias;
       sun.shadow.radius = sh.radius;
     }
-    // Atmosphere extras (second cloud layer, god rays, dust) are Medium/High only.
-    const rich = cfg.tier !== 'low';
+    // Atmosphere extras (second cloud layer, god rays, dust) are off on phones: large alpha overdraw.
+    const rich = cfg.atmosphere;
     for (const n of ['cloudsHigh', 'godRays']) {
       const o = sky.getObjectByName(n);
       if (o !== undefined) o.visible = rich;
@@ -285,11 +229,19 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   function swapStandard(o: Mesh, on: boolean): void {
     if (o.name !== 'decor_wallBrick' && o.name !== 'decor_wallPlaster' && o.name !== 'decor_roof')
       return;
-    const ud = o.userData as { lambert?: MeshLambertMaterial; standard?: MeshStandardMaterial };
+    const ud = o.userData as {
+      lambert?: MeshLambertMaterial;
+      standard?: MeshStandardMaterial;
+      normalMap?: Texture | null;
+    };
     if (ud.lambert === undefined && o.material instanceof MeshLambertMaterial)
       ud.lambert = o.material;
     const base = ud.lambert;
     if (base === undefined) return;
+    // Normal maps are invisible at phone resolution: High only (ADR 0009).
+    if (ud.normalMap === undefined) ud.normalMap = base.normalMap;
+    base.normalMap = cfg.normalMaps ? ud.normalMap : null;
+    base.needsUpdate = true;
     if (on) {
       if (ud.standard === undefined) {
         ud.standard = new MeshStandardMaterial({
@@ -312,12 +264,14 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   function applyFlags(o: Object3D, on: boolean): void {
     if (o === sky || o === backdropRoot) return;
     if (o instanceof Mesh) {
+      if (o.name.startsWith('decor_')) o.visible = !cfg.hideDecor.includes(o.name);
       const lit = on && isLit(o);
       o.receiveShadow = lit;
-      // The hillside only receives: casting it costs the biggest shadow draw for no visible gain.
-      o.castShadow = lit && o.name !== 'decor_ground';
+      // Casting is opt-in (userData.cast): the hero, the lane's level meshes and the house walls
+      // and roofs. Everything else only receives, which keeps the shadow pass under the A3 cap.
+      o.castShadow = lit && o.userData.cast === true;
       if (materialsDirty) {
-        swapStandard(o, cfg.tier === 'high');
+        swapStandard(o, cfg.normalMaps && !coarse);
         const m = o.material;
         if (Array.isArray(m)) for (const mm of m) mm.needsUpdate = true;
         else m.needsUpdate = true;
@@ -329,7 +283,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   // Forest thinning per tier (decor/placeDecor exposes setForestDensity on its group).
   function applyForest(): void {
     if (level === null) return;
-    const f = cfg.tier === 'low' ? 0.3 : cfg.tier === 'medium' ? 0.7 : 1;
+    const f = cfg.forestDensity;
     level.traverse((o) => {
       const fn = o.userData.setForestDensity as ((d: number) => void) | undefined;
       if (fn !== undefined) fn(f);
@@ -419,6 +373,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
 
   function buildWorld(world: World): Group {
     if (level !== null) scene.remove(level);
+    worldRef = world;
     level = buildLevelMeshes(world);
     scene.add(level);
     applyForest();
@@ -445,7 +400,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
 
   // Frame-time governor (D-A): an auto-chosen tier above Low falls back to Low once if the
   // first seconds run slower than ~20 fps-equivalent budget. Explicit choices are never touched.
-  let govActive = isTierAuto() && cfg.tier !== 'low';
+  let govActive = (isTierAuto() || coarse) && cfg.tier !== 'low';
   let govLast = 0;
   let govFrames = 0;
   let govSum = 0;
@@ -459,7 +414,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     govSum += dt;
     if (govFrames < 150) return;
     govActive = false;
-    if (govSum / (govFrames - 30) > 22) {
+    if (govSum / (govFrames - 30) > cfg.governorMs) {
       window.dispatchEvent(new CustomEvent(GRAPHICS_TIER_EVENT, { detail: 'low' }));
     }
   }
@@ -484,11 +439,23 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     }
     const sh = cfg.shadow;
     if (sh !== null) followShadow(sh.halfExtent, sh.mapSize, sh.distance);
+    // The contact blob follows the hero (found lazily: the hero is added by the game layer).
+    if (worldRef !== null) {
+      if (heroRoot === null && heroLookup++ % 30 === 0)
+        heroRoot = scene.getObjectByName('heroRig') ?? null;
+      if (heroRoot !== null) {
+        heroRoot.getWorldPosition(heroPos);
+        placeBlob(blob, worldRef, heroPos.x, heroPos.y, heroPos.z);
+      }
+    }
+    // Sum every pass (shadow, composer) into one frame total for frameStats.
+    renderer.info.reset();
     if (composer !== null) composer.render();
     else renderer.render(scene, camera);
   }
 
   function dispose(): void {
+    disposed = true;
     scene.traverse((o) => {
       const ud = o.userData as { lambert?: Material; standard?: Material };
       ud.lambert?.dispose();
@@ -501,6 +468,9 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   }
 
   applyConfig();
+  // ?debug only: lets tools/perf.mjs and ad-hoc scripts inspect what is drawn.
+  if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('debug'))
+    (window as unknown as { __ztScene?: Scene }).__ztScene = scene;
   return {
     scene,
     camera,

@@ -12,9 +12,9 @@ export const GRAPHICS_TIER_KEY = 'zt.graphicsTier';
 export const GRAPHICS_TIER_EVENT = 'zt-graphics-tier';
 
 export const TIER_INFO: Record<GraphicsTier, { label: string; desc: string }> = {
-  low: { label: 'Low', desc: 'Flat sunset colours, no shadows. Fastest.' },
-  medium: { label: 'Medium', desc: 'Low sun with soft shadows and filmic colour.' },
-  high: { label: 'High', desc: 'Sharper shadows and a soft sun glow. Newer phones and PCs.' },
+  low: { label: 'Low', desc: 'Flat sunset colours, blob shadow. Fastest.' },
+  medium: { label: 'Medium', desc: 'Soft lane shadows, filmic colour. Phone default.' },
+  high: { label: 'High', desc: 'Sharper shadows, extra detail. Sun glow on PCs.' },
 };
 
 export function parseTier(v: unknown): GraphicsTier | null {
@@ -163,19 +163,67 @@ export type RenderConfig = {
   bloom: BloomConfig | null;
   /** MSAA samples on the composer target (only used with bloom). */
   composerSamples: number;
+  /** Normal maps on the textured walls and roofs (High only; invisible at phone resolution). */
+  normalMaps: boolean;
+  /** Second cloud layer, god-ray cards and dust points (large alpha overdraw: fine pointers only). */
+  atmosphere: boolean;
+  /** Forest tree density 0..1. */
+  forestDensity: number;
+  /** Shadow casters are limited to the hero and things this close (m) to the lane centre. */
+  casterReach: number;
+  /** Names of decor meshes hidden on this tier (small instanced detail that costs a draw each). */
+  hideDecor: readonly string[];
+  /** Auto-chosen tiers above Low drop to Low when the warmed-up average frame is slower (ms). */
+  governorMs: number;
 };
+
+/** A3 budgets: max pixel ratio per tier, [coarse pointer, fine pointer]. */
+export const PIXEL_RATIO_CAP: Record<GraphicsTier, readonly [number, number]> = {
+  low: [1, 1.5],
+  medium: [1.25, 2],
+  high: [1.5, 2],
+};
+
+/** Lane half-width (m) for shadow casters and detail: decor beyond it never casts. */
+export const CASTER_REACH = 12;
+/** Low drops these pieces: every instanced mesh is a draw call and none carries the lane. */
+export const LOW_HIDDEN_DECOR: readonly string[] = [
+  'decor_rail',
+  'decor_canopy',
+  'decor_bracket',
+  'decor_pot',
+  'decor_planter',
+  'decor_shutter',
+  'decor_flag',
+  'decor_trim',
+  'decor_strings',
+  'decor_birds',
+];
+export const GOVERNOR_MS = 20;
 
 // Must equal skyView.HAZE: the sky dome is pre-fogged towards it. Kept as a literal so this
 // module stays three-free; tests/adapters/graphicsTier.test.ts checks they match.
 export const FOG_HAZE = '#eaa978';
 
-/** ADR 0005 D4: pixel ratio capped at 1.5 on touch devices, 2 elsewhere. */
-export function pixelRatioFor(devicePixelRatio: number, coarse: boolean): number {
-  return Math.min(devicePixelRatio, coarse ? 1.5 : 2);
+/** ADR 0009: per-tier pixel ratio cap (fill rate is the phone bottleneck). Defaults to High's. */
+export function pixelRatioFor(
+  devicePixelRatio: number,
+  coarse: boolean,
+  tier: GraphicsTier = 'high',
+): number {
+  return Math.min(devicePixelRatio, PIXEL_RATIO_CAP[tier][coarse ? 0 : 1]);
 }
 
 export function renderConfigFor(tier: GraphicsTier, coarse: boolean): RenderConfig {
-  const maxPixelRatio = coarse ? 1.5 : 2;
+  const maxPixelRatio = PIXEL_RATIO_CAP[tier][coarse ? 0 : 1];
+  const extras = {
+    normalMaps: tier === 'high',
+    atmosphere: tier !== 'low' && !coarse,
+    forestDensity: tier === 'low' ? 0.2 : tier === 'medium' ? 0.7 : 1,
+    casterReach: CASTER_REACH,
+    hideDecor: tier === 'low' ? LOW_HIDDEN_DECOR : [],
+    governorMs: GOVERNOR_MS,
+  };
   if (tier === 'low') {
     // Graphics overhaul P0: Low keeps no shadows and no post, but gets ACES (a material define,
     // no extra pass) so the base grade is not washed out. Fog starts further out.
@@ -190,6 +238,7 @@ export function renderConfigFor(tier: GraphicsTier, coarse: boolean): RenderConf
       shadow: null,
       bloom: null,
       composerSamples: 0,
+      ...extras,
     };
   }
   // Medium/High: same horizontal key direction (lit, not backlit; ADR 0001) but a lower,
@@ -197,7 +246,8 @@ export function renderConfigFor(tier: GraphicsTier, coarse: boolean): RenderConf
   // its warmth; nearer haze for depth.
   const shadow: ShadowConfig = {
     mapSize: tier === 'high' ? 2048 : 1024,
-    halfExtent: tier === 'high' ? 48 : 30,
+    // A smaller frustum on phones keeps texel density near the hero with the smaller map.
+    halfExtent: tier === 'high' ? (coarse ? 40 : 48) : coarse ? 24 : 30,
     distance: 80,
     far: 180,
     bias: -0.0004,
@@ -213,7 +263,9 @@ export function renderConfigFor(tier: GraphicsTier, coarse: boolean): RenderConf
     hemi: { sky: '#ffc99c', ground: '#5e4a5c', intensity: 0.85 },
     fog: { color: FOG_HAZE, near: 65, far: 480 },
     shadow,
-    bloom: tier === 'high' ? { strength: 0.22, radius: 0.35, threshold: 0.85 } : null,
-    composerSamples: tier === 'high' ? 4 : 0,
+    // Bloom needs a composer with a HalfFloat MSAA target: fine pointers only (ADR 0009).
+    bloom: tier === 'high' && !coarse ? { strength: 0.22, radius: 0.35, threshold: 0.85 } : null,
+    composerSamples: tier === 'high' && !coarse ? 4 : 0,
+    ...extras,
   };
 }

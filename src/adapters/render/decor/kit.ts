@@ -39,7 +39,8 @@ export type PieceId =
   | 'wallPlaster'
   | 'bracket'
   | 'planter'
-  | 'conifer';
+  | 'conifer'
+  | 'trim';
 
 export const PIECE_IDS: PieceId[] = [
   'body',
@@ -60,6 +61,7 @@ export const PIECE_IDS: PieceId[] = [
   'bracket',
   'planter',
   'conifer',
+  'trim',
 ];
 
 export const PIECE_CAP: Record<PieceId, number> = {
@@ -81,6 +83,7 @@ export const PIECE_CAP: Record<PieceId, number> = {
   bracket: 155,
   planter: 20,
   conifer: 700,
+  trim: 700,
 };
 
 /** Tiled eave unit: apex height 0.49, corner radius 0.74 (4 sides, edges axis-aligned). */
@@ -404,6 +407,7 @@ function geometries(): Record<PieceId, BufferGeometry> {
     bracket: bracketUnit(),
     planter: planterUnit(),
     conifer: coniferUnit(),
+    trim: unitBox(),
   };
 }
 
@@ -469,6 +473,8 @@ export class DecorKit {
       m.name = 'decor_' + id;
       m.count = 0;
       m.frustumCulled = false;
+      // Shadow casters are opt-in (A3 caps the shadow pass): only the house shells.
+      m.userData.cast = id === 'wallBrick' || id === 'wallPlaster' || id === 'roof';
       meshes[id] = m;
       used[id] = 0;
       dropped[id] = 0;

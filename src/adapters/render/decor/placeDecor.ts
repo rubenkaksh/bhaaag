@@ -539,6 +539,36 @@ function dressHouses(B: Builder, bodies: Body[]): void {
           }
           if (wy < low + 0.3) continue;
           B.facing('window', 'window', face, wx, wy, wz, 0.9, 1.3, WIN_D, B.colRaw(B.pick(WOOD)));
+          if (!h.decoy && B.room('trim', 2)) {
+            // lintel and sill: readable frames around the lane-side windows (hidden on Low)
+            const hw = alongX ? 0.62 : 0.1;
+            const hd = alongX ? 0.1 : 0.62;
+            const tc = B.colRaw(WOOD[1]);
+            const ox = nx * 0.14;
+            const oz = nz * 0.14;
+            B.box(
+              'trim',
+              'trim',
+              wx - hw + ox,
+              wy + 1.3,
+              wz - hd + oz,
+              wx + hw + ox,
+              wy + 1.46,
+              wz + hd + oz,
+              tc,
+            );
+            B.box(
+              'trim',
+              'trim',
+              wx - hw + ox,
+              wy - 0.16,
+              wz - hd + oz,
+              wx + hw + ox,
+              wy - 0.04,
+              wz + hd + oz,
+              tc,
+            );
+          }
           if (!h.decoy && B.fx() < 0.35) {
             B.facing('shutter', 'shutter', face, wx, wy, wz, 1, 1, 1, B.colRaw(B.pick(SHUTTERS)));
           }
@@ -568,6 +598,12 @@ function dressHouses(B: Builder, bodies: Body[]): void {
           z0 - 0.1,
           B.colRaw(STONE),
         );
+        if (!h.decoy && B.room('trim', 3)) {
+          const tc = B.colRaw(WOOD[1]);
+          B.box('trim', 'trim', cxh - 0.7, yBase, z0 - 0.2, cxh - 0.55, yBase + 2.3, z0, tc);
+          B.box('trim', 'trim', cxh + 0.55, yBase, z0 - 0.2, cxh + 0.7, yBase + 2.3, z0, tc);
+          B.box('trim', 'trim', cxh - 0.7, yBase + 2.1, z0 - 0.2, cxh + 0.7, yBase + 2.3, z0, tc);
+        }
         if (!h.decoy && B.room('pot', 2)) {
           B.pot(cxh - 1.5, groundY(cxh - 1.5, z0 - 0.5), z0 - 0.5);
           B.pot(cxh + 1.5, groundY(cxh + 1.5, z0 - 0.5), z0 - 0.5);

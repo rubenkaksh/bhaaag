@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 
 const label = process.argv[2] ?? 'shot';
-const port = 4177;
+const port = Number(process.env.PORT ?? 4177);
 mkdirSync('art/shots/auto', { recursive: true });
 const srv = spawn('pnpm', ['exec', 'vite', 'preview', '--port', String(port), '--strictPort'], {
   stdio: 'ignore',

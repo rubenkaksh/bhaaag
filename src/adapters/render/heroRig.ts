@@ -14,17 +14,21 @@ import {
   Euler,
   Group,
   LatheGeometry,
+  Float32BufferAttribute,
   Matrix4,
   Mesh,
   MeshStandardMaterial,
   Quaternion,
+  Skeleton,
+  SkinnedMesh,
   SphereGeometry,
+  Uint16BufferAttribute,
   Vector2,
   Vector3,
 } from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { BufferGeometry, Material, Side } from 'three';
+import type { BufferGeometry, Bone, Material, Side } from 'three';
 import {
   CH_BODY_PITCH,
   CH_BODY_ROLL,
@@ -63,12 +67,13 @@ import {
 } from './heroPose';
 import type { HeroPoseInput } from './heroPose';
 
-// Palette (ADR 0006 section 2). The straw-grey tunic is desaturated and light
-// so it never reads as skin; crimson stays for scarf and sash.
+// Palette (ADR 0006 section 2, contrast pass ADR 0009). The slate tunic is desaturated and dark
+// so it never reads as skin and stands out from the cream pads and roofs; crimson is the
+// saturated scarf and sash accent.
 export const HERO_COLORS = {
-  tunic: '#c9c0a3', // torso, yoke, sleeves, thigh panels
+  tunic: '#36444c', // torso, yoke, sleeves, thigh panels (dark slate: reads on cream pads and roofs)
   trousers: '#2a2f3b', // pelvis, thighs, shins
-  crimson: '#c4262e', // neck scarf + tail, waist sash + tail
+  crimson: '#dc2b34', // neck scarf + tail, waist sash + tail
   skin: '#a5674a', // face
   hair: '#1f1a17', // hair cap
   leather: '#4a3426', // gloves, shoes, strap, satchel
@@ -245,7 +250,7 @@ export class HeroRig {
   yaw = 0; // hero facing, rad; set by the view each frame
   readonly swing: Group;
   readonly body: Group; // joint at the feet; squash scales it
-  readonly yoke: Mesh; // tunic hem, driven by the hem springs
+  readonly yoke: Group; // tunic hem joint, driven by the hem springs
   readonly pelvis: Group;
   readonly spine: Group;
   readonly head: Group;
@@ -313,8 +318,8 @@ export class HeroRig {
     this.pelvis = joint(this.body, 0, HERO_HIP_H, 0);
     part(this.pelvis, pelvisGeo, M.trousers, 0, -0.01, 0);
     part(this.pelvis, sashGeo, M.crimson, 0, 0.07, 0).scale.set(1, 1, 0.82);
-    this.yoke = part(this.pelvis, yokeGeo, M.tunic, 0, 0, 0);
-    this.yoke.scale.set(1, 1, 0.85);
+    this.yoke = joint(this.pelvis, 0, 0, 0);
+    part(this.yoke, yokeGeo, M.tunic, 0, 0, 0).scale.set(1, 1, 0.85);
     part(this.pelvis, satchelGeo, M.leather, 0.25, -0.05, -0.03);
     this.sashTail = joint(this.pelvis, 0.15, 0.06, -0.12);
     part(this.sashTail, sashTailGeo, M.crimson, 0, -0.14, 0).rotation.z = 0.12;
@@ -368,6 +373,62 @@ export class HeroRig {
       shoe.rotation.x = Math.PI / 2;
       shoe.scale.set(1, 1, 0.75);
     }
+    skinParts(this.root);
+  }
+}
+
+/**
+ * Draw-call packing (ADR 0009): every rigid part is baked into the rest pose and merged into one
+ * SkinnedMesh per shared material (6 draws instead of 28), weighted 100 % to its parent joint.
+ * The joint Groups stay the animation interface and double as the skeleton's bones (stock
+ * three.js skinning, no custom shader), so the look and the pose maths are unchanged.
+ */
+function skinParts(root: Group): void {
+  root.updateMatrixWorld(true);
+  const bones: Group[] = [];
+  root.traverse((o) => {
+    if (o !== root && o instanceof Group) bones.push(o);
+  });
+  const byMat = new Map<Material, { geos: BufferGeometry[]; meshes: Mesh[] }>();
+  root.traverse((o) => {
+    if (!(o instanceof Mesh)) return;
+    const mat = o.material as Material;
+    let e = byMat.get(mat);
+    if (e === undefined) {
+      e = { geos: [], meshes: [] };
+      byMat.set(mat, e);
+    }
+    const g = o.geometry.clone();
+    g.deleteAttribute('uv');
+    g.applyMatrix4(o.matrixWorld);
+    const n = g.getAttribute('position').count;
+    const bi = bones.indexOf(o.parent as Group);
+    const si = new Uint16Array(n * 4);
+    const sw = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) {
+      si[i * 4] = bi;
+      sw[i * 4] = 1;
+    }
+    g.setAttribute('skinIndex', new Uint16BufferAttribute(si, 4));
+    g.setAttribute('skinWeight', new Float32BufferAttribute(sw, 4));
+    e.geos.push(g);
+    e.meshes.push(o);
+  });
+  const skeleton = new Skeleton(bones as unknown as Bone[]);
+  for (const [mat, e] of byMat) {
+    for (const m of e.meshes) {
+      m.parent?.remove(m);
+      m.geometry.dispose();
+    }
+    const sm = new SkinnedMesh(merged(e.geos), mat);
+    sm.name = 'heroSkin';
+    sm.frustumCulled = false;
+    // Opt-in shadow caster (render/scene.ts). The head (skin, hair) is left out: the A3 shadow-pass
+    // cap is 14 calls on Medium and the shoulders' shadow already carries the silhouette.
+    const hex = (mat as Material & { color: { getHexString: () => string } }).color.getHexString();
+    sm.userData.cast = hex !== HERO_COLORS.skin.slice(1) && hex !== HERO_COLORS.hair.slice(1);
+    root.add(sm);
+    sm.bind(skeleton, new Matrix4());
   }
 }
 

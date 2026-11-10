@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Color, Mesh, MeshStandardMaterial, SRGBColorSpace, Vector3 } from 'three';
-import type { Material } from 'three';
+import type { Material, Object3D, SkinnedMesh } from 'three';
 import {
   AIRBORNE,
   ATTACHED,
@@ -213,7 +213,8 @@ describe('heroRig', () => {
       'hair',
       'leather',
     ]);
-    expect(meshes).toBeLessThanOrEqual(28);
+    // ADR 0009: one SkinnedMesh per material, not one mesh per part.
+    expect(meshes).toBeLessThanOrEqual(6);
     const colours = Object.keys(HERO_COLORS).length;
     expect(colours).toBe(6);
     expect(mats.size).toBe(colours);
@@ -238,7 +239,7 @@ describe('heroRig', () => {
     const rig = new HeroRig();
     let tunicMat: Material | null = null;
     rig.root.traverse((o) => {
-      if (o instanceof Mesh && o.parent === rig.spine) {
+      if (o instanceof Mesh) {
         const m = o.material as MeshStandardMaterial;
         if (m.color.getHexString() === HERO_COLORS.tunic.slice(1)) tunicMat = m;
       }
@@ -249,23 +250,40 @@ describe('heroRig', () => {
     );
   });
 
-  it('keeps the tunic off the head and gloves on both hands', () => {
-    const rig = new HeroRig();
-    const tunic = (
-      rig.spine.children.find(
-        (c) => c instanceof Mesh && (c.material as MeshStandardMaterial).side === 2,
-      ) as Mesh
-    ).material;
-    rig.head.traverse((o) => {
-      if (o instanceof Mesh) expect(o.material).not.toBe(tunic);
-    });
-    for (const h of [rig.handL, rig.handR]) {
-      const meshes = h.children.filter((c) => c instanceof Mesh) as Mesh[];
-      expect(meshes.length).toBe(1);
-      expect((meshes[0].material as MeshStandardMaterial).color.getHexString()).toBe(
-        HERO_COLORS.leather.slice(1),
-      );
+  it('hero body colours contrast with the cream pads and roofs (ADR 0009)', () => {
+    const lum = (hex: string): number => {
+      const c = new Color(hex); // sRGB hex -> linear working space
+      return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    };
+    const ratio = (a: string, b: string): number => {
+      const [hi, lo] = [Math.max(lum(a), lum(b)), Math.min(lum(a), lum(b))];
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    for (const bg of ['#f1e9d2', '#d9c6aa', '#b9a68c']) {
+      expect(ratio(HERO_COLORS.tunic, bg)).toBeGreaterThanOrEqual(3);
+      expect(ratio(HERO_COLORS.trousers, bg)).toBeGreaterThanOrEqual(3);
     }
+  });
+
+  it('keeps the tunic off the head and gloves on both hands', () => {
+    // Parts are skinned: each vertex is weighted to the joint it hung off before packing.
+    const rig = new HeroRig();
+    const skinned = new Map<string, Mesh>();
+    rig.root.traverse((o) => {
+      if (o instanceof Mesh)
+        skinned.set((o.material as MeshStandardMaterial).color.getHexString(), o);
+    });
+    const bones = (skinned.get(HERO_COLORS.tunic.slice(1)) as SkinnedMesh).skeleton.bones;
+    const used = (m: Mesh): Set<Object3D> => {
+      const idx = m.geometry.getAttribute('skinIndex');
+      const out = new Set<Object3D>();
+      for (let i = 0; i < idx.count; i++) out.add(bones[idx.getX(i)]);
+      return out;
+    };
+    expect(used(skinned.get(HERO_COLORS.tunic.slice(1)) as Mesh).has(rig.head)).toBe(false);
+    const leather = used(skinned.get(HERO_COLORS.leather.slice(1)) as Mesh);
+    expect(leather.has(rig.handL)).toBe(true);
+    expect(leather.has(rig.handR)).toBe(true);
   });
 
   it('updateHeroRig writes the pose to the joints', () => {

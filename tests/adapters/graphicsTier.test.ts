@@ -7,6 +7,7 @@ import {
   defaultTierFor,
   loadGraphicsTier,
   parseTier,
+  pixelRatioFor,
   renderConfigFor,
   saveGraphicsTier,
 } from '../../src/adapters/render/graphicsTier';
@@ -140,11 +141,31 @@ describe('tier -> render config', () => {
     expect(c.bloom?.threshold ?? 0).toBeGreaterThanOrEqual(0.7);
   });
 
-  it('caps the pixel ratio at 2, 1.5 on touch, for every tier', () => {
+  it('caps the pixel ratio per tier (A3): coarse / fine', () => {
+    const want = { low: [1, 1.5], medium: [1.25, 2], high: [1.5, 2] } as const;
     for (const t of GRAPHICS_TIERS) {
-      expect(renderConfigFor(t, false).maxPixelRatio).toBe(2);
-      expect(renderConfigFor(t, true).maxPixelRatio).toBe(1.5);
+      expect(renderConfigFor(t, true).maxPixelRatio).toBe(want[t][0]);
+      expect(renderConfigFor(t, false).maxPixelRatio).toBe(want[t][1]);
     }
+    expect(pixelRatioFor(3, true, 'medium')).toBe(1.25);
+    expect(pixelRatioFor(3, false, 'low')).toBe(1.5);
+  });
+
+  it('bloom (the composer) is High on a fine pointer only', () => {
+    expect(renderConfigFor('high', false).bloom).not.toBeNull();
+    expect(renderConfigFor('high', true).bloom).toBeNull();
+    expect(renderConfigFor('high', true).composerSamples).toBe(0);
+    expect(renderConfigFor('medium', false).bloom).toBeNull();
+  });
+
+  it('keeps the phone extras lean: no atmosphere layers, normal maps High only', () => {
+    for (const t of GRAPHICS_TIERS) expect(renderConfigFor(t, true).atmosphere).toBe(false);
+    expect(renderConfigFor('low', false).atmosphere).toBe(false);
+    expect(renderConfigFor('medium', false).atmosphere).toBe(true);
+    expect(renderConfigFor('medium', false).normalMaps).toBe(false);
+    expect(renderConfigFor('high', false).normalMaps).toBe(true);
+    expect(renderConfigFor('low', true).forestDensity).toBeLessThanOrEqual(0.2);
+    expect(renderConfigFor('high', true).governorMs).toBe(20);
   });
 
   it('keeps the fog on the sky horizon colour and the shadow frustum bounded', () => {

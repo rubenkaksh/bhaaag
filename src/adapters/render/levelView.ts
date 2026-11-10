@@ -1,13 +1,17 @@
 import {
   BufferGeometry,
   Color,
+  DoubleSide,
+  DynamicDrawUsage,
   Float32BufferAttribute,
   Group,
   Mesh,
   MeshBasicMaterial,
   MeshLambertMaterial,
   SphereGeometry,
+  Vector3,
 } from 'three';
+import type { Camera } from 'three';
 import { AABB } from '../../core/math/aabb';
 import { Vec3 } from '../../core/math/vec3';
 import { RIDGE_Z } from '../../core/world';
@@ -29,7 +33,12 @@ const COLOR_PAD = '#f1e9d2';
 const COLOR_GOAL = '#efe2b4';
 const COLOR_ANCHOR = '#ffc83a';
 const COLOR_TILE_ROOF = '#b5523a'; // pitched tile roofs (ADR 0002): slippery, so danger-leaning red
-const ANCHOR_R = 0.35;
+// ADR 0009: anchors read from a phone at the far end of the lane: 0.5 m sphere plus a gold ring.
+const ANCHOR_R = 0.5;
+const RING_IN = 0.72;
+const RING_OUT = 0.92;
+const RING_SEGS = 16;
+const COLOR_PAD_EDGE = '#6b4a30'; // dark timber border so a cream pad reads against cream roofs
 const PAD_LIFT = 0.03;
 
 const TILE_M = 4; // one texture tile covers this many metres
@@ -82,7 +91,9 @@ function mergedMesh(boxes: AABB[], color: string, emissiveScale = 0, texture = '
     normalMap: map ? tileNormal(texture) : null,
   });
   if (emissiveScale > 0) mat.emissive = new Color(color).multiplyScalar(emissiveScale);
-  return new Mesh(geo, mat);
+  const mesh = new Mesh(geo, mat);
+  mesh.userData.cast = true; // opt-in shadow caster (render/scene.ts applyFlags)
+  return mesh;
 }
 
 // Appends one gable prism (two tiled slopes, two gable triangles) for a pitched roof whose
@@ -161,6 +172,7 @@ function gableMesh(world: World): Mesh {
     }),
   );
   mesh.name = 'pitchedRoofs';
+  mesh.userData.cast = true;
   return mesh;
 }
 
@@ -221,18 +233,27 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
     }
   }
   if (world.pads.length > 0) {
-    // Pads are zero-thickness surfaces: lift a thin slab so they never z-fight the roof.
-    const slabs: AABB[] = [];
-    for (let i = 0; i < world.pads.length; i++) {
-      const p = world.pads[i];
-      slabs.push(
-        new AABB(
-          new Vec3(p.min.x, p.max.y, p.min.z),
-          new Vec3(p.max.x, p.max.y + PAD_LIFT, p.max.z),
-        ),
+    // Pads are zero-thickness surfaces: lift a thin slab so they never z-fight the roof. A dark
+    // slab under a slightly smaller cream one gives a timber border (one more draw): a cream pad
+    // on a cream roof otherwise vanishes.
+    const slab = (p: AABB, inset: number, lift: number): AABB =>
+      new AABB(
+        new Vec3(p.min.x + inset, p.max.y, p.min.z + inset),
+        new Vec3(p.max.x - inset, p.max.y + lift, p.max.z - inset),
       );
+    const edge = mergedMesh(
+      world.pads.map((p) => slab(p, 0, PAD_LIFT)),
+      COLOR_PAD_EDGE,
+    );
+    const pads = mergedMesh(
+      world.pads.map((p) => slab(p, 0.18, PAD_LIFT + 0.01)),
+      COLOR_PAD,
+    );
+    edge.name = 'padEdge';
+    for (const m of [edge, pads]) {
+      m.userData.cast = false; // thin slabs: nothing to shadow
+      g.add(m);
     }
-    g.add(mergedMesh(slabs, COLOR_PAD));
   }
   if (world.goal.max.y > world.goal.min.y) g.add(mergedMesh([world.goal], COLOR_GOAL));
   if (world.roofs.length > 0) g.add(gableMesh(world));
@@ -254,7 +275,66 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
     m.userData.anchorId = i;
     g.add(m);
   }
+  if (world.anchors.length > 0) g.add(buildAnchorRings(world));
   return g;
+}
+
+/**
+ * One camera-facing gold ring per anchor, all in one mesh (one draw): vertices are rewritten each
+ * frame from the camera's right/up. Opaque, depth-tested, so walls still hide a far anchor.
+ */
+function buildAnchorRings(world: World): Mesh {
+  const n = world.anchors.length;
+  const per = RING_SEGS * 4; // 4 verts per segment quad
+  const pos = new Float32Array(n * per * 3);
+  const idx: number[] = [];
+  for (let k = 0; k < n * RING_SEGS; k++) {
+    const b = k * 4;
+    idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+  }
+  const geo = new BufferGeometry();
+  const attr = new Float32BufferAttribute(pos, 3);
+  attr.setUsage(DynamicDrawUsage);
+  geo.setAttribute('position', attr);
+  geo.setIndex(idx);
+  const mesh = new Mesh(
+    geo,
+    new MeshBasicMaterial({ color: new Color(COLOR_ANCHOR), fog: false, side: DoubleSide }),
+  );
+  mesh.name = 'anchorRings';
+  mesh.frustumCulled = false;
+  mesh.userData.target = -1;
+  const right = new Vector3();
+  const up = new Vector3();
+  mesh.onBeforeRender = (_r, _s, camera: Camera): void => {
+    const e = camera.matrixWorld.elements;
+    right.set(e[0], e[1], e[2]);
+    up.set(e[4], e[5], e[6]);
+    const target = mesh.userData.target as number;
+    for (let i = 0; i < n; i++) {
+      const a = world.anchors[i];
+      const k = i === target ? 1.25 : 1;
+      let o = i * per * 3;
+      for (let s = 0; s < RING_SEGS; s++) {
+        const a0 = (s / RING_SEGS) * Math.PI * 2;
+        const a1 = ((s + 1) / RING_SEGS) * Math.PI * 2;
+        for (const [ang, r] of [
+          [a0, RING_IN],
+          [a0, RING_OUT],
+          [a1, RING_OUT],
+          [a1, RING_IN],
+        ] as const) {
+          const c = Math.cos(ang) * r * k;
+          const sn = Math.sin(ang) * r * k;
+          pos[o++] = a.px + right.x * c + up.x * sn;
+          pos[o++] = a.py + right.y * c + up.y * sn;
+          pos[o++] = a.pz + right.z * c + up.z * sn;
+        }
+      }
+    }
+    attr.needsUpdate = true;
+  };
+  return mesh;
 }
 
 /** Runner's vision: only anchor route[nextRouteIndex] pulses; the rest stay static. */
@@ -264,6 +344,7 @@ export function updateLevelView(group: Group, nowSec: number, nextRouteIndex: nu
     route && nextRouteIndex >= 0 && nextRouteIndex < route.length ? route[nextRouteIndex] : -1;
   for (let i = 0; i < group.children.length; i++) {
     const c = group.children[i];
+    if (c.name === 'anchorRings') c.userData.target = target;
     if (c.userData.anchorId === undefined) continue;
     const k = c.userData.anchorId === target ? 1 + 0.35 * Math.sin(nowSec * 6) : 1;
     c.scale.setScalar(k);

@@ -169,9 +169,9 @@ describe('backdrop mountain system', () => {
     expect(edgeRadius(0)).toBeCloseTo((TERRAIN_Z_MAX - TERRAIN_Z_MIN) / 2, 5);
   });
 
-  it('builds one mesh per layer, drawn after the sky dome and before the sun core', () => {
+  it('builds one merged mesh, drawn after the sky dome and before the sun core', () => {
     const g = buildBackdrop('low');
-    expect(g.children.length).toBe(BACKDROP_LAYER_NAMES.length);
+    expect(g.children.length).toBe(1);
     for (const c of g.children) {
       expect(c.renderOrder).toBeGreaterThan(-2);
       expect(c.renderOrder).toBeLessThan(-1);

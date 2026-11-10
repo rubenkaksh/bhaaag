@@ -15,7 +15,7 @@ const COLOR = 0xffd35a;
 /** Vertical light beam plus a pulsing ground ring at the waypoint (2 additive draws, 64 tris). */
 export class WaypointView {
   readonly group = new Group();
-  private readonly beamGeo = new CylinderGeometry(0.12, 0.3, BEAM_H, 8, 1, true);
+  private readonly beamGeo = new CylinderGeometry(0.2, 0.45, BEAM_H, 8, 1, true);
   private readonly ringGeo = new RingGeometry(0.5, 0.75, 24);
   private readonly beamMat = new MeshBasicMaterial({
     color: 0xffffff,
@@ -47,7 +47,7 @@ export class WaypointView {
     const b = (COLOR & 255) / 255;
     for (let i = 0; i < pos.count; i++) {
       const t = pos.getY(i) / BEAM_H;
-      const f = 0.4 * (1 - t); // fade rgb too, so additive stays subtle on any path
+      const f = 0.7 * (1 - t); // fade rgb too, so additive stays subtle on any path
       col[i * 4] = r * f;
       col[i * 4 + 1] = g * f;
       col[i * 4 + 2] = b * f;

@@ -52,3 +52,12 @@ Code: `src/adapters/render/graphicsTier.ts` (pure settings + `renderConfigFor`),
 - Shadow flags go only on lit opaque meshes (not MeshBasic, not transparent); `decor_ground` receives but does not cast. Sky, mountains and `backdropRoot` are skipped. Static draw-call counts are unchanged; the shadow pass adds roughly one draw per caster at runtime.
 - `GameScene.backdropRoot` is the empty group for the Himalaya backdrop; `getTier()` gives the tier to build it for.
 - ACES makes the sky dome slightly paler than Low; untuned on a real phone.
+
+## Mobile budgets (2026-11-10, ADR 0009)
+
+The tier table above is superseded for budgets by ADR 0009: pixel ratio 1.0 / 1.25 / 1.5 on coarse
+pointers (1.5 / 2 / 2 fine), no composer on phones (bloom is High on a fine pointer, loaded lazily),
+atmosphere layers and normal maps off on phones, shadow casters opt-in via `userData.cast`, Low hides
+small instanced detail, hero packed into six skinned draws, contact blob on every tier. Caps: Low
+55 calls / 60k tris, Medium 70 + 14 shadow / 110k, High 85 + 24 shadow / 170k. Check with
+`PORT=4181 node tools/perf.mjs <label>` after `pnpm build`.
