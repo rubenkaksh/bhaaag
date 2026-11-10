@@ -17,3 +17,10 @@ Rules unchanged: stock materials, no hand-written shaders, no GLB, <= 5 additive
 god-ray cards use normal alpha blending), 60 fps target on iPhone 12-class.
 
 Hero mesh cap raised 25 -> 28 (P5: second scarf segment, top-knot, brow fringe; tri cap 1,500 unchanged). Within the 90-call frame budget (Low frame ~65 calls).
+
+## Amendment 2026-11-10: accepted limits
+
+- **Instanced wall UV stretch accepted.** `wallBrick` / `wallPlaster` share one geometry per piece, so tile density varies with the instance scale. Size-bucketed geometries would multiply instanced meshes past the 24-mesh budget; the walls are brick/plaster at 2 and 1.5 tiles per face and read as intended in shots. Revisit only if a wall looks visibly smeared.
+- **Standard materials on High only.** Decor walls and roofs swap to `MeshStandardMaterial` (roughness 0.92, metalness 0) in `scene.ts` `swapStandard`; Medium and Low keep Lambert to protect phones.
+- **No new tile images.** The existing six tiles plus normal maps stay (~58 KB normals); new tiles would need a generator that is not wired here. Licences: all tiles are in-repo procedural/own assets, nothing third-party added.
+- **Tree/tank contact slabs dropped:** they overflow the 150k decor tri cap and overlap plinth colliders.

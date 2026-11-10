@@ -20,6 +20,7 @@ import {
   Vector3,
   WebGLRenderer,
   WebGLRenderTarget,
+  MeshLambertMaterial,
 } from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
@@ -250,6 +251,33 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     buildComposer();
   }
 
+  /** High tier only: textured decor walls and roofs use MeshStandardMaterial (rough, non-metal) for a softer response to the sun. */
+  function swapStandard(o: Mesh, on: boolean): void {
+    if (o.name !== 'decor_wallBrick' && o.name !== 'decor_wallPlaster' && o.name !== 'decor_roof')
+      return;
+    const ud = o.userData as { lambert?: MeshLambertMaterial; standard?: MeshStandardMaterial };
+    if (ud.lambert === undefined && o.material instanceof MeshLambertMaterial)
+      ud.lambert = o.material;
+    const base = ud.lambert;
+    if (base === undefined) return;
+    if (on) {
+      if (ud.standard === undefined) {
+        ud.standard = new MeshStandardMaterial({
+          color: base.color,
+          vertexColors: base.vertexColors,
+          flatShading: base.flatShading,
+          map: base.map,
+          normalMap: base.normalMap,
+          roughness: 0.92,
+          metalness: 0,
+        });
+      }
+      o.material = ud.standard;
+    } else {
+      o.material = base;
+    }
+  }
+
   /** Shadow flags on lit opaque meshes; the sky, mountains and backdrop are skipped. */
   function applyFlags(o: Object3D, on: boolean): void {
     if (o === sky || o === mountains || o === backdropRoot) return;
@@ -259,6 +287,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
       // The hillside only receives: casting it costs the biggest shadow draw for no visible gain.
       o.castShadow = lit && o.name !== 'decor_ground';
       if (materialsDirty) {
+        swapStandard(o, cfg.tier === 'high');
         const m = o.material;
         if (Array.isArray(m)) for (const mm of m) mm.needsUpdate = true;
         else m.needsUpdate = true;
