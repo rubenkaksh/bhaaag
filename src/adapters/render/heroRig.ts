@@ -22,6 +22,7 @@ import {
   Vector2,
   Vector3,
 } from 'three';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { BufferGeometry, Material, Side } from 'three';
 import {
@@ -159,8 +160,12 @@ function taper(g: BufferGeometry, top: number, bottom: number): BufferGeometry {
     pos.setZ(i, pos.getZ(i) * k);
   }
   pos.needsUpdate = true;
-  g.computeVertexNormals();
-  return g;
+  // Capsules duplicate the seam and pole vertices; weld them so recomputed normals have no crease.
+  g.deleteAttribute('uv');
+  g.deleteAttribute('normal');
+  const welded = mergeVertices(g, 1e-5);
+  welded.computeVertexNormals();
+  return welded;
 }
 
 function hemCylinder(rt: number, rb: number, h: number, segs: number): BufferGeometry {

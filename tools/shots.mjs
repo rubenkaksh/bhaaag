@@ -47,6 +47,29 @@ for (const tier of ['low', 'medium', 'high']) {
     await ctx.close();
   }
 }
+// Best-effort action shots (medium, desktop): hook press, then run forward until something happens.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => {
+    errors++;
+    console.log(`[action] page error: ${e.message}`);
+  });
+  await page.goto(`${base}?gfx=medium&debug`);
+  await page.waitForTimeout(2500);
+  await page.getByText('PLAY', { exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(2000);
+  await page.keyboard.down('KeyE');
+  await page.waitForTimeout(150);
+  await page.keyboard.up('KeyE');
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: `art/shots/auto/${label}-action-hook.png` });
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(3500);
+  await page.screenshot({ path: `art/shots/auto/${label}-action-run.png` });
+  await page.keyboard.up('KeyW');
+  await ctx.close();
+}
 await browser.close();
 srv.kill();
 console.log(`done, ${errors} console errors`);

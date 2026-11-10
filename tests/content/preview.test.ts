@@ -48,8 +48,8 @@ describe('previewShot cost', () => {
       times.push(performance.now() - t0);
     }
     times.sort((a, b) => a - b);
-    const worst = times[Math.floor(times.length / 2)]; // median: one scheduler hiccup under parallel load must not fail the run
-    console.log(`median worst-case lethal preview: ${NAMES[out.outcome]} ${worst.toFixed(2)} ms`);
+    const worst = times[Math.floor(times.length * 0.9)]; // p90: one scheduler hiccup under parallel load must not fail the run
+    console.log(`p90 worst-case lethal preview: ${NAMES[out.outcome]} ${worst.toFixed(2)} ms`);
     expect(out.outcome).toBe(PREVIEW_LETHAL);
     expect(worst).toBeLessThan(25); // loose: CI machines vary, the 2 ms budget is read from the log
   });

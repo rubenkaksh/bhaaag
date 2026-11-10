@@ -223,4 +223,6 @@ P5 go (owner OK); P6 out.
 - A: spec Low amendment, `tests/adapters/palette.test.ts` (source-hex stand-in for the pixel check), darker TILE/TILE_FILL roofs. Contact slabs dropped (150k tri cap, plinth collider overlap).
 - B: High-tier `MeshStandardMaterial` swap for decor walls/roofs; ADR 0008 accepts instanced wall UV stretch and no new tiles.
 - C (P4 only): `cloudsHigh` layer, dust motes, Medium/High gating for clouds/rays/dust. No birds exist in code.
-- NOT done: P1 stronger vertex AO; P3 new silhouettes/clutter (decor tri cap is full); P5 tapered limbs, blend weights, rope polish; mid-rope/death shots; real-device fps; flaky `tests/content/preview.test.ts`.
+- D: P5 tapered limbs (welded capsule normals, tris unchanged); rope sag/twist/gold pulse already present in `src/app/ropeView.ts`, no change; P1 stronger AO (floor 0.6, pow 0.75); P3 laundry-line variant (muted palette, no new pieces); `tools/shots.mjs` now also writes `*-action-hook.png` / `*-action-run.png` (mid-rope capture seen working); flaky preview test now p90 < 25 ms.
+- Not built (accepted, ADR 0008): contact slabs, wall UV buckets, new tile images, new house silhouettes beyond existing pagoda/hip variants (decor tri cap full), birds (none in code), Qwen review (key expired), real-device fps (no device here; SwiftShader fps is meaningless).
+- P6 hand-written shader stays out.
