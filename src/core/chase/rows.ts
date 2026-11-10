@@ -2,6 +2,9 @@
 // rowSpec(seed, r) says what row r looks like; rowBoxes(spec, zTop, out) turns it into boxes with
 // exactly the tools/genLevel.mjs formulas, so rows 0-3 equal the L1 opening. No three, no DOM.
 
+import { DEFAULT_TUNING } from '../config';
+import type { Tuning } from '../config';
+
 // Hill and house constants (mirrors of tools/genLevel.mjs; tests compare against l1.json).
 export const GRADE_DEG = 20;
 export const GRADE = Math.tan((GRADE_DEG * Math.PI) / 180); // metres of drop per metre of z
@@ -27,6 +30,8 @@ export const WALL_T = 2;
 export const STYLE_HIDDEN = 5;
 export const ROW0_ZTOP = HALF_Z; // uphill edge of row 0 (house 0 is centred on z = 0)
 export const MAX_HOUSES = 3;
+
+type ChaseTuning = Tuning['chase'];
 
 // Fixed slot layout: every row owns the same index ranges, so ids never change.
 export const SLOT_SOLIDS = 3 * 6 + 1 + 2; // 3 houses x 6 parts, decoy wall, two side walls
@@ -77,7 +82,23 @@ export function laneX(seed: number, r: number): number {
   return x;
 }
 
-export function rowSpecInto(seed: number, r: number, out: RowSpec): void {
+/**
+ * Row difficulty in [0,1] as a pure, monotonic function of the dragon's speed: 0 at v0, 1 at vMax,
+ * clamped outside. Rows are written once, when they stream in, using the speed at that moment.
+ */
+export function difficultyFor(dragonSpeed: number, cfg: Tuning): number {
+  const lo = cfg.chase.v0;
+  const hi = cfg.chase.vMax;
+  if (!(hi > lo)) return 0;
+  const d = (dragonSpeed - lo) / (hi - lo);
+  return d < 0 ? 0 : d > 1 ? 1 : d;
+}
+
+/**
+ * Row r for a given difficulty d in [0,1]. Deterministic in (seed, r, d). Gaps stay within
+ * gapBase + [0, gapSpanLo + (gapSpanHi - gapSpanLo) d]: 17 m at most, which the bots cross.
+ */
+export function rowSpecInto(seed: number, r: number, out: RowSpec, d = 0, k: ChaseTuning = DEFAULT_TUNING.chase): void {
   if (r < FIXED_ROWS) {
     out.n = 2;
     out.gap = 13;
@@ -87,21 +108,21 @@ export function rowSpecInto(seed: number, r: number, out: RowSpec): void {
     out.drift = 0;
     return;
   }
-  const d = Math.min(1, r / 40);
   const u = hash01(seed, r, 1);
-  out.n = u < 0.2 ? 1 : u < 0.7 ? 2 : 3;
-  out.gap = 11 + hash01(seed, r, 2) * (2 + 4 * d);
+  const p1 = k.oneHouseBase + k.oneHouseGain * d;
+  out.n = u < p1 ? 1 : u < 0.7 ? 2 : 3;
+  out.gap = k.gapBase + hash01(seed, r, 2) * (k.gapSpanLo + (k.gapSpanHi - k.gapSpanLo) * d);
   out.cx = laneX(seed, r);
   const nx = laneX(seed, r + 1);
   out.drift = nx > out.cx ? 1 : nx < out.cx ? -1 : 0;
   out.decoy = 0;
-  if (hash01(seed, r, 4) < 0.2 + 0.3 * d) out.decoy = hash01(seed, r, 5) < 0.5 ? -1 : 1;
+  if (hash01(seed, r, 4) < k.decoyBase + k.decoyGain * d) out.decoy = hash01(seed, r, 5) < 0.5 ? -1 : 1;
   out.pitched = out.decoy !== 0 && hash01(seed, r, 6) < 0.5 ? 1 : 0;
 }
 
-export function rowSpec(seed: number, r: number): RowSpec {
+export function rowSpec(seed: number, r: number, d = 0, k: ChaseTuning = DEFAULT_TUNING.chase): RowSpec {
   const s = new RowSpec();
-  rowSpecInto(seed, r, s);
+  rowSpecInto(seed, r, s, d, k);
   return s;
 }
 

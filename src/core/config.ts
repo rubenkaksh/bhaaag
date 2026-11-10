@@ -115,6 +115,14 @@ export type Tuning = {
     scoreHop: number;
     scoreClean: number;
     scorePerfect: number;
+    // Row difficulty as a function of dragon speed (difficultyFor, rows.ts rowSpecInto).
+    gapBase: number; // open hillside between rows (m), minimum
+    gapSpanLo: number; // random extra gap at difficulty 0
+    gapSpanHi: number; // random extra gap at difficulty 1
+    decoyBase: number; // chance of a terracotta decoy wall at difficulty 0
+    decoyGain: number; // added chance at difficulty 1
+    oneHouseBase: number; // chance of a one-house (short rest) row at difficulty 0
+    oneHouseGain: number; // added chance at difficulty 1
   };
 };
 
@@ -234,5 +242,12 @@ export const DEFAULT_TUNING: Tuning = {
     scoreHop: 25,
     scoreClean: 10,
     scorePerfect: 10,
+    gapBase: 11,
+    gapSpanLo: 2,
+    gapSpanHi: 6,
+    decoyBase: 0.2,
+    decoyGain: 0.3,
+    oneHouseBase: 0.2,
+    oneHouseGain: 0.15,
   },
 };
