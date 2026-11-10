@@ -28,7 +28,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import type { World } from '../../core/world';
 import { buildLevelMeshes } from './levelView';
-import { buildMountains, buildSkyView } from './skyView';
+import { buildDust, buildMountains, buildSkyView, updateDust } from './skyView';
 import { buildBackdrop } from './backdrop';
 import {
   GRAPHICS_TIER_EVENT,
@@ -144,6 +144,8 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   scene.fog = new Fog(cfg.fog.color, cfg.fog.near, cfg.fog.far);
   const sky = buildSkyView();
   scene.add(sky);
+  const dust = buildDust();
+  scene.add(dust);
   const mountains = buildMountains();
   scene.add(mountains);
   const backdropRoot = new Group();
@@ -245,6 +247,13 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
       sun.shadow.normalBias = sh.normalBias;
       sun.shadow.radius = sh.radius;
     }
+    // Atmosphere extras (second cloud layer, god rays, dust) are Medium/High only.
+    const rich = cfg.tier !== 'low';
+    for (const n of ['cloudsHigh', 'godRays']) {
+      const o = sky.getObjectByName(n);
+      if (o !== undefined) o.visible = rich;
+    }
+    dust.visible = rich;
     flagsDirty = true;
     materialsDirty = true;
     resize();
@@ -368,6 +377,14 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     if (govActive) govern();
     // The sky dome follows the camera so the long descent never leaves it.
     sky.position.copy(camera.position);
+    if (dust.visible)
+      updateDust(
+        dust,
+        camera.position.x,
+        camera.position.y,
+        camera.position.z,
+        performance.now() / 1000,
+      );
     // Hero, rope and level are added after construction: set their shadow flags once.
     if (flagsDirty) {
       applyFlags(scene, cfg.shadow !== null);

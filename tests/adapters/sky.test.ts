@@ -10,6 +10,9 @@ import {
   SUN_EL_DEG,
   buildMountains,
   buildSkyView,
+  buildDust,
+  updateDust,
+  DUST_COUNT,
   skyColorAt,
 } from '../../src/adapters/render/skyView';
 
@@ -19,7 +22,8 @@ function triangles(o: Object3D): number {
   let n = 0;
   o.traverse((c) => {
     const m = c as Mesh;
-    if (m.isMesh) n += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
+    if (m.isMesh)
+      n += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
   });
   return n;
 }
@@ -48,8 +52,8 @@ describe('sun placement (ADR 0005 D4, raised by ADR 0006 L-SKY)', () => {
     expect(SUN_EL_DEG).toBe(8);
     expect(SUN_AZ_DEG).toBe(32);
     expect(SUN_DIR.length()).toBeCloseTo(1, 6);
-    expect(Math.atan2(SUN_DIR.x, -SUN_DIR.z) * 180 / Math.PI).toBeCloseTo(32, 0);
-    expect(Math.asin(SUN_DIR.y) * 180 / Math.PI).toBeCloseTo(8, 0);
+    expect((Math.atan2(SUN_DIR.x, -SUN_DIR.z) * 180) / Math.PI).toBeCloseTo(32, 0);
+    expect((Math.asin(SUN_DIR.y) * 180) / Math.PI).toBeCloseTo(8, 0);
   });
 
   it('puts the glow and core 470 m out along SUN_DIR, facing back at the sky origin', () => {
@@ -199,5 +203,22 @@ describe('pixel ratio cap (ADR 0005 D4)', () => {
   it('never raises a low device ratio', () => {
     expect(pixelRatioFor(1, true)).toBe(1);
     expect(pixelRatioFor(1.25, false)).toBe(1.25);
+  });
+});
+
+describe('P4 atmosphere extras', () => {
+  it('has a second cloud layer', () => {
+    expect(buildSkyView().getObjectByName('cloudsHigh')).toBeDefined();
+  });
+  it('keeps dust motes inside the box around the camera', () => {
+    const d = buildDust();
+    updateDust(d, 10, 20, -30, 123.4);
+    const a = d.geometry.getAttribute('position');
+    expect(a.count).toBe(DUST_COUNT);
+    for (let i = 0; i < a.count; i++) {
+      expect(Math.abs(a.getX(i) - 10)).toBeLessThanOrEqual(18);
+      expect(Math.abs(a.getY(i) - 20)).toBeLessThanOrEqual(7);
+      expect(Math.abs(a.getZ(i) + 30)).toBeLessThanOrEqual(18);
+    }
   });
 });

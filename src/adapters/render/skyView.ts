@@ -10,6 +10,8 @@ import {
   Group,
   Mesh,
   MeshBasicMaterial,
+  Points,
+  PointsMaterial,
   Quaternion,
   SphereGeometry,
   Vector3,
@@ -210,17 +212,36 @@ function buildRays(): Mesh {
 }
 
 /** Seven flat cloud cards, merged into one mesh, placed on a ring around the sky group. */
-function buildClouds(rand: () => number): Mesh {
+function buildClouds(
+  rand: () => number,
+  opts: {
+    count: number;
+    elLo: number;
+    elHi: number;
+    wLo: number;
+    wHi: number;
+    opacity: number;
+    name: string;
+  } = {
+    count: CLOUD_COUNT,
+    elLo: 4,
+    elHi: 14,
+    wLo: 60,
+    wHi: 140,
+    opacity: 0.85,
+    name: 'clouds',
+  },
+): Mesh {
   const parts: BufferGeometry[] = [];
   const top = new Color('#f7b98a');
   const under = new Color('#ffd9a0');
   const dir = new Vector3();
   const q = new Quaternion();
   const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
-  for (let k = 0; k < CLOUD_COUNT; k++) {
-    const az = lerp(-40, 60, rand()) * DEG;
-    const el = lerp(4, 14, rand()) * DEG;
-    const w = lerp(60, 140, rand());
+  for (let k = 0; k < opts.count; k++) {
+    const az = lerp(-60, 80, rand()) * DEG;
+    const el = lerp(opts.elLo, opts.elHi, rand()) * DEG;
+    const w = lerp(opts.wLo, opts.wHi, rand());
     const h = lerp(8, 14, rand());
     dir.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
     const g = new CircleGeometry(1, 16);
@@ -247,13 +268,13 @@ function buildClouds(rand: () => number): Mesh {
     new MeshBasicMaterial({
       vertexColors: true,
       transparent: true,
-      opacity: 0.85,
+      opacity: opts.opacity,
       side: DoubleSide,
       depthWrite: false,
       fog: false,
     }),
   );
-  mesh.name = 'clouds';
+  mesh.name = opts.name;
   return mesh;
 }
 
@@ -302,6 +323,18 @@ export function buildSkyView(): Group {
   g.add(buildHaze());
   g.add(buildRays());
   g.add(buildClouds(mulberry32(SKY_SEED)));
+  // Medium/High only (scene.ts toggles by name): a higher, paler second layer.
+  g.add(
+    buildClouds(mulberry32(SKY_SEED + 7), {
+      count: 9,
+      elLo: 16,
+      elHi: 34,
+      wLo: 90,
+      wHi: 200,
+      opacity: 0.55,
+      name: 'cloudsHigh',
+    }),
+  );
   return g;
 }
 
@@ -421,4 +454,45 @@ export function buildMountains(seed = MOUNTAIN_SEED): Mesh {
   );
   mesh.name = 'mountains';
   return mesh;
+}
+
+export const DUST_COUNT = 90;
+const DUST_BOX = [36, 14, 36];
+
+/** Dust motes: warm additive points in a box around the camera (Medium/High). Positions are set by updateDust. */
+export function buildDust(): Points {
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(DUST_COUNT * 3), 3));
+  const mat = new PointsMaterial({
+    color: '#ffd9a0',
+    size: 0.09,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false,
+    blending: AdditiveBlending,
+    fog: false,
+  });
+  const pts = new Points(geo, mat);
+  pts.name = 'dust';
+  pts.frustumCulled = false;
+  return pts;
+}
+
+/** Wraps each mote into the box around the camera and drifts it slowly; cheap CPU update of 90 points. */
+export function updateDust(pts: Points, cx: number, cy: number, cz: number, t: number): void {
+  const a = pts.geometry.getAttribute('position');
+  for (let i = 0; i < DUST_COUNT; i++) {
+    const h1 = Math.sin(i * 12.9898) * 43758.5453;
+    const h2 = Math.sin(i * 78.233) * 12345.6789;
+    const h3 = Math.sin(i * 39.425) * 24681.357;
+    const r1 = h1 - Math.floor(h1);
+    const r2 = h2 - Math.floor(h2);
+    const r3 = h3 - Math.floor(h3);
+    const wrap = (v: number, size: number): number => v - size * Math.floor(v / size);
+    const x = wrap(r1 * DUST_BOX[0] + t * 0.25 * (0.5 + r2), DUST_BOX[0]) - DUST_BOX[0] / 2;
+    const y = wrap(r2 * DUST_BOX[1] - t * 0.12 * (0.5 + r3), DUST_BOX[1]) - DUST_BOX[1] / 2;
+    const z = wrap(r3 * DUST_BOX[2] + t * 0.18 * (0.5 + r1), DUST_BOX[2]) - DUST_BOX[2] / 2;
+    a.setXYZ(i, cx + x, cy + y, cz + z);
+  }
+  a.needsUpdate = true;
 }
