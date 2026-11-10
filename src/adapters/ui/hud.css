@@ -5,6 +5,7 @@
   --hud-top: var(--pad);
   --hud-side: var(--pad);
   --controls-h: 0px;
+  --lens-shift: 0; /* fraction of height; game.ts sets it on every viewport change */
 }
 .hud {
   position: fixed;
@@ -153,7 +154,8 @@
   opacity: 0;
 }
 #hud-reticle {
-  top: 50%;
+  /* The principal point moves with the camera lens shift (portrait). */
+  top: calc(50% - var(--lens-shift) * 100%);
   left: 50%;
   z-index: 30;
   width: 6px;
@@ -179,7 +181,7 @@
   display: none;
 }
 #hud-reason {
-  top: calc(50% + 22px);
+  top: calc(50% - var(--lens-shift) * 100% + 22px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
@@ -514,5 +516,97 @@
   #hud-win:not(.off) button,
   #hud-reticle.lock {
     animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Portrait (three-track plan B3). Any pointer: a narrow desktop window gets the same layout.
+ * vh clamps become vw; the touch thumbs own the bottom --controls-h of the screen.
+ * Element ids are unchanged (the chase HUD hides #hud-timer, #hud-hop, #hud-alt by id).
+ * ------------------------------------------------------------------ */
+@media (orientation: portrait) {
+  :root {
+    --hud-top: max(12px, 3vw);
+    --hud-side: max(12px, 3.4vw);
+    --pill-h: clamp(34px, 10vw, 48px);
+    --row-h: clamp(24px, 7vw, 30px);
+  }
+  #hud-timer {
+    top: calc(var(--hud-top) + env(safe-area-inset-top, 0px));
+    height: var(--pill-h);
+    font-size: clamp(18px, 6vw, 28px);
+  }
+  #hud-pause {
+    top: calc(var(--hud-top) + env(safe-area-inset-top, 0px));
+    right: calc(var(--hud-side) + env(safe-area-inset-right, 0px));
+    width: var(--pill-h);
+    height: var(--pill-h);
+  }
+  /* Row 2: objective at the left, hop counter at the right (clear of the altitude strip). */
+  #hud-objective {
+    top: calc(var(--hud-top) + var(--pill-h) + 6px + env(safe-area-inset-top, 0px));
+    left: calc(var(--hud-side) + env(safe-area-inset-left, 0px));
+    height: var(--row-h);
+    font-size: clamp(12px, 3.6vw, 17px);
+  }
+  #hud-hop {
+    top: calc(var(--hud-top) + var(--pill-h) + 6px + env(safe-area-inset-top, 0px));
+    left: auto;
+    right: calc(var(--hud-side) + 14px + env(safe-area-inset-right, 0px));
+    height: var(--row-h);
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    font-size: clamp(12px, 3.4vw, 16px);
+  }
+  #hud-hint {
+    top: calc(var(--hud-top) + var(--pill-h) + var(--row-h) + 14px + env(safe-area-inset-top, 0px));
+    max-width: 88vw;
+    white-space: normal;
+    text-align: center;
+    font-size: clamp(12px, 3.6vw, 16px);
+  }
+  /* Altitude strip: right edge, between the HUD rows and the thumb zone. */
+  #hud-alt {
+    top: 20vh;
+    bottom: calc(var(--controls-h) + 16px);
+  }
+  #hud-reason {
+    font-size: clamp(12px, 3.5vw, 15px);
+  }
+  #hud-waypoint {
+    --dia: clamp(28px, 9vw, 44px);
+  }
+  #hud-waypoint .wp-label {
+    font-size: clamp(12px, 3.6vw, 17px);
+  }
+  #hud-toast {
+    top: 40%;
+    max-width: 88vw;
+    box-sizing: border-box;
+    font-size: clamp(15px, 4.6vw, 20px);
+  }
+  #hud-win {
+    padding: 0 6vw;
+    gap: 2.4vw;
+    background: rgba(28, 20, 16, 0.72);
+  }
+  #hud-win h1 {
+    font-size: clamp(30px, 10vw, 48px);
+  }
+  #hud-win p {
+    font-size: clamp(16px, 5vw, 22px);
+  }
+  #hud-win button {
+    align-self: stretch;
+    margin-top: 4vw;
+    padding: 4vw 0;
+    font-size: clamp(18px, 5.4vw, 24px);
+  }
+}
+/* Thumb zones reserve the bottom of a portrait phone. */
+@media (orientation: portrait) and (pointer: coarse) {
+  :root {
+    --controls-h: 42vh;
   }
 }

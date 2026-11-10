@@ -17,4 +17,9 @@ describe('layoutFor', () => {
   it('a zero height does not divide by zero', () => {
     expect(Number.isFinite(layoutFor(100, 0, false).aspect)).toBe(true);
   });
+  it('orientation follows w/h on phones, rotated', () => {
+    expect(layoutFor(430, 932, true).orientation).toBe('portrait');
+    expect(layoutFor(932, 430, true).orientation).toBe('landscape');
+    expect(layoutFor(844, 390, true).orientation).toBe('landscape');
+  });
 });

@@ -208,3 +208,85 @@
   color: #fff6e4;
   text-shadow: 0 1px 4px rgba(40, 14, 30, 0.9);
 }
+
+/* ------------------------------------------------------------------ *
+ * Portrait (three-track plan B3): a vertical stack - title, art band (~30vh, the SVG art is a
+ * 'slice' backdrop behind it), mode radiogroup, PLAY, best, graphics radiogroup, controls list in
+ * two columns. Sizes come from vw; every tap target is at least 44px.
+ * ------------------------------------------------------------------ */
+@media (orientation: portrait) {
+  #lobby {
+    justify-content: flex-start;
+    gap: 2.4vh;
+    overflow-y: auto;
+    padding: max(3vh, env(safe-area-inset-top, 0px)) max(5vw, env(safe-area-inset-right, 0px))
+      max(3vh, env(safe-area-inset-bottom, 0px)) max(5vw, env(safe-area-inset-left, 0px));
+  }
+  #lobby .head {
+    /* title block over the art band */
+    min-height: 30vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  #lobby h1 {
+    font-size: clamp(34px, 12vw, 64px);
+  }
+  #lobby .tag {
+    margin-top: 1.2vw;
+    font-size: clamp(11px, 3.3vw, 16px);
+    letter-spacing: 0.14em;
+  }
+  #lobby .mid {
+    width: 100%;
+    gap: 2vh;
+  }
+  #lobby-mode,
+  #lobby-gfx {
+    flex-wrap: wrap;
+    justify-content: center;
+    font-size: clamp(13px, 3.8vw, 18px);
+    gap: 0.4em;
+  }
+  #lobby-mode button,
+  #lobby-gfx button {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.2em 1em;
+  }
+  #lobby-play {
+    min-height: 56px;
+    padding: 0.3em 1.8em;
+    font-size: clamp(26px, 9vw, 44px);
+  }
+  #lobby-best {
+    font-size: clamp(13px, 4vw, 18px);
+  }
+  #lobby-gfx-desc {
+    margin: 0;
+    max-width: 86vw;
+    font-size: clamp(11px, 3.2vw, 14px);
+  }
+  #lobby .how {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2vh 3vw;
+    width: 100%;
+    max-width: 480px;
+    box-sizing: border-box;
+    padding: 1.6vh 4vw;
+    font-size: clamp(12px, 3.5vw, 16px);
+    text-align: left;
+  }
+  #lobby .how .hint {
+    grid-column: 1 / -1;
+    text-align: center;
+  }
+  #lobby .how div {
+    white-space: normal;
+  }
+  #menu-btn {
+    min-height: 44px;
+  }
+}

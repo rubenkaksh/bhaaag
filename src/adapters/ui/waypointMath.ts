@@ -105,10 +105,13 @@ export function padHeightBelow(
 
 /**
  * Lowest-y the waypoint marker may take: clear of the timer pill (top pad + timer height + 8).
- * Landscape reproduces the original formula; portrait uses it until Track 2 tunes the layout.
+ * Landscape reproduces the original vh-based formula. Portrait mirrors hud.css: vw-based pill
+ * (clamped), plus room for the hop and objective rows under it.
  */
-// Track 2 will use w and portrait; Track 0 keeps the landscape formula for both.
-/* eslint-disable-next-line @typescript-eslint/no-unused-vars */
-export function waypointTopPx(_w: number, h: number, _portrait: boolean): number {
-  return Math.max(10, h * 0.028) + Math.max(32, h * 0.054) + 8;
+export function waypointTopPx(w: number, h: number, portrait: boolean): number {
+  if (!portrait) return Math.max(10, h * 0.028) + Math.max(32, h * 0.054) + 8;
+  const pad = Math.max(10, w * 0.03);
+  const pill = Math.min(48, Math.max(34, w * 0.1));
+  const row = Math.min(30, Math.max(24, w * 0.07));
+  return pad + pill + 4 + row + 8;
 }
