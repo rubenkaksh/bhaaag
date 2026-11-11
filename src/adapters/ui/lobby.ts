@@ -79,13 +79,12 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
     '</div><p id="lobby-gfx-desc"></p></div>' +
     '<div class="how">' +
     '<div class="desk"><b>Move</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>' +
-    '<div class="desk"><b>Look</b> mouse</div>' +
     '<div class="desk"><b>Hook</b> <kbd>E</kbd> or click</div>' +
     '<div class="desk"><b>Brake</b> hold <kbd>R</kbd></div>' +
     '<div class="desk"><b>Jump</b> <kbd>Space</kbd></div>' +
     '<div class="desk"><b>Menu</b> <kbd>Esc</kbd></div>' +
     '<div class="touch-only"><b>Move</b> left thumb</div>' +
-    '<div class="touch-only"><b>Aim</b> drag right side</div>' +
+    '<div class="touch-only"><b>Aim</b> tap an anchor</div>' +
     '<div class="touch-only"><b>HOOK / BRAKE</b> big button</div>' +
     '<div class="touch-only"><b>JUMP</b> button</div>' +
     '<div class="hint">Portrait or landscape, both work</div>' +
@@ -146,7 +145,6 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
 
   function show(): void {
     shown = true;
-    if (document.pointerLockElement) document.exitPointerLock();
     showMode();
     playBtn.textContent = started ? 'RESUME' : 'PLAY';
     lobby.classList.remove('off');

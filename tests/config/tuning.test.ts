@@ -32,6 +32,7 @@ const schema = z.strictObject({
     previewHz: num,
     previewMaxSec: num,
     previewReleaseSamples: num,
+    tapRadiusNdc: num,
   }),
   release: z.strictObject({
     inputBufferMs: num,
@@ -86,6 +87,10 @@ const schema = z.strictObject({
     armRelease: num,
     downhillBias: num,
     fovSpeed: num,
+    frontPitchDeg: num,
+    zipYawDeg: num,
+    zipYawMinDiagDeg: num,
+    zipYawEase: num,
   }),
   validator: z.strictObject({
     minReleaseWindowTicks: num,

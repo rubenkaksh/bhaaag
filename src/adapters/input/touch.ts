@@ -7,13 +7,12 @@
 //   Move    floating stick in #stick-zone (left). The stick base appears
 //           wherever the thumb lands; offset from that origin, clamped to
 //           STICK_RADIUS_PX, normalised -> quantizeAxis (up = forward).
-//   Look    drag in #look-zone (right/centre) -> lookYaw/lookPitch via
-//           quantizeTurn, TOUCH_LOOK_SENSITIVITY radians per pixel.
-//   Aim     short tap on #look-zone (< TAP_MAX_MS, < TAP_MAX_PX) is NOT a
-//           look drag: it sets tapPending with tapNdcX/tapNdcY (-1..1) for
-//           the game to raycast (tap-to-aim, ADR 0001). The game clears
-//           tapPending after consuming it. hasAim stays 0 in InputFrame
-//           until M2 writes the absolute aim fields.
+//   Look    none: the camera is a fixed front view (no player view control).
+//   Aim     short tap on #look-zone (< TAP_MAX_MS, < TAP_MAX_PX) sets
+//           tapPending with tapNdcX/tapNdcY (-1..1) for the game to pick an
+//           anchor from (tap-to-aim, ADR 0001). The game clears tapPending
+//           after consuming it. hasAim stays 0 in InputFrame; game.ts writes
+//           the absolute aim fields.
 //   Action  hold #btn-action -> BTN_ACTION (contextual: Hook/Release/
 //           Mantle/Brake); press also raises the pressed edge.
 //   Jump    hold #btn-jump -> BTN_JUMP.
@@ -32,16 +31,12 @@ import {
   BTN_ACTION,
   InputFrame,
   clearInputFrame,
-  dequantizeTurn,
   quantizeAxis,
-  quantizeTurn,
 } from '../../core/input';
 
-// Radians of turn per pixel of touch drag (separate from mouse, plan 4.6).
-const TOUCH_LOOK_SENSITIVITY = 0.004;
 // Max distance from the stick origin that maps to full deflection.
 const STICK_RADIUS_PX = 64;
-// A tap: short and almost stationary (else it is a look drag or swipe).
+// A tap: short and almost stationary (else it is a swipe or ignored).
 const TAP_MAX_MS = 250;
 const TAP_MAX_PX = 10;
 // Swipe down for DROP: vertical distance and a "fast" time budget.
@@ -77,17 +72,12 @@ export class TouchInput {
   // Role lookup so pointerup/pointercancel know which state to release.
   private readonly roles = new Map<number, number>();
 
-  // Look-drag bookkeeping (client px).
-  private lookLastX = 0;
-  private lookLastY = 0;
+  // Tap / swipe bookkeeping (client px).
   private lookStartX = 0;
   private lookStartY = 0;
   private lookStartTime = 0;
   // Largest distance from pointerdown to any move, for tap vs drag.
   private lookMaxDevPx = 0;
-  // Pointer deltas (radians) accumulated since the last sample.
-  private accYaw = 0;
-  private accPitch = 0;
 
   // Button edges since the last sample, cleared by sample().
   private pressedPending = 0;
@@ -153,9 +143,8 @@ export class TouchInput {
   }
 
   // Fill out with the current sample. buttons = held mask; pressed = edge
-  // mask since the previous sample (then cleared); look deltas are consumed
-  // here. hasAim/aimYaw/aimPitch stay 0 (clearInputFrame): tap-to-aim is
-  // delivered via tapPending for the game to raycast (M2 wires it).
+  // mask since the previous sample (then cleared); hasAim/aimYaw/aimPitch stay 0 (clearInputFrame): tap-to-aim is
+  // delivered via tapPending for the game to raycast (game.ts wires it).
   sample(out: InputFrame): void {
     clearInputFrame(out);
 
@@ -163,15 +152,6 @@ export class TouchInput {
     out.moveX = quantizeAxis(this.stickX);
     out.moveY = quantizeAxis(this.stickY);
 
-    // Look: accumulated drag since the last sample. +yaw = turn right,
-    // +pitch = look up. Quantise and carry the remainder so slow drags are
-    // not skewed by discarding the sub-quantum residue (m1-review F9).
-    const qYaw = quantizeTurn(this.accYaw);
-    const qPitch = quantizeTurn(this.accPitch);
-    this.accYaw -= dequantizeTurn(qYaw);
-    this.accPitch -= dequantizeTurn(qPitch);
-    out.lookYaw = qYaw;
-    out.lookPitch = qPitch;
 
     // Held buttons derive from live pointer ids, so pointercancel and
     // blur release them without extra bookkeeping.
@@ -199,8 +179,6 @@ export class TouchInput {
     this.actionId = -1;
     this.jumpId = -1;
     this.releaseStick();
-    this.accYaw = 0;
-    this.accPitch = 0;
     this.pressedPending = 0;
     this.tapPending = false;
     this.lookMaxDevPx = 0;
@@ -353,8 +331,6 @@ export class TouchInput {
     this.lookId = e.pointerId;
     this.roles.set(e.pointerId, ROLE_LOOK);
     this.capture(this.lookZone, e);
-    this.lookLastX = e.clientX;
-    this.lookLastY = e.clientY;
     this.lookStartX = e.clientX;
     this.lookStartY = e.clientY;
     this.lookStartTime = e.timeStamp;
@@ -363,12 +339,6 @@ export class TouchInput {
 
   private readonly onLookMove = (e: PointerEvent): void => {
     if (e.pointerId !== this.lookId) return;
-    const dx = e.clientX - this.lookLastX;
-    const dy = e.clientY - this.lookLastY;
-    this.lookLastX = e.clientX;
-    this.lookLastY = e.clientY;
-    this.accYaw += dx * TOUCH_LOOK_SENSITIVITY;
-    this.accPitch += -dy * TOUCH_LOOK_SENSITIVITY; // drag up = look up
     // Track deviation from the start for the tap-vs-drag decision.
     const sx = e.clientX - this.lookStartX;
     const sy = e.clientY - this.lookStartY;
@@ -390,8 +360,7 @@ export class TouchInput {
       this.pressedPending |= BTN_DROP;
       return;
     }
-    // Short, almost stationary tap = tap-to-aim (NOT a look drag: the drag
-    // deltas above are dropped because the game raycasts tapNdc instead).
+    // Short, almost stationary tap = tap-to-aim (the game picks an anchor from tapNdc).
     if (dt < TAP_MAX_MS && dev < TAP_MAX_PX && this.lookZone !== null) {
       const rect = this.lookZone.getBoundingClientRect();
       const w = rect.width > 0 ? rect.width : 1;

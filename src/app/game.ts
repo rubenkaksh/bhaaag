@@ -26,7 +26,14 @@ import {
   aimReason,
   pickAnchorAssisted,
 } from '../core/hook';
-import { BTN_ACTION, BTN_HOOK, BTN_REEL, BTN_RESTART, newInputFrame } from '../core/input';
+import {
+  BTN_ACTION,
+  BTN_HOOK,
+  BTN_REEL,
+  BTN_RESTART,
+  newInputFrame,
+  quantizeTurn,
+} from '../core/input';
 import { aabbContainsPoint } from '../core/math/aabb';
 import { PreviewResult, PREVIEW_NONE, previewShot } from '../core/preview';
 import { step } from '../core/sim';
@@ -36,6 +43,8 @@ import { DesktopInput } from '../adapters/input/desktop';
 import { TouchInput } from '../adapters/input/touch';
 import { Sfx } from '../adapters/audio/sfx';
 import { CameraRig, updateCamera } from '../adapters/render/cameraRig';
+import { easeYawOffset, zipYawTarget } from '../adapters/render/cameraYaw';
+import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
 import { createGameScene } from '../adapters/render/scene';
@@ -119,12 +128,13 @@ function smooth(p: number): number {
   return c * c * (3 - 2 * c);
 }
 
+const DEG2RAD = Math.PI / 180;
+
 // YAW CONVENTION (the one conversion between sim and camera rig).
-// Sim: forward = (sin c, cos c) in (x, z), yaw 0 faces +z, +lookYaw increases c.
+// Sim: forward = (sin c, cos c) in (x, z), yaw 0 faces +z, no player view control (the sim camYaw is fixed).
 // Rig: look dir = (sin r, -cos r), yaw 0 faces -z, +r turns right.
-// Matching look directions gives r = PI - c. That is a mirror, so two input
-// signs flip with it: lookYaw (mouse right must turn the view right) and
-// moveX (D/stick-right must move toward screen-right). Applied in onStep.
+// Matching look directions gives r = PI - c. That is a mirror, so moveX flips with it
+// (D/stick-right must move toward screen-right). Applied in onStep.
 function camYawToRig(simCamYaw: number): number {
   return Math.PI - simCamYaw;
 }
@@ -258,6 +268,11 @@ export function startGame(
   let brakeWas = false;
   let viewport: ViewportLayout = readViewport();
   let lensShiftPx = 0;
+  let zipYaw = 0; // automatic zipline camera yaw offset (rig radians), 0 = front view
+  let tapAnchor = NO_ANCHOR; // anchor picked by tap-to-aim, sticky until fired or cleared
+  let aimYaw = 0;
+  let aimPitch = 0;
+  let aimId = NO_ANCHOR;
   let jsMs = 0;
   let stepMs = 0;
   let best = readBest(mode);
@@ -268,17 +283,11 @@ export function startGame(
     cur.py = world.spawn.y;
     cur.pz = world.spawn.z;
     cur.yaw = world.spawnYaw;
+    // Fixed front view: no player view control, so the sim camera never changes after this.
     cur.camYaw = world.spawnYaw;
-    cur.camPitch = 0;
-    // Frame the first route anchor so the start view already shows what to hook.
-    const first = world.anchors[world.route[0]];
-    if (first !== undefined) {
-      const dx = first.px - cur.px;
-      const dy = first.py - (cur.py + cfg.hero.height * HEAD_FRAC);
-      const dz = first.pz - cur.pz;
-      cur.camYaw = Math.atan2(dx, dz);
-      cur.camPitch = Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
-    }
+    cur.camPitch = cfg.camera.frontPitchDeg * DEG2RAD;
+    zipYaw = 0;
+    tapAnchor = NO_ANCHOR;
     cur.grounded = 1;
     cur.mode = HERO_AIRBORNE;
     copyHeroState(prev, cur);
@@ -289,10 +298,19 @@ export function startGame(
     feet.y = cur.py;
     feet.z = cur.pz;
     const speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
+    const base = camYawToRig(cur.camYaw);
+    // Screen frame of the front view: right = (cos r, sin r), away = (sin r, -cos r) in (x, z).
+    const vRight = cur.vx * Math.cos(base) + cur.vz * Math.sin(base);
+    const vFwd = cur.vx * Math.sin(base) - cur.vz * Math.cos(base);
+    zipYaw = easeYawOffset(
+      zipYaw,
+      zipYawTarget(cur.mode === HERO_ATTACHED && cur.dead === 0, vRight, vFwd, camCfg),
+      camCfg,
+    );
     updateCamera(
       curRig,
       feet,
-      camYawToRig(cur.camYaw),
+      base + zipYaw,
       cur.camPitch,
       speed,
       world.solids,
@@ -349,7 +367,6 @@ export function startGame(
     copyHeroState(prev, cur);
     input.sample(frame);
     frame.moveX = -frame.moveX;
-    frame.lookYaw = -frame.lookYaw;
 
     if (phase === 'pan') {
       // Drain input so nothing pressed during the flyover fires on the first play tick.
@@ -393,7 +410,15 @@ export function startGame(
         }
         hudUi.setActionLabel(cur.mode === HERO_ATTACHED ? 'BRAKE' : 'HOOK');
       }
+      consumeTap();
+      computeAim();
+      if (aimId !== NO_ANCHOR && cur.mode !== HERO_ATTACHED) {
+        frame.hasAim = 1;
+        frame.aimYaw = quantizeTurn(aimYaw);
+        frame.aimPitch = quantizeTurn(aimPitch);
+      }
       step(cur, frame, world, cfg);
+      if ((cur.eventBits & HERO_EV_HOOKED) !== 0 || cur.mode === HERO_ATTACHED) tapAnchor = NO_ANCHOR;
       if (cs !== null) chaseStep(cs, cur, world, cfg);
       runT += stepDt;
 
@@ -436,7 +461,6 @@ export function startGame(
         deadT = 0;
         anyInput = false;
         if (cs === null) hudUi.toast(DEATH_MSG[cur.deadCause] ?? 'You fell');
-        else if (document.pointerLockElement) document.exitPointerLock();
       } else if (
         cs === null &&
         cur.dead === 0 &&
@@ -450,7 +474,6 @@ export function startGame(
         }
         hudUi.showWin(runT, best);
         hudUi.pulseTimer();
-        if (document.pointerLockElement) document.exitPointerLock();
       }
       updateReticle();
       updatePreview();
@@ -502,6 +525,52 @@ export function startGame(
   }
 
   /** Gold + big when pickAnchor (same args the sim uses on press) finds a target. */
+  /** Tap on an anchor = aim at it (touch). The tap is consumed either way. */
+  function consumeTap(): void {
+    if (!(input instanceof TouchInput) || !input.tapPending) return;
+    input.tapPending = false;
+    if (cur.mode === HERO_ATTACHED) return;
+    const i = pickAnchorAtNdc(
+      gs.camera,
+      world.anchors,
+      input.tapNdcX,
+      input.tapNdcY,
+      gs.camera.aspect,
+      cfg.aim.tapRadiusNdc,
+      cur.px,
+      cur.py,
+      cur.pz,
+      cfg.rope.maxLen * 1.5,
+    );
+    tapAnchor = i < 0 ? NO_ANCHOR : i;
+  }
+
+  /**
+   * Aim without a look control: the tapped anchor, else the glowing next route anchor. Writes
+   * aimId / aimYaw / aimPitch (direction from the head); with no target the fixed front view.
+   */
+  function computeAim(): void {
+    let id = tapAnchor;
+    if (id === NO_ANCHOR) {
+      const r = world.route[nextRouteIndex];
+      id = r === undefined ? NO_ANCHOR : r;
+    }
+    aimId = id;
+    aimYaw = cur.camYaw;
+    aimPitch = cur.camPitch;
+    if (id === NO_ANCHOR) return;
+    const a = world.anchors[id];
+    if (a === undefined) {
+      aimId = NO_ANCHOR;
+      return;
+    }
+    const dx = a.px - cur.px;
+    const dy = a.py - (cur.py + cfg.hero.height * HEAD_FRAC);
+    const dz = a.pz - cur.pz;
+    aimYaw = Math.atan2(dx, dz);
+    aimPitch = Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
+  }
+
   function updateReticle(): void {
     previewTarget = NO_ANCHOR;
     if (phase !== 'play' || cur.mode === HERO_ATTACHED || cur.hook.state !== HOOK_IDLE) {
@@ -509,7 +578,8 @@ export function startGame(
       hudUi.setAimReason('');
       return;
     }
-    const cp = Math.cos(cur.camPitch);
+    computeAim();
+    const cp = Math.cos(aimPitch);
     pickAnchorAssisted(
       world,
       cfg,
@@ -519,9 +589,9 @@ export function startGame(
       cur.px,
       cur.py + cfg.hero.height * HEAD_FRAC,
       cur.pz,
-      Math.sin(cur.camYaw) * cp,
-      Math.sin(cur.camPitch),
-      Math.cos(cur.camYaw) * cp,
+      Math.sin(aimYaw) * cp,
+      Math.sin(aimPitch),
+      Math.cos(aimYaw) * cp,
       cfg.rope.maxLen,
       coarse ? cfg.aim.magnetDegTouch : cfg.aim.magnetDegDesktop,
       aim,
@@ -540,9 +610,9 @@ export function startGame(
             cur.px,
             cur.py + cfg.hero.height * HEAD_FRAC,
             cur.pz,
-            Math.sin(cur.camYaw) * cp,
-            Math.sin(cur.camPitch),
-            Math.cos(cur.camYaw) * cp,
+            Math.sin(aimYaw) * cp,
+            Math.sin(aimPitch),
+            Math.cos(aimYaw) * cp,
             cfg.rope.maxLen,
             coarse ? cfg.aim.magnetDegTouch : cfg.aim.magnetDegDesktop,
           ),

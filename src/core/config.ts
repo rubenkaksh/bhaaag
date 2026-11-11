@@ -28,6 +28,7 @@ export type Tuning = {
     previewHz: number;
     previewMaxSec: number;
     previewReleaseSamples: number;
+    tapRadiusNdc: number;
   };
   release: {
     inputBufferMs: number;
@@ -89,6 +90,10 @@ export type Tuning = {
     armRelease: number;
     downhillBias: number;
     fovSpeed: number;
+    frontPitchDeg: number;
+    zipYawDeg: number;
+    zipYawMinDiagDeg: number;
+    zipYawEase: number;
   };
   validator: {
     minReleaseWindowTicks: number;
@@ -148,6 +153,7 @@ export const DEFAULT_TUNING: Tuning = {
     previewHz: 15,
     previewMaxSec: 8,
     previewReleaseSamples: 12,
+    tapRadiusNdc: 0.18,
   },
   release: {
     inputBufferMs: 100,
@@ -209,6 +215,10 @@ export const DEFAULT_TUNING: Tuning = {
     armRelease: 0.05,
     downhillBias: 8,
     fovSpeed: 20,
+    frontPitchDeg: -12,
+    zipYawDeg: 25,
+    zipYawMinDiagDeg: 20,
+    zipYawEase: 0.06,
   },
   validator: {
     minReleaseWindowTicks: 12,
