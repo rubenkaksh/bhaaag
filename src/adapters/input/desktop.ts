@@ -19,6 +19,7 @@ import {
   BTN_DROP,
   BTN_REEL,
   BTN_AIM,
+  BTN_CLIMB,
   InputFrame,
   clearInputFrame,
   dequantizeTurn,
@@ -39,6 +40,7 @@ const KEY_BUTTONS: Record<string, number | undefined> = {
   KeyE: BTN_HOOK,
   KeyQ: BTN_DROP,
   KeyR: BTN_REEL, // hold = hand-brake while on the rope
+  KeyF: BTN_CLIMB, // hold while hanging at a ledge = mantle (ADR 0011)
 };
 
 // e.code -> axis contribution (+1 / -1). Sums are clamped by quantizeAxis.

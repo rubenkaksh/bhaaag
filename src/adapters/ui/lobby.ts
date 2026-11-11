@@ -82,12 +82,13 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
     '<div class="desk"><b>Look</b> mouse</div>' +
     '<div class="desk"><b>Hook</b> <kbd>E</kbd> or click</div>' +
     '<div class="desk"><b>Brake</b> hold <kbd>R</kbd></div>' +
+    '<div class="desk"><b>Climb</b> hold <kbd>F</kbd> at a ledge</div>' +
     '<div class="desk"><b>Jump</b> <kbd>Space</kbd></div>' +
     '<div class="desk"><b>Menu</b> <kbd>Esc</kbd></div>' +
     '<div class="touch-only"><b>Move</b> left thumb</div>' +
     '<div class="touch-only"><b>Aim</b> drag right side</div>' +
-    '<div class="touch-only"><b>HOOK / BRAKE</b> big button</div>' +
-    '<div class="touch-only"><b>JUMP</b> button</div>' +
+    '<div class="touch-only"><b>JUMP</b> big button, double tap = Hook</div>' +
+    '<div class="touch-only"><b>BRAKE / CLIMB</b> hold the button</div>' +
     '<div class="hint">Portrait or landscape, both work</div>' +
     '</div>';
   root.appendChild(lobby);
