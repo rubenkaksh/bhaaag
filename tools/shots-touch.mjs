@@ -1,4 +1,4 @@
-/* global process, fetch, setTimeout, console, localStorage, document */
+/* global process, fetch, setTimeout, console, localStorage, document, window */
 // Touch control screenshots: node tools/shots-touch.mjs [label]
 // Serves dist/ on port 4184, shoots each mode in portrait (390x844) and landscape (844x390) with
 // the floating stick down and the single right-hand button visible. Writes art/shots/auto/.
