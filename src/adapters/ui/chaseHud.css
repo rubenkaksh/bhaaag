@@ -26,6 +26,19 @@ body.mode-chase #hud-objective {
     linear-gradient(rgba(220, 222, 232, 0.4), rgba(220, 222, 232, 0.4));
   transition: opacity 0.12s linear;
 }
+#chase-iris {
+  inset: 0;
+  z-index: 15;
+  opacity: 0;
+  --iris-x: 50%;
+  --iris-y: 50%;
+  --iris-r: 120vmin;
+  background: radial-gradient(
+    circle at var(--iris-x) var(--iris-y),
+    transparent var(--iris-r),
+    rgb(214, 216, 226) calc(var(--iris-r) + 18vmin)
+  );
+}
 #chase-score {
   top: calc(var(--hud-top, var(--pad, 12px)) + env(safe-area-inset-top, 0px));
   left: 50%;
@@ -92,9 +105,36 @@ body.mode-chase #hud-objective {
   justify-content: center;
   gap: 8px;
   pointer-events: auto;
-  background: rgba(36, 38, 52, 0.55);
+  /* Portrait / near-square: the dragon's face docks at the top, the card fills the lower half. */
+  background: linear-gradient(to bottom, transparent 0, transparent 38%, rgba(36, 38, 52, 0.55) 50%);
+  justify-content: flex-start;
   text-align: center;
-  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  padding: calc(46vh + env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+@media (min-aspect-ratio: 6/5) {
+  /* Landscape: the face docks on the left, the card sits in the right 54%. */
+  #chase-over {
+    background: linear-gradient(to right, transparent 0, transparent 40%, rgba(36, 38, 52, 0.55) 52%);
+    justify-content: center;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) 46%;
+  }
+}
+/* Card up: hide the play-only HUD (pause stays). */
+body.chase-card #chase-score,
+body.chase-catching #chase-score,
+body.chase-catching #chase-gap,
+body.chase-catching #hud-hint,
+body.chase-catching #stick-zone,
+body.chase-catching #look-zone,
+body.chase-catching #btn-action,
+body.chase-catching #btn-jump,
+body.chase-card #chase-gap,
+body.chase-card #hud-hint,
+body.chase-card #stick-zone,
+body.chase-card #look-zone,
+body.chase-card #btn-action,
+body.chase-card #btn-jump {
+  display: none !important;
 }
 #chase-over.off {
   display: none;
