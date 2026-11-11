@@ -50,9 +50,11 @@ export function runBot(
   maxTicks: number,
   stopAtRow = 1e9,
   probe?: (tick: number, hero: HeroState, cs: ChaseState) => void,
+  forceDifficulty = -1,
 ): BotResult {
   const hero = new HeroState();
   const cs = newChaseState(seed, 0, cfg);
+  cs.rw.forceDifficulty = forceDifficulty;
   const w = cs.rw.world;
   hero.px = w.spawn.x;
   hero.py = w.spawn.y;

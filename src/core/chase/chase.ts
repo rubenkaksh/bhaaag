@@ -13,7 +13,7 @@ import {
 } from '../hero';
 import { resetHook } from '../hook';
 import type { World } from '../world';
-import { SLOT_ANCHORS, SLOT_PADS, hillY } from './rows';
+import { SLOT_ANCHORS, SLOT_PADS, difficultyFor, hillY } from './rows';
 import {
   ChaseWorld,
   PARK_Y,
@@ -123,6 +123,7 @@ export function chaseStep(cs: ChaseState, hero: HeroState, world: World, cfg: Tu
 
   // 1-2. Streaming: recycle the oldest slot while the hero is two rows past it.
   let row = heroRowFor(rw, hero.pz);
+  rw.difficulty = rw.forceDifficulty >= 0 ? rw.forceDifficulty : difficultyFor(cs.dragon.v, cfg);
   while (row >= rw.oldest + 2) {
     recycleOldest(rw);
     row = heroRowFor(rw, hero.pz);

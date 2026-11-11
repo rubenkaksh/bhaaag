@@ -1,4 +1,5 @@
 import './chaseHud.css';
+import { irisRadius } from '../render/chase/catchPose';
 
 function el(parent: HTMLElement, tag: string, id: string, cls = ''): HTMLElement {
   const e = document.createElement(tag);
@@ -11,6 +12,7 @@ function el(parent: HTMLElement, tag: string, id: string, cls = ''): HTMLElement
 /** DOM HUD of Dragon Chase. Everything is created here; destroy() removes it and the body class. */
 export class ChaseHud {
   private readonly cloud: HTMLElement;
+  private readonly iris: HTMLElement;
   private readonly score: HTMLElement;
   private readonly scoreText: HTMLElement;
   private readonly distText: HTMLElement;
@@ -22,10 +24,16 @@ export class ChaseHud {
   private gapPct = -1;
   private danger = false;
   private cloudV = -1;
+  private catching = false;
+  private irisX = -1;
+  private irisY = -1;
+  private irisR = -1;
+  private irisO = -1;
 
   constructor(root: HTMLElement, onRetry: () => void) {
     document.body.classList.add('mode-chase');
     this.cloud = el(root, 'div', 'chase-cloud');
+    this.iris = el(root, 'div', 'chase-iris');
     this.score = el(root, 'div', 'chase-score');
     this.score.innerHTML = '<span class="score">0</span><span class="dist">0 m</span>';
     this.scoreText = this.score.querySelector('.score') as HTMLElement;
@@ -73,10 +81,53 @@ export class ChaseHud {
 
   /** Full-screen cloud layer: 0 clear, 1 white-out. */
   setCloud(k: number): void {
+    if (this.catching) return;
     const v = Math.round(Math.min(1, Math.max(0, k)) * 100) / 100;
     if (v === this.cloudV) return;
     this.cloudV = v;
-    this.cloud.style.opacity = String(v * 0.9);
+    this.cloud.style.opacity = String(v * 0.6);
+  }
+
+  /**
+   * Catch beat: k 0..1 closes an iris around the face (faceX/faceY are viewport fractions from the
+   * top-left); settle 0..1 fades it out as the card scrim takes over. k = 0 restores setCloud.
+   */
+  setCatch(k: number, settle: number, faceX: number, faceY: number): void {
+    if (k <= 0) {
+      if (!this.catching) return;
+      this.catching = false;
+      document.body.classList.remove('chase-catching');
+      this.iris.style.opacity = '0';
+      this.irisO = -1;
+      this.cloudV = -1; // force the next setCloud to rewrite the flat veil
+      return;
+    }
+    if (!this.catching) {
+      this.catching = true;
+      document.body.classList.add('chase-catching');
+      this.cloud.style.opacity = '0';
+    }
+    const st = this.iris.style;
+    const x = Math.round(faceX * 1000) / 10;
+    const y = Math.round(faceY * 1000) / 10;
+    const r = Math.round(irisRadius(k) * 1000) / 10;
+    const o = Math.round((1 - Math.min(1, Math.max(0, settle))) * 100) / 100;
+    if (x !== this.irisX) {
+      this.irisX = x;
+      st.setProperty('--iris-x', x + '%');
+    }
+    if (y !== this.irisY) {
+      this.irisY = y;
+      st.setProperty('--iris-y', y + '%');
+    }
+    if (r !== this.irisR) {
+      this.irisR = r;
+      st.setProperty('--iris-r', r + 'vmin');
+    }
+    if (o !== this.irisO) {
+      this.irisO = o;
+      st.opacity = String(o);
+    }
   }
 
   showOver(score: number, metres: number, hops: number, best: number, isBest: boolean, why: string): void {
@@ -88,10 +139,12 @@ export class ChaseHud {
       ? 'New best!'
       : 'Best ' + Math.floor(best);
     this.over.classList.remove('off');
+    document.body.classList.add('chase-card');
   }
 
   hideOver(): void {
     this.over.classList.add('off');
+    document.body.classList.remove('chase-card');
   }
 
   get overVisible(): boolean {
@@ -99,8 +152,9 @@ export class ChaseHud {
   }
 
   destroy(): void {
-    document.body.classList.remove('mode-chase');
+    document.body.classList.remove('mode-chase', 'chase-card', 'chase-catching');
     this.cloud.remove();
+    this.iris.remove();
     this.score.remove();
     this.gap.remove();
     this.over.remove();

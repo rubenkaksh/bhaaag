@@ -41,7 +41,7 @@ describe('rowSpec', () => {
       let prev = 0;
       for (let r = 0; r < 400; r++) {
         rowSpecInto(seed, r, s);
-        const d = Math.min(1, r / 40);
+        const d = 1;
         expect(s.n).toBeGreaterThanOrEqual(1);
         expect(s.n).toBeLessThanOrEqual(3);
         if (r >= FIXED_ROWS) {

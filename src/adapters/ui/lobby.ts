@@ -63,7 +63,7 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
   lobby.id = 'lobby';
   lobby.innerHTML =
     ART +
-    '<div class="head"><h1>Zipline Tole</h1><p class="tag">Slide the Kathmandu rooftops at sunset</p></div>' +
+    '<div class="head"><h1>Bhaaag</h1><p class="tag">Slide the Kathmandu rooftops at sunset</p></div>' +
     '<div class="mid">' +
     '<div id="lobby-mode" role="radiogroup" aria-label="Game mode">' +
     GAME_MODES.map(

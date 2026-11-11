@@ -63,6 +63,8 @@ export type GameScene = {
   setCloudCover: (k: number) => void;
   /** Vertical lens shift as a fraction of the viewport height (camera.setViewOffset); 0 clears it. */
   setLensShift: (fracY: number) => void;
+  /** Scales the bloom strength 0..1 (0 = off); no-op on tiers without bloom. Persists across rebuilds. */
+  setBloomScale: (k: number) => void;
   /** Re-runs shadow flags and material swaps for groups added after buildWorld. */
   refreshFlags: () => void;
   frameStats: () => FrameStats;
@@ -133,6 +135,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   let materialsDirty = false;
   let cloudCover = 1;
   let lensShift = 0;
+  let bloomScale = 1;
 
   // Scratch for the shadow follow (no per-frame allocation).
   const sunDir = new Vector3();
@@ -316,6 +319,10 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     applyCloudCover();
   }
 
+  function setBloomScale(k: number): void {
+    bloomScale = Math.min(1, Math.max(0, k));
+  }
+
   function setLensShift(fracY: number): void {
     lensShift = fracY;
     resize();
@@ -456,8 +463,12 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     }
     // Sum every pass (shadow, composer) into one frame total for frameStats.
     renderer.info.reset();
-    if (composer !== null) composer.render();
-    else renderer.render(scene, camera);
+    if (composer !== null) {
+      // passes[1] is the UnrealBloomPass (see postFx.ts); strength is cheap to set every frame.
+      const bp = composer.passes[1] as { strength?: number } | undefined;
+      if (bp !== undefined && cfg.bloom !== null) bp.strength = cfg.bloom.strength * bloomScale;
+      composer.render();
+    } else renderer.render(scene, camera);
   }
 
   function dispose(): void {
@@ -492,6 +503,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     dispose,
     setCloudCover,
     setLensShift,
+    setBloomScale,
     refreshFlags,
     frameStats,
   };

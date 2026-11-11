@@ -60,7 +60,7 @@ import { routeIndexFor } from '../core/chase/chaseWorld';
 import { cloudCoverFor } from '../core/chase/dragon';
 import { GRADE as HILL_GRADE, hillY } from '../core/chase/rows';
 import { ChaseRowsView } from '../adapters/render/chase/chaseRowsView';
-import { DragonView } from '../adapters/render/chase/dragonView';
+import { DragonSpriteView } from '../adapters/render/chase/dragonSpriteView';
 import { EndlessGround } from '../adapters/render/chase/endlessGround';
 import { ChaseHud } from '../adapters/ui/chaseHud';
 import { RopeView } from './ropeView';
@@ -88,7 +88,7 @@ const RESTART_ACCEPT_S = 0.3; // death: accept restart input after this
 const RESTART_AUTO_S = 0.8; // death: auto-restart after this
 const PAN_S = 2.5; // opening flyover from the goal back to the hero
 const CHASE_PAN_S = 3.2; // chase opening: the dragon reveal, then back behind the hero
-const CHASE_OVER_DELAY_S = 0.9; // caught: the camera turns back before the card shows
+const CHASE_OVER_DELAY_S = 1.1; // caught: the camera turns back before the card shows
 const CLOUD_FOG_COLOR = '#cdd0da';
 const cloudColor = new Color(CLOUD_FOG_COLOR);
 const HEAD_FRAC = 0.9; // same aim-ray origin the sim uses (core/sim.ts)
@@ -191,7 +191,7 @@ export function startGame(
   const treesFor = (t: string): number => (t === 'low' ? 8 : t === 'medium' ? 16 : 26);
   let viewTier = gs.getTier();
   let ground = isChase ? new EndlessGround(treesFor(viewTier)) : null;
-  const dragonView = isChase ? new DragonView(viewTier) : null;
+  const dragonView = isChase ? new DragonSpriteView(viewTier) : null;
   if (rowsView !== null) gs.scene.add(rowsView.root);
   if (ground !== null) gs.scene.add(ground.group);
   if (dragonView !== null) gs.scene.add(dragonView.group);
@@ -206,6 +206,8 @@ export function startGame(
   let roared = false;
   let windT = 0;
   let overShown = false;
+  let overAtT = 0; // deadT when the game-over card was shown
+  const headScr = { x: 0.5, y: 0.5 };
 
   const heroView = new HeroView();
   gs.scene.add(heroView.group);
@@ -225,6 +227,8 @@ export function startGame(
   let animImpact = 0;
   // Debug HUD is opt-in via ?debug (plan section 8, m1-review F6).
   const debug = new URLSearchParams(location.search).has('debug');
+  // Debug-only (with ?debug): &catchHold=1 freezes the catch beat at k = 1, card never shows.
+  const catchHold = debug && new URLSearchParams(location.search).has('catchHold');
   const hud = debug ? new DebugHud() : null;
 
   const prev = newHeroState();
@@ -289,11 +293,17 @@ export function startGame(
     feet.y = cur.py;
     feet.z = cur.pz;
     const speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
+    // Chase: reversed rig (r = -c) so the camera sits downhill of the hero and looks back
+    // up the slope at the dragon. Screen right still equals the sim right vector, so the
+    // movement mapping is untouched. Classic keeps the behind-hero forward view.
+    const rigYaw = isChase ? -cur.camYaw : camYawToRig(cur.camYaw);
+    // Chase: tilt a few degrees up the slope so the distant dragon sits in frame, not off the top.
+    const rigPitch = isChase ? cur.camPitch + 0.14 : cur.camPitch;
     updateCamera(
       curRig,
       feet,
-      camYawToRig(cur.camYaw),
-      cur.camPitch,
+      rigYaw,
+      rigPitch,
       speed,
       world.solids,
       camCfg,
@@ -363,7 +373,7 @@ export function startGame(
       deadT += stepDt;
       if (cs !== null) {
         // Chase: the card owns the restart (RETRY / MENU); R also retries. No auto-restart.
-        if (!overShown && deadT >= (cur.deadCause === DEAD_CAUGHT ? CHASE_OVER_DELAY_S : 0.4)) {
+        if (!overShown && !catchHold && deadT >= (cur.deadCause === DEAD_CAUGHT ? CHASE_OVER_DELAY_S : 0.4)) {
           showChaseOver();
         }
         if (overShown && (frame.pressed & BTN_RESTART) !== 0) {
@@ -465,6 +475,7 @@ export function startGame(
   function showChaseOver(): void {
     if (cs === null || chaseHud === null) return;
     overShown = true;
+    overAtT = deadT;
     const score = chaseScore(cs, cfg);
     const isBest = score > best;
     if (isBest) {
@@ -665,7 +676,8 @@ export function startGame(
     rowsView.update(nowSec, routeIndexFor(c.rw, c.heroRow));
     ground.snap(heroView.group.position.z);
     const d = c.dragon;
-    dragonView.update(d.z, nowSec, phase === 'dead' && cur.deadCause === DEAD_CAUGHT ? 1 : 0, cur.px);
+    // Reversed chase camera: the real dragon is already in front of the rig, no pinning.
+    dragonView.update(d.z, nowSec, phase === 'dead' && cur.deadCause === DEAD_CAUGHT ? 1 : 0, cur.px, d.gap, gs.camera.position.z, false);
     const k = phase === 'pan' ? 0 : cloudCoverFor(d.gap, cfg);
     cloudK = k;
     applyCloud(cloudK);
@@ -821,6 +833,21 @@ export function startGame(
       jsMs += (stepMs + (performance.now() - r0) - jsMs) * 0.1;
       stepMs = 0;
     }
+    if (dragonView !== null) {
+      if (phase === 'dead' && cur.deadCause === DEAD_CAUGHT) {
+        const t = deadT + alpha * stepDt;
+        const ck = Math.min(1, Math.max(0, t / CHASE_OVER_DELAY_S));
+        const cSettle = overShown ? Math.min(1, Math.max(0, (t - overAtT) / 0.35)) : 0;
+        dragonView.setCatch(gs.camera, ck, cSettle, nowSec);
+        gs.setBloomScale(ck > 0 ? 0 : 1); // painted face must not bloom to white (High tier)
+        dragonView.headScreen(gs.camera, headScr);
+        chaseHud?.setCatch(ck, cSettle, headScr.x, headScr.y);
+      } else {
+        dragonView.setCatch(gs.camera, 0, 0, nowSec);
+        gs.setBloomScale(1);
+        chaseHud?.setCatch(0, 0, 0.5, 0.5);
+      }
+    }
     gs.render();
     if (debug) {
       const extra =
@@ -908,6 +935,7 @@ export function startGame(
       if (dragonView !== null) {
         gs.scene.remove(dragonView.group);
         dragonView.dispose();
+        gs.setBloomScale(1);
       }
       ropeView.dispose();
       previewView.dispose();
