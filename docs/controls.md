@@ -7,8 +7,8 @@ covers Hook, Release, Mantle and Brake with one thumb target. `InputFrame` is un
 
 ## Touch
 
-- Left thumb: floating stick. It appears where the thumb lands, moves the hero. Dragging the
-  right side looks around; swipe down there = Drop.
+- Left thumb: floating stick. It appears where the thumb lands, moves the hero. Swipe down on
+  the right side = Drop. There is no look-drag.
 - Right thumb: ONE big button (`#btn-jump`). Its label is the context (`ActionMode`, set by
   `game.ts` each frame, drawn by `hud.setActionLabel`):
 
@@ -30,8 +30,20 @@ covers Hook, Release, Mantle and Brake with one thumb target. `InputFrame` is un
 
 ## Desktop (unchanged, plus one key)
 
-WASD / arrows move, mouse look, Space jump, E or left click hook, hold R or right mouse brake,
+WASD / arrows move (no mouse look, no pointer lock), Space jump, E or left click hook, hold R or right mouse brake,
 Shift / Ctrl / Q drop, **F hold = climb (mantle)**, Esc menu.
+
+## Camera and aim
+
+**There is no view control.** No look-drag, swipe-to-look, mouse look, pointer lock, right stick or
+Q/E camera turns. The camera is a fixed FRONT view that follows the hero (pitch `camera.frontPitchDeg`).
+The only change is automatic: while ziplining diagonally the yaw eases by `camera.zipYawDeg` toward the
+travel side, then back to front when the line ends (`src/adapters/render/cameraYaw.ts`, tunables in
+`content/config/tuning.json`). Movement is screen-space relative to that view.
+
+Aim needs no look control. By default the hook aims at the glowing next route anchor; on touch, tap an
+anchor to aim at it (nearest within `aim.tapRadiusNdc`). In line-only strategy levels ziplines are
+fixed and aim is bypassed. Movement and tap gestures are as in the table above.
 
 ## Not verified
 

@@ -14,7 +14,8 @@
     "hookSpeed": 320,
     "brakeDecel": 10
   },
-  "aim": { "magnetDegDesktop": 4, "magnetDegTouch": 6, "routeAssistDeg": 16, "routeAssistLateDeg": 10, "routeAssistEarlyHops": 2, "snapRadius": 1.2, "previewHz": 15, "previewMaxSec": 8, "previewReleaseSamples": 12 },
+  "aim": { "magnetDegDesktop": 4, "magnetDegTouch": 6, "routeAssistDeg": 16, "routeAssistLateDeg": 10, "routeAssistEarlyHops": 2, "snapRadius": 1.2, "previewHz": 15, "previewMaxSec": 8, "previewReleaseSamples": 12,
+    "tapRadiusNdc": 0.18 },
   "release": { "inputBufferMs": 100, "coyoteMs": 120, "jumpUp": 5, "jumpFwd": 2, "carry": 1.0, "hookCooldownSec": 0.15, "hookIntentSec": 0.5, "perfectLo": 0.7, "perfectHi": 1.0, "perfectBoost": 2, "perfectUp": 2 },
   "landing": {
     "vyClean": 7,
@@ -46,7 +47,11 @@
     "smooth": 0.25,
     "armRelease": 0.05,
     "downhillBias": 8,
-    "fovSpeed": 20
+    "fovSpeed": 20,
+    "frontPitchDeg": -12,
+    "zipYawDeg": 25,
+    "zipYawMinDiagDeg": 20,
+    "zipYawEase": 0.06
   },
   "validator": {
     "minReleaseWindowTicks": 12,
