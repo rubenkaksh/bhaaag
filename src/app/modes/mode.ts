@@ -1,16 +1,19 @@
-// Game modes (three-track plan D1): Classic (the L1 descent) and Dragon Chase (score mode).
+// Game modes (three-track plan D1): Classic (the L1 descent), Dragon Chase (score mode) and
+// Nagarkot Run (strategy maze, ADR 0011; timed like Classic).
 // Pure helpers plus localStorage persistence; every storage access is guarded (private mode).
 
-export type GameMode = 'classic' | 'chase';
-export const GAME_MODES: readonly GameMode[] = ['classic', 'chase'];
+export type GameMode = 'classic' | 'chase' | 'strategy';
+export const GAME_MODES: readonly GameMode[] = ['classic', 'chase', 'strategy'];
 export const MODE_KEY = 'zt.mode';
 export const MODE_INFO: Record<GameMode, { label: string }> = {
   classic: { label: 'Classic' },
   chase: { label: 'Dragon Chase' },
+  strategy: { label: 'Nagarkot Run' },
 };
 export const BEST_KEYS: Record<GameMode, string> = {
   classic: 'bhagdori.best.l1',
   chase: 'bhagdori.best.chase',
+  strategy: 'bhagdori.best.strategy',
 };
 
 export type ModeStore = Pick<Storage, 'getItem' | 'setItem'>;
@@ -24,7 +27,7 @@ function defaultStore(): ModeStore | undefined {
 }
 
 export function parseMode(v: unknown): GameMode | null {
-  return v === 'classic' || v === 'chase' ? v : null;
+  return v === 'classic' || v === 'chase' || v === 'strategy' ? v : null;
 }
 
 /** ?mode= override beats the saved mode, which beats 'classic'. */
@@ -46,7 +49,7 @@ export function saveMode(m: GameMode, store: ModeStore | undefined = defaultStor
   }
 }
 
-/** Best value for a mode (seconds for classic, points for chase); 0 = none. */
+/** Best value for a mode (seconds for classic and strategy, points for chase); 0 = none. */
 export function readBest(m: GameMode, store: ModeStore | undefined = defaultStore()): number {
   try {
     const raw = store?.getItem(BEST_KEYS[m]);
@@ -78,6 +81,6 @@ function formatTime(sec: number): string {
 }
 
 export function bestLabel(m: GameMode, v: number): string {
-  if (m === 'classic') return v > 0 ? 'Best time ' + formatTime(v) : 'No best time yet';
+  if (m !== 'chase') return v > 0 ? 'Best time ' + formatTime(v) : 'No best time yet';
   return v > 0 ? 'Best score ' + Math.floor(v) : 'No best score yet';
 }

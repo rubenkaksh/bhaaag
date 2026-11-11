@@ -28,6 +28,7 @@ export type Tuning = {
     previewHz: number;
     previewMaxSec: number;
     previewReleaseSamples: number;
+    tapRadiusNdc: number;
   };
   release: {
     inputBufferMs: number;
@@ -89,6 +90,10 @@ export type Tuning = {
     armRelease: number;
     downhillBias: number;
     fovSpeed: number;
+    frontPitchDeg: number;
+    zipYawDeg: number;
+    zipYawMinDiagDeg: number;
+    zipYawEase: number;
   };
   validator: {
     minReleaseWindowTicks: number;
@@ -124,6 +129,26 @@ export type Tuning = {
     oneHouseBase: number; // chance of a one-house (short rest) row at difficulty 0
     oneHouseGain: number; // added chance at difficulty 1
   };
+  // --- Strategy maze (ADR 0011, appended) ---
+  line: {
+    zoneTol: number; // feet may be this far above/below a zone slab and still count
+  };
+  tramp: {
+    vUp: number; // bounce vertical speed, m/s
+    jumpBonus: number; // added when JUMP is held at contact
+    airSteer: number; // m/s^2 the stick steers the hero in the air after a bounce
+    airSteerCap: number; // horizontal speed the air steer pulls toward at full stick, m/s
+  };
+  cushion: {
+    lockSec: number; // move input ignored this long after a cushion landing
+  };
+  climb: {
+    reachMin: number; // ledge top at least this far above the feet to grab
+    reachMax: number; // ...and at most this far
+    holdSec: number; // CLIMB held this long while hanging mantles
+    vyMax: number; // |vy| above this is too fast to grab
+    mantleFwd: number; // extra inward push past the radius when standing up
+  };
 };
 
 export const DEFAULT_TUNING: Tuning = {
@@ -156,6 +181,7 @@ export const DEFAULT_TUNING: Tuning = {
     previewHz: 15,
     previewMaxSec: 8,
     previewReleaseSamples: 12,
+    tapRadiusNdc: 0.18,
   },
   release: {
     inputBufferMs: 100,
@@ -217,6 +243,10 @@ export const DEFAULT_TUNING: Tuning = {
     armRelease: 0.05,
     downhillBias: 8,
     fovSpeed: 20,
+    frontPitchDeg: -12,
+    zipYawDeg: 45,
+    zipYawMinDiagDeg: 20,
+    zipYawEase: 0.06,
   },
   validator: {
     minReleaseWindowTicks: 12,
@@ -249,5 +279,24 @@ export const DEFAULT_TUNING: Tuning = {
     decoyGain: 0.3,
     oneHouseBase: 0.2,
     oneHouseGain: 0.15,
+  },
+  line: {
+    zoneTol: 0.6,
+  },
+  tramp: {
+    vUp: 9,
+    jumpBonus: 1.5,
+    airSteer: 12,
+    airSteerCap: 6,
+  },
+  cushion: {
+    lockSec: 0.5,
+  },
+  climb: {
+    reachMin: 0.6,
+    reachMax: 2.2,
+    holdSec: 0.35,
+    vyMax: 8,
+    mantleFwd: 0.3,
   },
 };

@@ -314,6 +314,21 @@ export const AIM_UPHILL = 4;
 export const AIM_TOO_FLAT = 5;
 export const AIM_TOO_STEEP = 6;
 export const AIM_BLOCKED = 7;
+// Fixed-line level (World.lineOnly) and the hero is not standing in a line zone (ADR 0011).
+export const AIM_NO_LINE = 8;
+
+// Index of the fixed line whose zone the feet (x, y, z) stand in: xz inside the zone slab,
+// y within line.zoneTol of it. -1 when none (ADR 0011).
+export function lineAt(w: World, cfg: Tuning, x: number, y: number, z: number): number {
+  const tol = cfg.line.zoneTol;
+  for (let i = 0; i < w.lines.length; i++) {
+    const b = w.lines[i].zone;
+    if (x < b.min.x || x > b.max.x || z < b.min.z || z > b.max.z) continue;
+    if (y < b.min.y - tol || y > b.max.y + tol) continue;
+    return i;
+  }
+  return -1;
+}
 
 /**
  * Why pickAnchor would (or would not) hook here: picks the in-cone anchor nearest the aim
@@ -336,6 +351,11 @@ export function aimReason(
   maxLen: number,
   magnetDeg: number,
 ): number {
+  if (world.lineOnly === 1) {
+    // Fixed lines: the zone under the feet decides, the aim ray is ignored.
+    const feetY = handY - cfg.rope.handToFeet;
+    return lineAt(world, cfg, handX, feetY, handZ) >= 0 ? AIM_OK : AIM_NO_LINE;
+  }
   const rayLen = Math.sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ);
   if (rayLen <= MIN_LEN) return AIM_NONE;
   const invRay = 1 / rayLen;

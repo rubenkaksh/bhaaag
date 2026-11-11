@@ -4,8 +4,7 @@
 // Control map (docs/zipline-plan.md 4.7 where it differs from the task
 // statement, differences listed there too):
 //   Move     WASD + arrow keys          (plan lists WASD only)
-//   Look     pointer lock; drag-to-look (pointer down + move) once
-//            requestPointerLock is unavailable or fails
+//   Look     none: the camera is a fixed front view (no player view control)
 //   Aim      hold right mouse (also raises BTN_REEL, per the task statement)
 //   Hook     E or left mouse
 //   Jump     Space
@@ -19,15 +18,11 @@ import {
   BTN_DROP,
   BTN_REEL,
   BTN_AIM,
+  BTN_CLIMB,
   InputFrame,
   clearInputFrame,
-  dequantizeTurn,
   quantizeAxis,
-  quantizeTurn,
 } from '../../core/input';
-
-// Radians of turn per pixel of mouse movement.
-const LOOK_SENSITIVITY = 0.0025;
 
 // e.code -> button bit.
 const KEY_BUTTONS: Record<string, number | undefined> = {
@@ -39,6 +34,7 @@ const KEY_BUTTONS: Record<string, number | undefined> = {
   KeyE: BTN_HOOK,
   KeyQ: BTN_DROP,
   KeyR: BTN_REEL, // hold = hand-brake while on the rope
+  KeyF: BTN_CLIMB, // hold while hanging at a ledge = mantle (ADR 0011)
 };
 
 // e.code -> axis contribution (+1 / -1). Sums are clamped by quantizeAxis.
@@ -67,26 +63,14 @@ export class DesktopInput {
   private readonly heldKeys = new Set<string>();
   // Bit per DOM mouse button index (bit 0 = left, bit 2 = right).
   private mouseHeld = 0;
-  private locked = false;
-  // Set once requestPointerLock is unavailable or has failed; enables drag look.
-  private dragFallback = false;
-  // Pointer deltas (radians) accumulated since the last sample.
-  private accYaw = 0;
-  private accPitch = 0;
   // Button edges (up -> down) since the last sample, cleared by sample().
   private pressedPending = 0;
 
   constructor(target: HTMLElement) {
     this.target = target;
-    if (typeof target.requestPointerLock !== 'function') {
-      this.dragFallback = true;
-    }
-
     target.addEventListener('pointerdown', this.onPointerDown);
-    target.addEventListener('pointermove', this.onPointerMove);
     target.addEventListener('pointerup', this.onPointerUp);
     target.addEventListener('pointercancel', this.onPointerUp);
-    target.addEventListener('click', this.onClick);
     target.addEventListener('contextmenu', this.onContextMenu);
     // Safety net: releases buttons even when pointer capture was not granted.
     window.addEventListener('pointerup', this.onPointerUp);
@@ -94,12 +78,10 @@ export class DesktopInput {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
-    document.addEventListener('pointerlockchange', this.onLockChange);
-    document.addEventListener('pointerlockerror', this.onLockError);
   }
 
   // Fill out with the current sample. buttons = held mask; pressed = edge mask
-  // since the previous sample (then cleared); look deltas are consumed here.
+  // since the previous sample (then cleared); .
   sample(out: InputFrame): void {
     clearInputFrame(out);
 
@@ -118,17 +100,6 @@ export class DesktopInput {
     out.moveX = quantizeAxis(x);
     out.moveY = quantizeAxis(y);
 
-    // Look: accumulated pointer-lock (or drag) delta since the last sample.
-    // +yaw = turn right, +pitch = look up. Quantise and carry the remainder
-    // so slow drags are not skewed by discarding the sub-quantum residue
-    // (m1-review F9).
-    const qYaw = quantizeTurn(this.accYaw);
-    const qPitch = quantizeTurn(this.accPitch);
-    this.accYaw -= dequantizeTurn(qYaw);
-    this.accPitch -= dequantizeTurn(qPitch);
-    out.lookYaw = qYaw;
-    out.lookPitch = qPitch;
-
     out.buttons = buttons | this.mouseBits();
     out.pressed = this.pressedPending;
     this.pressedPending = 0;
@@ -138,18 +109,14 @@ export class DesktopInput {
 
   dispose(): void {
     this.target.removeEventListener('pointerdown', this.onPointerDown);
-    this.target.removeEventListener('pointermove', this.onPointerMove);
     this.target.removeEventListener('pointerup', this.onPointerUp);
     this.target.removeEventListener('pointercancel', this.onPointerUp);
-    this.target.removeEventListener('click', this.onClick);
     this.target.removeEventListener('contextmenu', this.onContextMenu);
     window.removeEventListener('pointerup', this.onPointerUp);
     window.removeEventListener('pointercancel', this.onPointerUp);
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('blur', this.onBlur);
-    document.removeEventListener('pointerlockchange', this.onLockChange);
-    document.removeEventListener('pointerlockerror', this.onLockError);
   }
 
   // Mouse-derived button bits from current held buttons.
@@ -174,48 +141,13 @@ export class DesktopInput {
     this.pressedPending |= this.mouseBits() & ~before;
   };
 
-  private readonly onPointerMove = (e: PointerEvent): void => {
-    const looking = this.locked || (this.dragFallback && this.mouseHeld !== 0);
-    if (!looking) return;
-    this.accYaw += e.movementX * LOOK_SENSITIVITY;
-    this.accPitch += -e.movementY * LOOK_SENSITIVITY; // mouse up = look up
-  };
-
   private readonly onPointerUp = (e: PointerEvent): void => {
     this.mouseHeld &= ~(1 << e.button);
-  };
-
-  private readonly onClick = (): void => {
-    if (this.locked || this.dragFallback) return;
-    if (typeof this.target.requestPointerLock !== 'function') {
-      this.dragFallback = true;
-      return;
-    }
-    try {
-      const res: unknown = this.target.requestPointerLock();
-      if (res !== null && typeof res === 'object' && 'catch' in res) {
-        (res as Promise<void>).catch(() => {
-          this.dragFallback = true;
-        });
-      }
-    } catch {
-      this.dragFallback = true;
-    }
   };
 
   private readonly onContextMenu = (e: Event): void => {
     // Right mouse is a held control (REEL + AIM), not a context menu.
     e.preventDefault();
-  };
-
-  private readonly onLockChange = (): void => {
-    this.locked = document.pointerLockElement === this.target;
-    // Held bits derive from this.locked, so BTN_HOOK drops automatically.
-  };
-
-  private readonly onLockError = (): void => {
-    this.locked = false;
-    this.dragFallback = true;
   };
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {

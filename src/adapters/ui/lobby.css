@@ -178,6 +178,10 @@
   text-transform: uppercase;
   color: #ffd35a;
 }
+#lobby-mode {
+  flex-wrap: wrap;
+  justify-content: center;
+}
 #lobby-gfx button,
 #lobby-mode button {
   padding: 0.25em 0.9em;

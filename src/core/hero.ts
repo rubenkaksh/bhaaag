@@ -22,6 +22,11 @@ export const HERO_EV_ROLLED = 8; // landed with a roll (also sets LANDED)
 export const HERO_EV_CLING = 16;
 export const HERO_EV_DIED = 32;
 export const HERO_EV_PERFECT = 64; // JUMP released inside the timed window (speed boost)
+// Strategy maze events (ADR 0011).
+export const HERO_EV_BOUNCE = 128; // landed on a trampoline and left the roof again
+export const HERO_EV_CUSHION = 256; // landed on a cushion (absorbed, briefly locked)
+export const HERO_EV_GRAB = 512; // caught a ledge in the air (also sets HANGING)
+export const HERO_EV_MANTLE = 1024; // climbed onto the held ledge
 
 // Conventions: yaw 0 faces +z; forward = (sin yaw, cos yaw) in (x, z);
 // right = (cos yaw, -sin yaw). Positive moveY = forward, positive moveX = right.
@@ -49,6 +54,14 @@ export class HeroState {
   runOut = 0; // 1 while the rope pulls the hero off the launch surface
   launchY = 0; // feet height of the launch surface during run-out
   perfect = 0; // 1 after a timed release: the next landing may carry perfectBoost above carryCap
+  // Ledge held while HANGING (ADR 0011): hasLedge 1 when a mantle target exists.
+  hasLedge = 0;
+  hangLedgeY = 0; // top of the held solid (feet height after a mantle)
+  hangNx = 0; // wall normal (points from the wall toward the hero), xz only
+  hangNz = 0;
+  hangWall = 0; // wall face coordinate along the normal axis (x when hangNx != 0, else z)
+  climbT = 0; // seconds CLIMB has been held while hanging
+  bounceAir = 0; // 1 from a trampoline bounce until the next landing or hook attach: stick steers in the air
 }
 
 export function newHeroState(): HeroState {
@@ -79,4 +92,11 @@ export function copyHeroState(dst: HeroState, src: HeroState): void {
   dst.runOut = src.runOut;
   dst.launchY = src.launchY;
   dst.perfect = src.perfect;
+  dst.hasLedge = src.hasLedge;
+  dst.hangLedgeY = src.hangLedgeY;
+  dst.hangNx = src.hangNx;
+  dst.hangNz = src.hangNz;
+  dst.hangWall = src.hangWall;
+  dst.climbT = src.climbT;
+  dst.bounceAir = src.bounceAir;
 }
