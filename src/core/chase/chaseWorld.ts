@@ -19,6 +19,7 @@ import {
   nextZTop,
   rowBoxes,
   rowSpecInto,
+  difficultyFor,
   WALL_T,
 } from './rows';
 
@@ -39,6 +40,11 @@ export class ChaseWorld {
   oldest = 0; // oldest live row
   newest = 0; // newest live row
   scratch = new RowBoxes();
+  /** Difficulty [0,1] applied to rows written from now on (set from the dragon speed). */
+  difficulty = 0;
+  /** Test hook: when >= 0, chaseStep uses it instead of the dragon-speed difficulty. */
+  forceDifficulty = -1;
+  cfg: Tuning['chase'] | null = null;
 
   constructor(world: World, slots: number) {
     this.world = world;
@@ -91,7 +97,8 @@ export function writeRow(cw: ChaseWorld, row: number, zTop: number): void {
   const slot = slotOf(cw, row);
   const w = cw.world;
   const spec = cw.spec[slot];
-  rowSpecInto(cw.seed, row, spec);
+  if (cw.cfg === null) rowSpecInto(cw.seed, row, spec, cw.difficulty);
+  else rowSpecInto(cw.seed, row, spec, cw.difficulty, cw.cfg);
   const o = cw.scratch;
   rowBoxes(spec, zTop, row > 0, o);
   cw.slotRow[slot] = row;
@@ -184,6 +191,8 @@ export function buildChaseWorld(seed: number, cfg: Tuning): ChaseWorld {
   const w = new World();
   const cw = new ChaseWorld(w, slots);
   cw.seed = seed | 0;
+  cw.cfg = cfg.chase;
+  cw.difficulty = difficultyFor(cfg.chase.v0, cfg);
   w.spawn = new Vec3(0, 0, 0);
   w.spawnYaw = 3.14159;
   w.killPlaneY = -1e9;

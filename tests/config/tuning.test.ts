@@ -108,6 +108,13 @@ const schema = z.strictObject({
     scoreHop: num,
     scoreClean: num,
     scorePerfect: num,
+    gapBase: num,
+    gapSpanLo: num,
+    gapSpanHi: num,
+    decoyBase: num,
+    decoyGain: num,
+    oneHouseBase: num,
+    oneHouseGain: num,
   }),
 });
 

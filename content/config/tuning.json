@@ -68,6 +68,13 @@
     "slots": 6,
     "scoreHop": 25,
     "scoreClean": 10,
-    "scorePerfect": 10
+    "scorePerfect": 10,
+    "gapBase": 11,
+    "gapSpanLo": 2,
+    "gapSpanHi": 6,
+    "decoyBase": 0.2,
+    "decoyGain": 0.3,
+    "oneHouseBase": 0.2,
+    "oneHouseGain": 0.15
   }
 }
