@@ -12,7 +12,7 @@ UNCONFIRMED: owner to fill. (Repo only implies phone and desktop browser players
 
 ## Product Purpose
 
-Zipline Tole is a third-person, single-player web game: fire a zipline hook at marked anchors and slide house to house down a Newari-themed Kathmandu hillside at golden hour. Bad landings kill, restart is instant (`docs/lean-scope.md`). Per the lean scope, one hand-tuned rooftop descent (L1) playable in under 2 minutes, light on load and on the phone (JS bundle under ~600 KB gzipped).
+Bhaaag is a third-person, single-player web game: fire a zipline hook at marked anchors and slide house to house down a Newari-themed Kathmandu hillside at golden hour. Bad landings kill, restart is instant (`docs/lean-scope.md`). Per the lean scope, one hand-tuned rooftop descent (L1) playable in under 2 minutes, light on load and on the phone (JS bundle under ~600 KB gzipped).
 
 Success: PROPOSED (inferred from `docs/lean-scope.md` Goal and Budget sections): a first-time player opens the link, plays the L1 descent in under 2 minutes per run and retries instantly after dying, with the JS bundle under ~600 KB gzipped; owner to confirm.
 
