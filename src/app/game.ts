@@ -84,7 +84,7 @@ import { CameraFx } from '../adapters/render/cameraFx';
 import { DustPuff } from '../adapters/render/dustPuff';
 import { GameLoop } from './loop';
 import { framingFor } from '../adapters/render/framing';
-import { readBest, writeBest } from './modes/mode';
+import { MODE_INFO, readBest, writeBest } from './modes/mode';
 import type { GameMode } from './modes/mode';
 import { readViewport, watchViewport } from './viewport';
 import type { ViewportLayout } from './viewport';
@@ -325,7 +325,10 @@ export function startGame(
     updateCamera(curRig, feet, base + zipYaw, cur.camPitch, speed, world.solids, camCfg);
   }
 
-  const hudUi = new Hud(root, debug, () => restart());
+  const hudUi = new Hud(root, debug, () => restart(), {
+    hint: MODE_INFO[mode].hint,
+    hopChip: MODE_INFO[mode].hopChip,
+  });
   const chaseHud = isChase ? new ChaseHud(root, () => restart()) : null;
 
   /** Canonical respawn: spawn point, zero velocity, hook idle, camera facing spawnYaw. */

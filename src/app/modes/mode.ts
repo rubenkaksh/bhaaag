@@ -5,10 +5,12 @@
 export type GameMode = 'classic' | 'chase' | 'strategy';
 export const GAME_MODES: readonly GameMode[] = ['classic', 'chase', 'strategy'];
 export const MODE_KEY = 'zt.mode';
-export const MODE_INFO: Record<GameMode, { label: string }> = {
-  classic: { label: 'Classic' },
-  chase: { label: 'Dragon Chase' },
-  strategy: { label: 'Nagarkot Run' },
+const AIM_HINT = 'Aim at a glowing anchor and hook';
+/** Per-mode UI text and flags: label, in-play hint, and whether the HOP chip is shown. */
+export const MODE_INFO: Record<GameMode, { label: string; hint: string; hopChip: boolean }> = {
+  classic: { label: 'Classic', hint: AIM_HINT, hopChip: true },
+  chase: { label: 'Dragon Chase', hint: AIM_HINT, hopChip: true },
+  strategy: { label: 'Nagarkot Run', hint: 'Stand on a gold pad and press Hook', hopChip: false },
 };
 export const BEST_KEYS: Record<GameMode, string> = {
   classic: 'bhagdori.best.l1',

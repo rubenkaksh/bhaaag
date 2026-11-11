@@ -52,11 +52,17 @@ export class Hud {
   private readonly altFill: HTMLElement;
   private altPct = -1;
 
-  constructor(root: HTMLElement, debug: boolean, onPlayAgain: () => void) {
+  constructor(
+    root: HTMLElement,
+    debug: boolean,
+    onPlayAgain: () => void,
+    opts: { hint?: string; hopChip?: boolean } = {},
+  ) {
     this.objective = el(root, 'div', 'hud-objective');
     this.objective.innerHTML =
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5 22.5 12 12 22.5 1.5 12Z" fill="#ffc83a" stroke="#2a1a0e" stroke-width="1.5"/><path d="M12 6.5 17.5 12 12 17.5 6.5 12Z" fill="none" stroke="#2a1a0e" stroke-width="1.5"/></svg><span>Reach the Target</span>';
     this.hop = el(root, 'div', 'hud-hop');
+    if (opts.hopChip === false) this.hop.style.display = 'none';
     this.alt = el(root, 'div', 'hud-alt');
     this.alt.innerHTML = '<i class="alt-fill"></i><i class="alt-dot"></i>';
     this.altFill = this.alt.querySelector('.alt-fill') as HTMLElement;
@@ -78,7 +84,7 @@ export class Hud {
     this.wpLabel = this.wp.querySelector('.wp-label') as HTMLElement;
     this.wpArrow = this.wp.querySelector('.wp-arrow') as HTMLElement;
     this.hint = el(root, 'div', 'hud-hint');
-    this.hint.textContent = 'Aim at a glowing anchor and hook';
+    this.hint.textContent = opts.hint ?? 'Aim at a glowing anchor and hook';
     this.reticle = el(root, 'div', 'hud-reticle');
     this.reason = el(root, 'div', 'hud-reason', 'off');
     this.toastEl = el(root, 'div', 'hud-toast', 'off');
