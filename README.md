@@ -1,4 +1,4 @@
-# Zipline Tole
+# Bhaaag
 
 Third-person web game: slide house to house down a Kathmandu hillside at golden hour.
 Plan: `docs/zipline-plan.md`. Rules for agents: `CLAUDE.md`.

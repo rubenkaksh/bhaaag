@@ -646,16 +646,23 @@ function recordLedge(s: HeroState, w: World, cfg: Tuning, idx: number): boolean 
   const dTop = b.max.y - s.py;
   if (dTop < cfg.climb.reachMin || dTop > cfg.climb.reachMax) return false;
   const r = cfg.hero.radius;
-  const inX = s.px - scratchHit.nx * (r + cfg.climb.mantleFwd);
-  const inZ = s.pz - scratchHit.nz * (r + cfg.climb.mantleFwd);
+  const nx = scratchHit.nx;
+  const nz = scratchHit.nz;
+  // The wall face the hero leans on, measured along the normal axis.
+  const face = nx !== 0 ? (nx > 0 ? b.max.x : b.min.x) : nz > 0 ? b.max.z : b.min.z;
+  // Stand point: the whole footprint on the roof, mantleFwd past the edge.
+  const push = r + cfg.climb.mantleFwd;
+  const inX = nx !== 0 ? face - nx * push : s.px;
+  const inZ = nz !== 0 ? face - nz * push : s.pz;
   // Head room: the highest surface under the stand point up to a hero height above the
   // ledge must be the ledge itself.
   const above = groundHeight(w, inX, inZ, r, b.max.y + cfg.hero.height);
   if (above > b.max.y + SLAB_TOL) return false;
   s.hasLedge = 1;
   s.hangLedgeY = b.max.y;
-  s.hangNx = scratchHit.nx;
-  s.hangNz = scratchHit.nz;
+  s.hangNx = nx;
+  s.hangNz = nz;
+  s.hangWall = face;
   s.climbT = 0;
   return true;
 }
@@ -711,10 +718,11 @@ function hangStep(s: HeroState, input: InputFrame, cfg: Tuning, dt: number): voi
   }
   s.climbT += dt;
   if (s.climbT < cfg.climb.holdSec) return;
-  // Mantle: stand on the ledge, pushed inward past the radius.
+  // Mantle: stand on the ledge with the whole footprint on the roof, mantleFwd past the
+  // edge, measured from the wall face (the hero hangs a radius short of it).
   const push = cfg.hero.radius + cfg.climb.mantleFwd;
-  s.px -= s.hangNx * push;
-  s.pz -= s.hangNz * push;
+  if (s.hangNx !== 0) s.px = s.hangWall - s.hangNx * push;
+  if (s.hangNz !== 0) s.pz = s.hangWall - s.hangNz * push;
   s.py = s.hangLedgeY;
   s.yaw = Math.atan2(-s.hangNx, -s.hangNz);
   s.grounded = 1;
