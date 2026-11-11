@@ -2,7 +2,7 @@
 
 **There is no view control.** The player cannot rotate or tilt the camera: no look-drag, no swipe-to-look,
 no mouse look, no pointer lock, no right stick, no Q/E or arrow camera turns. The camera is a fixed FRONT
-view that follows the hero (pitch `camera.frontPitchDeg`).
+view (camera in front of the hero, hero faces the camera) that follows the hero (pitch `camera.frontPitchDeg`).
 
 The only camera change is automatic: while ziplining diagonally toward NE or NW on screen, the yaw eases
 by `camera.zipYawDeg` toward the travel side (only when the line is at least `camera.zipYawMinDiagDeg` off
@@ -13,7 +13,7 @@ Movement is screen-space: the left stick / WASD moves relative to the fixed fron
 
 ## Aim
 
-Aim needs no look control. By default the hook aims at the glowing next route anchor. On touch, tap an
+Aim needs no look control (L1 and Chase only; in line-only strategy levels ziplines are fixed and aim is bypassed). By default the hook aims at the glowing next route anchor. On touch, tap an
 anchor to aim at it (nearest anchor within `aim.tapRadiusNdc` of the tap); the pick stays until the hook
 fires. The aim assist cones and chord checks are unchanged.
 

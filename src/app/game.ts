@@ -284,7 +284,9 @@ export function startGame(
     cur.pz = world.spawn.z;
     cur.yaw = world.spawnYaw;
     // Fixed front view: no player view control, so the sim camera never changes after this.
-    cur.camYaw = world.spawnYaw;
+    // Camera in FRONT of the hero looking at them (hero faces the camera): sim forward is the
+    // camera look direction, so stick-up moves away from the camera.
+    cur.camYaw = world.spawnYaw + Math.PI;
     cur.camPitch = cfg.camera.frontPitchDeg * DEG2RAD;
     zipYaw = 0;
     tapAnchor = NO_ANCHOR;
@@ -304,18 +306,10 @@ export function startGame(
     const vFwd = cur.vx * Math.sin(base) - cur.vz * Math.cos(base);
     zipYaw = easeYawOffset(
       zipYaw,
-      zipYawTarget(cur.mode === HERO_ATTACHED && cur.dead === 0, vRight, vFwd, camCfg),
+      zipYawTarget(cur.mode === HERO_ATTACHED && cur.dead === 0, vRight, Math.abs(vFwd), camCfg),
       camCfg,
     );
-    updateCamera(
-      curRig,
-      feet,
-      base + zipYaw,
-      cur.camPitch,
-      speed,
-      world.solids,
-      camCfg,
-    );
+    updateCamera(curRig, feet, base + zipYaw, cur.camPitch, speed, world.solids, camCfg);
   }
 
   const hudUi = new Hud(root, debug, () => restart());
@@ -418,7 +412,8 @@ export function startGame(
         frame.aimPitch = quantizeTurn(aimPitch);
       }
       step(cur, frame, world, cfg);
-      if ((cur.eventBits & HERO_EV_HOOKED) !== 0 || cur.mode === HERO_ATTACHED) tapAnchor = NO_ANCHOR;
+      if ((cur.eventBits & HERO_EV_HOOKED) !== 0 || cur.mode === HERO_ATTACHED)
+        tapAnchor = NO_ANCHOR;
       if (cs !== null) chaseStep(cs, cur, world, cfg);
       runT += stepDt;
 
@@ -525,10 +520,15 @@ export function startGame(
   }
 
   /** Gold + big when pickAnchor (same args the sim uses on press) finds a target. */
+  function isLineOnly(): boolean {
+    return (world as unknown as { lineOnly?: number }).lineOnly === 1;
+  }
+
   /** Tap on an anchor = aim at it (touch). The tap is consumed either way. */
   function consumeTap(): void {
     if (!(input instanceof TouchInput) || !input.tapPending) return;
     input.tapPending = false;
+    if (isLineOnly()) return;
     if (cur.mode === HERO_ATTACHED) return;
     const i = pickAnchorAtNdc(
       gs.camera,
@@ -550,6 +550,13 @@ export function startGame(
    * aimId / aimYaw / aimPitch (direction from the head); with no target the fixed front view.
    */
   function computeAim(): void {
+    if (isLineOnly()) {
+      // Strategy levels: ziplines are fixed (line zones), aim is bypassed entirely.
+      aimId = NO_ANCHOR;
+      aimYaw = cur.camYaw;
+      aimPitch = cur.camPitch;
+      return;
+    }
     let id = tapAnchor;
     if (id === NO_ANCHOR) {
       const r = world.route[nextRouteIndex];
@@ -573,7 +580,12 @@ export function startGame(
 
   function updateReticle(): void {
     previewTarget = NO_ANCHOR;
-    if (phase !== 'play' || cur.mode === HERO_ATTACHED || cur.hook.state !== HOOK_IDLE) {
+    if (
+      phase !== 'play' ||
+      isLineOnly() ||
+      cur.mode === HERO_ATTACHED ||
+      cur.hook.state !== HOOK_IDLE
+    ) {
       hudUi.setReticle(0);
       hudUi.setAimReason('');
       return;
@@ -735,7 +747,12 @@ export function startGame(
     rowsView.update(nowSec, routeIndexFor(c.rw, c.heroRow));
     ground.snap(heroView.group.position.z);
     const d = c.dragon;
-    dragonView.update(d.z, nowSec, phase === 'dead' && cur.deadCause === DEAD_CAUGHT ? 1 : 0, cur.px);
+    dragonView.update(
+      d.z,
+      nowSec,
+      phase === 'dead' && cur.deadCause === DEAD_CAUGHT ? 1 : 0,
+      cur.px,
+    );
     const k = phase === 'pan' ? 0 : cloudCoverFor(d.gap, cfg);
     cloudK = k;
     applyCloud(cloudK);
@@ -905,7 +922,11 @@ export function startGame(
               cloud: cloudK,
             }
           : {};
-      (window as unknown as { __ztStats?: unknown }).__ztStats = { ...gs.frameStats(), jsMs, ...extra };
+      (window as unknown as { __ztStats?: unknown }).__ztStats = {
+        ...gs.frameStats(),
+        jsMs,
+        ...extra,
+      };
     }
     const info = gs.renderer.info.render;
     hud?.update(cur, info.calls, info.triangles);
