@@ -20,12 +20,14 @@ function memStore(init: Record<string, string> = {}) {
 }
 
 describe('game modes', () => {
-  it('lists classic and chase', () => {
-    expect(GAME_MODES).toEqual(['classic', 'chase']);
+  it('lists classic, chase and strategy', () => {
+    expect(GAME_MODES).toEqual(['classic', 'chase', 'strategy']);
+    expect(BEST_KEYS.strategy).toBe('bhagdori.best.strategy');
     expect(BEST_KEYS.classic).toBe('bhagdori.best.l1');
   });
   it('parseMode accepts only known modes', () => {
     expect(parseMode('chase')).toBe('chase');
+    expect(parseMode('strategy')).toBe('strategy');
     expect(parseMode('x')).toBeNull();
     expect(parseMode(null)).toBeNull();
   });

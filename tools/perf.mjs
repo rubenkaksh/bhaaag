@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 const label = process.argv[2] ?? 'perf';
+const extra = process.env.PERF_QUERY ?? ''; // e.g. PERF_QUERY='&mode=strategy'
 const port = Number(process.env.PORT ?? 4181);
 mkdirSync('art/perf', { recursive: true });
 const srv = spawn('pnpm', ['exec', 'vite', 'preview', '--port', String(port), '--strictPort'], {
@@ -57,7 +58,7 @@ for (const [vname, vp, touch, dpr] of VIEWPORTS) {
     const errs = [];
     page.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
     page.on('pageerror', (e) => errs.push(e.message));
-    await page.goto(`${base}?gfx=${tier}&debug`);
+    await page.goto(`${base}?gfx=${tier}&debug${extra}`);
     await page.waitForTimeout(2500);
     await page
       .getByText('PLAY', { exact: true })

@@ -5,7 +5,9 @@ import {
   TERRAIN_Z_MAX,
   TERRAIN_Z_MIN,
   planeY,
+  terrainValleyZ,
   terrainY,
+  terrainZMin,
 } from '../terrain';
 
 // The visible hillside: one merged vertex-coloured mesh over terrainY. Inside |x| <= HILL_HALF_X it
@@ -82,7 +84,14 @@ export function buildGroundMesh(): Mesh {
     HILL_HALF_X,
     0,
   ]);
-  const zs = axis(TERRAIN_Z_MIN, TERRAIN_Z_MAX, 3, -156, 46, 1.22, [40, -150, -104, 26]);
+  const zMin = terrainZMin();
+  let zs = axis(zMin, TERRAIN_Z_MAX, 3, -156, 46, 1.22, [40, terrainValleyZ(), -104, 26]);
+  if (zMin < TERRAIN_Z_MIN) {
+    // long level (strategy maze): a coarse 12 m strip down the linear plane to the valley
+    for (let z = -156; z > terrainValleyZ() - 12; z -= 12) zs.push(z);
+    zs.push(terrainValleyZ());
+    zs = Array.from(new Set(zs.map((z) => Math.round(z * 100) / 100))).sort((a, b) => a - b);
+  }
   const nx = xs.length;
   const nz = zs.length;
   const pos: number[] = [];

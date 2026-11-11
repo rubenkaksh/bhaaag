@@ -31,7 +31,8 @@ import { aabbContainsPoint } from '../core/math/aabb';
 import { PreviewResult, PREVIEW_NONE, previewShot } from '../core/preview';
 import { step } from '../core/sim';
 import { Vec3 } from '../core/math/vec3';
-import { loadWorldFromJson } from '../content/load';
+import { loadWorldFromJson, loadWorldFromObject } from '../content/load';
+import { STRATEGY_SEED, generateStrategyLevel } from '../content/strategy/gen';
 import { DesktopInput } from '../adapters/input/desktop';
 import { TouchInput } from '../adapters/input/touch';
 import { Sfx } from '../adapters/audio/sfx';
@@ -174,6 +175,7 @@ export function startGame(
   let camCfg = cfg.camera;
   const params = new URLSearchParams(location.search);
   const isChase = mode === 'chase';
+  const isStrategy = mode === 'strategy';
   const seedParam = params.get('seed');
   const fixedSeed = seedParam !== null && Number.isFinite(Number(seedParam));
   let chaseSeed = fixedSeed ? Number(seedParam) | 0 : (Math.random() * 2147483647) | 0;
@@ -182,9 +184,16 @@ export function startGame(
     cfg.chase.startGap = gapParam;
   }
   let cs: ChaseState | null = isChase ? newChaseState(chaseSeed, 0, cfg) : null;
-  let world = cs !== null ? cs.rw.world : loadWorldFromJson(levelText);
+  let world =
+    cs !== null
+      ? cs.rw.world
+      : isStrategy
+        ? loadWorldFromObject(
+            generateStrategyLevel(fixedSeed ? Number(seedParam) | 0 : STRATEGY_SEED),
+          )
+        : loadWorldFromJson(levelText);
   const gs = createGameScene(canvas);
-  const level: Group | null = cs === null ? gs.buildWorld(world) : null;
+  const level: Group | null = cs === null ? gs.buildWorld(world, { houseDress: !isStrategy }) : null;
   // Chase views: no classic scenery; own rows, endless ground and dragon.
   if (cs !== null) gs.setBlobWorld(world);
   const rowsView = isChase ? new ChaseRowsView(() => gs.refreshFlags()) : null;
@@ -446,7 +455,7 @@ export function startGame(
         phase = 'won';
         if (best === 0 || runT < best) {
           best = runT;
-          writeBest('classic', best);
+          writeBest(mode, best);
         }
         hudUi.showWin(runT, best);
         hudUi.pulseTimer();
