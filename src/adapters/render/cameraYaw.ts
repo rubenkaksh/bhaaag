@@ -10,8 +10,8 @@ export interface ZipYawCfg {
 }
 
 /**
- * Target yaw offset from the fixed front view. vRight / vFwd are the hero's horizontal velocity
- * in the front view's screen frame (right, and away from the camera). Returns 0 unless the hero
+ * Target yaw offset from the fixed behind view. vRight / vFwd are the hero's horizontal velocity
+ * in the behind view's screen frame (right, and away from the camera, i.e. downhill). Returns 0 unless the hero
  * is attached and travelling diagonally (NE or NW on screen): at least zipYawMinDiagDeg off the
  * straight-away line, and not coming back towards the camera.
  */

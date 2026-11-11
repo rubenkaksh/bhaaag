@@ -357,6 +357,7 @@ function bounceHero(s: HeroState, cfg: Tuning, jumpHeld: boolean): void {
     s.vz *= k;
   }
   s.vy = cfg.tramp.vUp + (jumpHeld ? cfg.tramp.jumpBonus : 0);
+  s.bounceAir = 1;
   s.grounded = 0;
   s.mode = HERO_AIRBORNE;
   s.runOut = 0;
@@ -762,6 +763,7 @@ export function step(s: HeroState, input: InputFrame, world: World, cfg: Tuning)
         s.launchY = s.py;
         s.grounded = 0;
         s.mode = HERO_ATTACHED;
+        s.bounceAir = 0;
       }
     }
   }
@@ -888,6 +890,24 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
     const k = 1 - cfg.physics.airDrag * dt;
     s.vx *= k;
     s.vz *= k;
+    // After a trampoline bounce only: the stick steers horizontal velocity toward the wanted
+    // direction at tramp.airSteer m/s^2, never pushing speed past tramp.airSteerCap.
+    if (s.bounceAir === 1 && mag > 0 && !locked) {
+      const cap = cfg.tramp.airSteerCap;
+      const tx = (wantX / cfg.hero.run) * cap;
+      const tz = (wantZ / cfg.hero.run) * cap;
+      const dx = tx - s.vx;
+      const dz = tz - s.vz;
+      const dl = Math.sqrt(dx * dx + dz * dz);
+      const maxD = cfg.tramp.airSteer * dt;
+      if (dl <= maxD) {
+        s.vx = tx;
+        s.vz = tz;
+      } else {
+        s.vx += (dx / dl) * maxD;
+        s.vz += (dz / dl) * maxD;
+      }
+    }
   }
 
   // Horizontal move, per axis. Grounded bodies ignore geometry below stepUp.
@@ -976,5 +996,6 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
     }
   }
 
+  if (s.grounded === 1) s.bounceAir = 0;
   if (s.dead === 0) s.mode = s.grounded === 1 ? HERO_GROUNDED : HERO_AIRBORNE;
 }

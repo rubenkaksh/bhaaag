@@ -36,9 +36,10 @@ Shift / Ctrl / Q drop, **F hold = climb (mantle)**, Esc menu.
 ## Camera and aim
 
 **There is no view control.** No look-drag, swipe-to-look, mouse look, pointer lock, right stick or
-Q/E camera turns. The camera is a fixed FRONT view that follows the hero (pitch `camera.frontPitchDeg`).
+Q/E camera turns. The camera is a fixed view from BEHIND the hero, looking downhill, that follows the hero and pans
+left and right to keep the hero centred (pitch `camera.frontPitchDeg`).
 The only change is automatic: while ziplining diagonally the yaw eases by `camera.zipYawDeg` toward the
-travel side, then back to front when the line ends (`src/adapters/render/cameraYaw.ts`, tunables in
+travel side, then back to the default downhill view when the line ends (`src/adapters/render/cameraYaw.ts`, tunables in
 `content/config/tuning.json`). Movement is screen-space relative to that view.
 
 Aim needs no look control. By default the hook aims at the glowing next route anchor; on touch, tap an

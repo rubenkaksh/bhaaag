@@ -122,7 +122,7 @@ const schema = z.strictObject({
     oneHouseGain: num,
   }),
   line: z.strictObject({ zoneTol: num }),
-  tramp: z.strictObject({ vUp: num, jumpBonus: num }),
+  tramp: z.strictObject({ vUp: num, jumpBonus: num, airSteer: num, airSteerCap: num }),
   cushion: z.strictObject({ lockSec: num }),
   climb: z.strictObject({
     reachMin: num,

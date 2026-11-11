@@ -287,9 +287,8 @@ export function startGame(
     cur.pz = world.spawn.z;
     cur.yaw = world.spawnYaw;
     // Fixed front view: no player view control, so the sim camera never changes after this.
-    // Camera in FRONT of the hero looking at them (hero faces the camera): sim forward is the
-    // camera look direction, so stick-up moves away from the camera.
-    cur.camYaw = world.spawnYaw + Math.PI;
+    // Camera sits BEHIND the hero looking downhill; the rig only pans sideways to keep the hero centred.
+    cur.camYaw = world.spawnYaw;
     cur.camPitch = cfg.camera.frontPitchDeg * DEG2RAD;
     zipYaw = 0;
     tapAnchor = NO_ANCHOR;
@@ -304,12 +303,12 @@ export function startGame(
     feet.z = cur.pz;
     const speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
     const base = camYawToRig(cur.camYaw);
-    // Screen frame of the front view: right = (cos r, sin r), away = (sin r, -cos r) in (x, z).
+    // Screen frame of the behind view: right = (cos r, sin r), away = (sin r, -cos r) in (x, z).
     const vRight = cur.vx * Math.cos(base) + cur.vz * Math.sin(base);
     const vFwd = cur.vx * Math.sin(base) - cur.vz * Math.cos(base);
     zipYaw = easeYawOffset(
       zipYaw,
-      zipYawTarget(cur.mode === HERO_ATTACHED && cur.dead === 0, vRight, Math.abs(vFwd), camCfg),
+      zipYawTarget(cur.mode === HERO_ATTACHED && cur.dead === 0, vRight, vFwd, camCfg),
       camCfg,
     );
     updateCamera(curRig, feet, base + zipYaw, cur.camPitch, speed, world.solids, camCfg);

@@ -136,6 +136,8 @@ export type Tuning = {
   tramp: {
     vUp: number; // bounce vertical speed, m/s
     jumpBonus: number; // added when JUMP is held at contact
+    airSteer: number; // m/s^2 the stick steers the hero in the air after a bounce
+    airSteerCap: number; // horizontal speed the air steer pulls toward at full stick, m/s
   };
   cushion: {
     lockSec: number; // move input ignored this long after a cushion landing
@@ -242,7 +244,7 @@ export const DEFAULT_TUNING: Tuning = {
     downhillBias: 8,
     fovSpeed: 20,
     frontPitchDeg: -12,
-    zipYawDeg: 25,
+    zipYawDeg: 45,
     zipYawMinDiagDeg: 20,
     zipYawEase: 0.06,
   },
@@ -284,6 +286,8 @@ export const DEFAULT_TUNING: Tuning = {
   tramp: {
     vUp: 9,
     jumpBonus: 1.5,
+    airSteer: 12,
+    airSteerCap: 6,
   },
   cushion: {
     lockSec: 0.5,

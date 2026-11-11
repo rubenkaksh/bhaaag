@@ -61,6 +61,7 @@ export class HeroState {
   hangNz = 0;
   hangWall = 0; // wall face coordinate along the normal axis (x when hangNx != 0, else z)
   climbT = 0; // seconds CLIMB has been held while hanging
+  bounceAir = 0; // 1 from a trampoline bounce until the next landing or hook attach: stick steers in the air
 }
 
 export function newHeroState(): HeroState {
@@ -97,4 +98,5 @@ export function copyHeroState(dst: HeroState, src: HeroState): void {
   dst.hangNz = src.hangNz;
   dst.hangWall = src.hangWall;
   dst.climbT = src.climbT;
+  dst.bounceAir = src.bounceAir;
 }

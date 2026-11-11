@@ -288,3 +288,44 @@ describe('ledge grab and mantle', () => {
     expect(s.mode).toBe(HERO_GROUNDED);
   });
 });
+
+describe('trampoline air steer', () => {
+  function bounced(): { s: HeroState; w: World } {
+    const w = slabWorld('tramp');
+    const s = spawn(0, 3, 0, 0);
+    for (let i = 0; i < 120; i++) {
+      step(s, new InputFrame(), w, cfg);
+      if ((s.eventBits & HERO_EV_BOUNCE) !== 0) return { s, w };
+    }
+    throw new Error('no bounce');
+  }
+
+  it('stick sideways steers horizontal velocity, up to the cap', () => {
+    const { s, w } = bounced();
+    const f = new InputFrame();
+    f.moveX = quantizeAxis(1);
+    step(s, f, w, cfg);
+    const first = s.vx * Math.cos(s.camYaw) - s.vz * Math.sin(s.camYaw);
+    expect(first).toBeGreaterThan(0);
+    for (let i = 0; i < 20 && s.grounded === 0; i++) step(s, f, w, cfg);
+    const side = s.vx * Math.cos(s.camYaw) - s.vz * Math.sin(s.camYaw);
+    expect(side).toBeGreaterThan(first);
+    expect(side).toBeLessThanOrEqual(cfg.tramp.airSteerCap + 1e-6);
+  });
+
+  it('no stick leaves horizontal velocity unchanged (bar drag)', () => {
+    const { s, w } = bounced();
+    for (let i = 0; i < 20; i++) step(s, new InputFrame(), w, cfg);
+    expect(s.vx).toBe(0);
+    expect(s.vz).toBe(0);
+  });
+
+  it('does not steer after an ordinary jump', () => {
+    const w = slabWorld('cushion');
+    const s = spawn(0, 3, 0, 0);
+    const f = new InputFrame();
+    f.moveX = quantizeAxis(1);
+    for (let i = 0; i < 10; i++) step(s, f, w, cfg);
+    expect(s.vx).toBe(0);
+  });
+});
