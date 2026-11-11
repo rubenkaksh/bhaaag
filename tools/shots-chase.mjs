@@ -63,7 +63,7 @@ async function shoot(name, { query = '', vp = { width: 1280, height: 720 }, touc
   await ctx.close();
 }
 
-async function shootCatch(suffix, vp, touch) {
+async function shootCatch(suffix, vp, touch, tier = 'medium') {
   const ctx = await browser.newContext({ viewport: vp, hasTouch: touch, isMobile: touch });
   await ctx.addInitScript((m) => localStorage.setItem('zt.mode', m), 'chase');
   const page = await ctx.newPage();
@@ -78,7 +78,7 @@ async function shootCatch(suffix, vp, touch) {
     errors++;
     console.log(`[${name}] page error: ${e.message}`);
   });
-  await page.goto(`${base}?gfx=medium&debug&seed=7&dragonGap=6`);
+  await page.goto(`${base}?gfx=${tier}&debug&seed=7&dragonGap=6`);
   await page.waitForTimeout(2000);
   await page.getByText('PLAY', { exact: true }).first().click({ timeout: 4000 }).catch(() => {});
   const cardUp = () => page.evaluate(() => { const c = document.querySelector('#chase-over'); return !!c && !c.classList.contains('off'); });
@@ -114,6 +114,8 @@ await shoot('game-over', { query: '&seed=7&dragonGap=6', waitMs: 8000 });
 await shoot('game-over-portrait', { query: '&seed=7&dragonGap=6', vp: { width: 390, height: 844 }, touch: true, waitMs: 8000 });
 await shootCatch('', { width: 844, height: 390 }, false);
 await shootCatch('-portrait', { width: 390, height: 844 }, true);
+await shootCatch('-medium', { width: 844, height: 390 }, false, 'medium');
+await shootCatch('-high', { width: 844, height: 390 }, false, 'high');
 await browser.close();
 srv.kill();
 console.log(`done, ${errors} console errors, ${over} over budget`);

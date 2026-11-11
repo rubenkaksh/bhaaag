@@ -21,7 +21,7 @@
 //      body, so the creature still reads; a world-space chain behind a camera-space head would
 //      shear.
 //    - Cloud cover: the veil stops being a flat wash. It becomes a closing iris centred on the
-//      face: radial-gradient(ellipse at face centre, transparent R, cloud colour R + 18%),
+//      face: radial-gradient(circle at face centre, transparent R, cloud colour R + 18%),
 //      R from 120% down to 46% of the shorter viewport side as k goes 0 -> 1. Edges go white,
 //      the face is the last thing left. Flat veil alpha is forced to 0 once k > 0.
 //

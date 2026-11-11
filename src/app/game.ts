@@ -839,10 +839,12 @@ export function startGame(
         const ck = Math.min(1, Math.max(0, t / CHASE_OVER_DELAY_S));
         const cSettle = overShown ? Math.min(1, Math.max(0, (t - overAtT) / 0.35)) : 0;
         dragonView.setCatch(gs.camera, ck, cSettle, nowSec);
+        gs.setBloomScale(ck > 0 ? 0 : 1); // painted face must not bloom to white (High tier)
         dragonView.headScreen(gs.camera, headScr);
         chaseHud?.setCatch(ck, cSettle, headScr.x, headScr.y);
       } else {
         dragonView.setCatch(gs.camera, 0, 0, nowSec);
+        gs.setBloomScale(1);
         chaseHud?.setCatch(0, 0, 0.5, 0.5);
       }
     }
@@ -933,6 +935,7 @@ export function startGame(
       if (dragonView !== null) {
         gs.scene.remove(dragonView.group);
         dragonView.dispose();
+        gs.setBloomScale(1);
       }
       ropeView.dispose();
       previewView.dispose();
