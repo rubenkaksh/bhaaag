@@ -92,7 +92,7 @@ export class Hud {
     btn.textContent = 'PLAY AGAIN';
     btn.addEventListener('click', onPlayAgain);
     this.win.append(h, this.winTime, this.winBest, btn);
-    this.action = root.querySelector<HTMLElement>('#btn-action');
+    this.action = root.querySelector<HTMLElement>('#btn-jump');
     this.setTime(0);
   }
 
@@ -221,13 +221,14 @@ export class Hud {
     this.win.classList.add('off');
   }
 
-  /** Touch action button label (HOOK / BRAKE). */
+  /** Right-hand touch button label: JUMP, HOOK, BRAKE or CLIMB (icon and aria-label follow). */
   setActionLabel(text: string): void {
     if (this.action === null || text === this.actionText) return;
     this.actionText = text;
-    // Icons live in index.html; only the mode and accessible label change.
-    const brake = text === 'BRAKE';
-    this.action.dataset.mode = brake ? 'brake' : 'hook';
+    // Icons live in index.html; only the mode, visible label and accessible label change.
+    this.action.dataset.mode = text.toLowerCase();
+    const lbl = this.action.querySelector('.lbl');
+    if (lbl !== null) lbl.textContent = text;
     this.action.setAttribute('aria-label', text.charAt(0) + text.slice(1).toLowerCase());
   }
 

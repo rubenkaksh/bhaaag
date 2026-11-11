@@ -10,6 +10,7 @@ import {
   DEAD_WALL,
   HERO_AIRBORNE,
   HERO_ATTACHED,
+  HERO_HANGING,
   HERO_EV_CLING,
   HERO_EV_DIED,
   HERO_EV_HOOKED,
@@ -24,9 +25,10 @@ import {
   NO_ANCHOR,
   AimResult,
   aimReason,
+  lineAt,
   pickAnchorAssisted,
 } from '../core/hook';
-import { BTN_ACTION, BTN_HOOK, BTN_REEL, BTN_RESTART, newInputFrame } from '../core/input';
+import { BTN_REEL, BTN_RESTART, newInputFrame } from '../core/input';
 import { aabbContainsPoint } from '../core/math/aabb';
 import { PreviewResult, PREVIEW_NONE, previewShot } from '../core/preview';
 import { step } from '../core/sim';
@@ -34,7 +36,7 @@ import { Vec3 } from '../core/math/vec3';
 import { loadWorldFromJson, loadWorldFromObject } from '../content/load';
 import { STRATEGY_SEED, generateStrategyLevel } from '../content/strategy/gen';
 import { DesktopInput } from '../adapters/input/desktop';
-import { TouchInput } from '../adapters/input/touch';
+import { TouchInput, type ActionMode } from '../adapters/input/touch';
 import { Sfx } from '../adapters/audio/sfx';
 import { CameraRig, updateCamera } from '../adapters/render/cameraRig';
 import { HeroView } from '../adapters/render/heroView';
@@ -263,7 +265,6 @@ export function startGame(
   let runT = 0;
   let nextRouteIndex = 0;
   let anyInput = false;
-  let brakeLatch = false;
   let brakeWas = false;
   let viewport: ViewportLayout = readViewport();
   let lensShiftPx = 0;
@@ -332,7 +333,6 @@ export function startGame(
     runT = 0;
     nextRouteIndex = 0;
     anyInput = false;
-    brakeLatch = false;
     animEv = 0;
     animImpact = 0;
     previewTarget = NO_ANCHOR;
@@ -388,19 +388,19 @@ export function startGame(
       }
     } else if (phase === 'play') {
       if (input instanceof TouchInput) {
-        // One contextual button: HOOK (press) off the rope, BRAKE (hold) on it.
-        const held = (frame.buttons & BTN_ACTION) !== 0;
-        if (cur.mode === HERO_ATTACHED) {
-          if (!held) brakeLatch = false;
-          if (held && !brakeLatch) frame.buttons |= BTN_REEL;
-        } else {
-          brakeLatch = held; // still holding from the hook press: no brake until re-press
-          if ((frame.pressed & BTN_ACTION) !== 0) {
-            frame.pressed |= BTN_HOOK;
-            frame.buttons |= BTN_HOOK;
-          }
+        // One right-hand button; its press mapping lives in TouchInput (docs/controls.md).
+        let mode: ActionMode = 'jump';
+        if (cur.mode === HERO_ATTACHED) mode = 'brake';
+        else if (cur.mode === HERO_HANGING && cur.hasLedge === 1) mode = 'climb';
+        else if (
+          world.lineOnly === 1 &&
+          cur.grounded === 1 &&
+          lineAt(world, cfg, cur.px, cur.py, cur.pz) >= 0
+        ) {
+          mode = 'hook';
         }
-        hudUi.setActionLabel(cur.mode === HERO_ATTACHED ? 'BRAKE' : 'HOOK');
+        input.actionMode = mode;
+        hudUi.setActionLabel(mode.toUpperCase());
       }
       step(cur, frame, world, cfg);
       if (cs !== null) chaseStep(cs, cur, world, cfg);
