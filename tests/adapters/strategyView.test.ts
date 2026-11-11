@@ -21,6 +21,7 @@ describe('strategy rendering', () => {
     }
   });
   it('terrain extent follows the level and resets to the stock values', () => {
+    setTerrainExtent(null); // the previous test's level build leaves the extent stretched
     const before = terrainY(60, -200);
     setTerrainExtent(-700);
     expect(terrainZMin()).toBeLessThan(TERRAIN_Z_MIN);

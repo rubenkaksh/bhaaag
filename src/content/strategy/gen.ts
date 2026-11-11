@@ -83,7 +83,6 @@ const K_PLAIN = 0;
 const K_BALCONY = 1;
 const K_CUSHION = 2;
 const K_TRAMP = 3;
-const K_ZIP = 4;
 
 interface Segment {
   name: string;
@@ -569,7 +568,7 @@ function decoZip(L: Layout, rng: Rng, i: number): void {
   const h = L.houses[i];
   const next = L.rows[h.row + 1];
   if (next === undefined || h.zipTo !== NONE) return;
-  let target = NONE;
+  let target: number;
   if (next.kind === ROW_ROAD) {
     target = roadRef(next.road);
   } else {
