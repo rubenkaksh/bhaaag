@@ -58,7 +58,9 @@ export class DragonSpriteView {
   private readonly loader = new TextureLoader();
   private readonly headTextures: Texture[] = [];
   private readonly segTextures: (Texture | null)[] = SEG_PATHS.map(() => null);
-  private texturesReady = 0;
+  private texturesSettled = 0; // loaded or failed
+  private disposed = false;
+  private readonly warned = new Set<string>();
   private readonly textureTotal = 2 + SEG_PATHS.length;
   private headSprite: Sprite | null = null;
   private headMat: SpriteMaterial | null = null;
@@ -78,26 +80,45 @@ export class DragonSpriteView {
     this.loadTextures();
   }
 
-  private onLoad(tex: Texture): void {
-    prepTexture(tex);
-    this.texturesReady++;
-    if (this.texturesReady === this.textureTotal && !this.built) this.build();
+  private settle(): void {
+    this.texturesSettled++;
+    if (this.texturesSettled === this.textureTotal && !this.built && !this.disposed) this.build();
+  }
+
+  private loadOne(path: string, assign: (t: Texture) => void): void {
+    this.loader.load(
+      path,
+      (t) => {
+        if (this.disposed) {
+          t.dispose();
+          return;
+        }
+        assign(prepTexture(t));
+        this.settle();
+      },
+      undefined,
+      () => {
+        if (this.disposed) return;
+        if (!this.warned.has(path)) {
+          this.warned.add(path);
+          console.warn(`DragonSpriteView: failed to load ${path}`);
+        }
+        this.settle();
+      },
+    );
   }
 
   private loadTextures(): void {
-    this.loader.load('/assets/dragon/head-a.webp', (t) => {
+    this.loadOne('/assets/dragon/head-a.webp', (t) => {
       this.headTextures[0] = t;
-      this.onLoad(t);
     });
-    this.loader.load('/assets/dragon/head-b.webp', (t) => {
+    this.loadOne('/assets/dragon/head-b.webp', (t) => {
       this.headTextures[1] = t;
-      this.onLoad(t);
     });
     for (let i = 0; i < SEG_PATHS.length; i++) {
       const idx = i;
-      this.loader.load(SEG_PATHS[idx], (t) => {
+      this.loadOne(SEG_PATHS[idx], (t) => {
         this.segTextures[idx] = t;
-        this.onLoad(t);
       });
     }
   }
@@ -109,6 +130,8 @@ export class DragonSpriteView {
   }
 
   private clearBuilt(): void {
+    // A rebuilt head has fresh material state; let the next setCatch re-apply the beat.
+    this.catching = false;
     if (this.headSprite !== null) {
       this.group.remove(this.headSprite);
       this.headSprite = null;
@@ -130,17 +153,20 @@ export class DragonSpriteView {
 
     // Head: front-facing sprite, aspect from the crop (915 x 306 -> ~3:1).
     // Fog off: the head is the source of the white-out and must stay readable through it.
-    this.headMat = new SpriteMaterial({
-      map: this.headTextures[0],
-      transparent: true,
-      depthWrite: false,
-      fog: false,
-      toneMapped: false,
-    });
-    this.headSprite = new Sprite(this.headMat);
-    this.headSprite.scale.set(HEAD_SCALE, HEAD_SCALE * (306 / 915), 1);
-    this.headSprite.renderOrder = 2; // draw over its own body
-    this.group.add(this.headSprite);
+    // Missing head-a (failed load): no head; the catch beat then no-ops (setCatch returns early).
+    if (this.headTextures[0] !== undefined) {
+      this.headMat = new SpriteMaterial({
+        map: this.headTextures[0],
+        transparent: true,
+        depthWrite: false,
+        fog: false,
+        toneMapped: false,
+      });
+      this.headSprite = new Sprite(this.headMat);
+      this.headSprite.scale.set(HEAD_SCALE, HEAD_SCALE * (306 / 915), 1);
+      this.headSprite.renderOrder = 2; // draw over its own body
+      this.group.add(this.headSprite);
+    }
 
     // Body: a chain of cloud segments from neck to tail.
     const count = SEGMENTS_BY_TIER[this.tier];
@@ -184,7 +210,7 @@ export class DragonSpriteView {
     }
 
     // Controlled pose swap (not a flicker): every HEAD_SWAP_S seconds while lunging or idle.
-    if (!this.catching && time - this.lastHeadSwap > HEAD_SWAP_S) {
+    if (!this.catching && this.headTextures[1] !== undefined && time - this.lastHeadSwap > HEAD_SWAP_S) {
       this.lastHeadSwap = time;
       this.headIndex = 1 - this.headIndex;
       if (this.headMat !== null) {
@@ -277,6 +303,7 @@ export class DragonSpriteView {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.clearBuilt();
     for (const t of this.headTextures) t?.dispose();
     for (const t of this.segTextures) t?.dispose();
