@@ -84,7 +84,8 @@
     "decoyBase": 0.2,
     "decoyGain": 0.3,
     "oneHouseBase": 0.2,
-    "oneHouseGain": 0.15
+    "oneHouseGain": 0.15,
+    "frontPov": 1
   },
   "line": { "zoneTol": 0.6 },
   "tramp": { "vUp": 9, "jumpBonus": 1.5, "airSteer": 12, "airSteerCap": 6 },

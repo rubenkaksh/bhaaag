@@ -39,7 +39,7 @@ import { DesktopInput } from '../adapters/input/desktop';
 import { TouchInput, type ActionMode } from '../adapters/input/touch';
 import { Sfx } from '../adapters/audio/sfx';
 import { CameraRig, updateCamera } from '../adapters/render/cameraRig';
-import { easeSideYaw, easeYawOffset, sideYawTarget, zipYawTarget } from '../adapters/render/cameraYaw';
+import { chaseRigYaw, easeSideYaw, easeYawOffset, sideYawTarget, zipYawTarget } from '../adapters/render/cameraYaw';
 import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
@@ -318,7 +318,7 @@ export function startGame(
       // Chase: reversed rig (r = -c) so the camera sits downhill of the hero and looks back
       // up the slope at the dragon. Screen right still equals the sim right vector, so the
       // movement mapping is untouched. Tilted a few degrees up the slope so the dragon is in frame.
-      updateCamera(curRig, feet, -cur.camYaw, cur.camPitch + 0.14, speed, world.solids, camCfg);
+      updateCamera(curRig, feet, chaseRigYaw(cur.camYaw, cfg.chase.frontPov), cur.camPitch + 0.14, speed, world.solids, camCfg);
       return;
     }
     const base = camYawToRig(cur.camYaw);
