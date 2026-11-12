@@ -228,11 +228,13 @@ export type BuildLevelOpts = {
   scenery?: boolean;
   /** Decor dressing of house walls (laundry, flags, strings). Default true; strategy mode uses false. */
   houseDress?: boolean;
+  /** Cloud Village: no hillside or forest; houses are dressed down to this flat floor height (the cloud top). */
+  floorY?: number;
 };
 
 /** Level geometry: one merged mesh per colour (styles, pads, goal, pitched roofs) plus anchor spheres. */
 export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group {
-  const scenery = opts.scenery !== false;
+  const scenery = opts.scenery !== false && opts.floorY === undefined;
   const strategy = world.lineOnly === 1;
   if (scenery) setTerrainExtent(strategy ? minSolidZ(world) : null);
   const g = new Group();
@@ -279,12 +281,12 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
 
   const dress = dressingMeshes(world);
   for (let i = 0; i < dress.length; i++) g.add(dress[i]);
-  g.add(buildDecor(world, undefined, { scenery, houseDress: opts.houseDress }));
+  g.add(buildDecor(world, undefined, { scenery, houseDress: opts.houseDress, floorY: opts.floorY }));
   if (strategy) {
     const feats = buildStrategyFeatures(world);
     for (let i = 0; i < feats.length; i++) g.add(feats[i]);
   }
-  if (scenery) g.add(buildRopePost(world));
+  if (scenery || opts.floorY !== undefined) g.add(buildRopePost(world));
 
   const sphere = new SphereGeometry(ANCHOR_R, 12, 8);
   // lineOnly worlds (strategy maze): 100 anchors would break the draw-call budget, and the

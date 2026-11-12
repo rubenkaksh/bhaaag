@@ -949,6 +949,8 @@ function forest(B: Builder, bodies: Body[], seed: number): number[] {
 
 export type DecorOpts = {
   scenery?: boolean;
+  /** Flat floor height for house dressing when scenery is off (Cloud Village: the cloud top). */
+  floorY?: number;
   /** Dress house walls (decor, laundry, flags, strings). Default true; the strategy maze turns it off. */
   houseDress?: boolean;
 };
@@ -963,7 +965,8 @@ export function buildDecor(world: World, seed = 1729, opts: DecorOpts = {}): Gro
   const bodies = collectBodies(world);
 
   let base: number[];
-  groundY = scenery ? terrainY : (_x, z) => planeY(z);
+  const flat = opts.floorY;
+  groundY = scenery ? terrainY : flat !== undefined ? () => flat : (_x, z) => planeY(z);
   try {
     if (houseDress) {
       dressHouses(B, bodies);

@@ -1,5 +1,6 @@
 import tuningJson from '../../content/config/tuning.json';
 import levelText from '../../content/levels/l1.json?raw';
+import villageText from '../../content/levels/village.json?raw';
 import { DEFAULT_TUNING } from '../core/config';
 import type { Tuning } from '../core/config';
 import {
@@ -43,6 +44,7 @@ import { easeYawOffset, zipYawTarget } from '../adapters/render/cameraYaw';
 import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
+import { VILLAGE_CLOUD_TOP_Y, buildCloudSea } from '../adapters/render/cloudSea';
 import { createGameScene } from '../adapters/render/scene';
 import { DebugHud } from '../adapters/ui/debugHud';
 import { Hud } from '../adapters/ui/hud';
@@ -181,6 +183,7 @@ export function startGame(
   const params = new URLSearchParams(location.search);
   const isChase = mode === 'chase';
   const isStrategy = mode === 'strategy';
+  const isVillage = mode === 'village';
   const seedParam = params.get('seed');
   const fixedSeed = seedParam !== null && Number.isFinite(Number(seedParam));
   let chaseSeed = fixedSeed ? Number(seedParam) | 0 : (Math.random() * 2147483647) | 0;
@@ -196,9 +199,9 @@ export function startGame(
         ? loadWorldFromObject(
             generateStrategyLevel(fixedSeed ? Number(seedParam) | 0 : STRATEGY_SEED),
           )
-        : loadWorldFromJson(levelText);
+        : loadWorldFromJson(isVillage ? villageText : levelText);
   const gs = createGameScene(canvas);
-  const level: Group | null = cs === null ? gs.buildWorld(world, { houseDress: !isStrategy }) : null;
+  const level: Group | null = cs === null ? gs.buildWorld(world, { houseDress: !isStrategy, floorY: isVillage ? VILLAGE_CLOUD_TOP_Y : undefined }) : null;
   // Chase views: no classic scenery; own rows, endless ground and dragon.
   if (cs !== null) gs.setBlobWorld(world);
   const rowsView = isChase ? new ChaseRowsView(() => gs.refreshFlags()) : null;
@@ -206,6 +209,7 @@ export function startGame(
   let viewTier = gs.getTier();
   let ground = isChase ? new EndlessGround(treesFor(viewTier)) : null;
   const dragonView = isChase ? new DragonSpriteView(viewTier) : null;
+  if (isVillage) gs.scene.add(buildCloudSea(viewTier));
   if (rowsView !== null) gs.scene.add(rowsView.root);
   if (ground !== null) gs.scene.add(ground.group);
   if (dragonView !== null) gs.scene.add(dragonView.group);
