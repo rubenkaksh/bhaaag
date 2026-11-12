@@ -68,7 +68,7 @@ describe('backdrop mountain system', () => {
         }
       }
     }
-  });
+  }, 30000); // ~1.2 s locally but 3-5.5 s on CI runners; the default 5 s flaked
 
   it('wraps the whole horizon: every layer has crests in all 8 octants of azimuth', () => {
     for (const l of backdropData('medium')) {
