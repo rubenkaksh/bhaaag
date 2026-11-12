@@ -74,7 +74,11 @@ export function buildCloudSea(tier: string, seed = 297): Group {
     // Ring-ish scatter over the village footprint and far beyond it.
     const near = i < n * 0.45;
     const span = near ? 110 : 380;
-    pos.set((rnd() - 0.5) * 2 * span, VILLAGE_CLOUD_TOP_Y - 1 + rnd() * 3, -40 + (rnd() - 0.5) * 2 * span);
+    pos.set(
+      (rnd() - 0.5) * 2 * span,
+      VILLAGE_CLOUD_TOP_Y - 1 + rnd() * 3,
+      -40 + (rnd() - 0.5) * 2 * span,
+    );
     const w = 7 + rnd() * 16;
     scl.set(w, 2 + rnd() * 3.2, w * (0.7 + rnd() * 0.6));
     q.setFromAxisAngle(new Vector3(0, 1, 0), rnd() * Math.PI);
@@ -89,4 +93,63 @@ export function buildCloudSea(tier: string, seed = 297): Group {
   puffs.name = 'cloudPuffs';
   g.add(puffs);
   return g;
+}
+
+/**
+ * A cloud bank under every house body (wall solids at least 5 m tall: style 1 and 3 boxes; thin
+ * balconies are skipped). Houses stand on the clouds, with void below. One InstancedMesh.
+ */
+export function buildCloudBanks(
+  boxes: readonly {
+    min: { x: number; y: number; z: number };
+    max: { x: number; y: number; z: number };
+  }[],
+  style: readonly number[],
+  seed = 7,
+): Mesh | null {
+  const bodies = boxes.filter(
+    (b, i) => (style[i] === 1 || style[i] === 3) && b.max.y - b.min.y >= 5,
+  );
+  if (bodies.length === 0) return null;
+  const PER = 9;
+  const mesh = new InstancedMesh(
+    new SphereGeometry(1, 10, 6),
+    new MeshLambertMaterial({ color: new Color('#ffffff') }),
+    bodies.length * PER,
+  );
+  const rnd = mulberry32(seed);
+  const m = new Matrix4();
+  const q = new Quaternion();
+  const pos = new Vector3();
+  const scl = new Vector3();
+  const c = new Color();
+  const light = new Color(COLOR_PUFF);
+  const shade = new Color(COLOR_PUFF_SHADE);
+  let k = 0;
+  for (const b of bodies) {
+    const cx = (b.min.x + b.max.x) / 2;
+    const cz = (b.min.z + b.max.z) / 2;
+    const hx = (b.max.x - b.min.x) / 2;
+    const hz = (b.max.z - b.min.z) / 2;
+    for (let j = 0; j < PER; j++) {
+      pos.set(
+        cx + (rnd() - 0.5) * 2 * (hx + 3),
+        b.min.y + 0.4 - rnd() * 1.6,
+        cz + (rnd() - 0.5) * 2 * (hz + 3),
+      );
+      const w = 3.5 + rnd() * 4;
+      scl.set(w, 1.6 + rnd() * 1.6, w * (0.8 + rnd() * 0.5));
+      q.setFromAxisAngle(new Vector3(0, 1, 0), rnd() * Math.PI);
+      m.compose(pos, q, scl);
+      mesh.setMatrixAt(k, m);
+      c.copy(light).lerp(shade, rnd() * 0.5);
+      mesh.setColorAt(k, c);
+      k++;
+    }
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor !== null) mesh.instanceColor.needsUpdate = true;
+  mesh.frustumCulled = false;
+  mesh.name = 'cloudBanks';
+  return mesh;
 }

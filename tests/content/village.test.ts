@@ -20,6 +20,11 @@ describe('cloud village level', () => {
     expect(w.style.filter((s) => s === 2)).toHaveLength(8);
     expect(w.style.filter((s) => s === 3)).toHaveLength(2);
   });
+  it('houses are normal height: walls at most 8 m tall, not stilt towers', () => {
+    w.solids.forEach((b, i) => {
+      if (w.style[i] === 1 || w.style[i] === 3) expect(b.max.y - b.min.y).toBeLessThanOrEqual(8);
+    });
+  });
   it('cloud top matches the generator and sits above the kill plane', () => {
     expect(VILLAGE_CLOUD_TOP_Y).toBe(gen.CLOUD_TOP_Y);
     expect(w.killPlaneY).toBeLessThan(VILLAGE_CLOUD_TOP_Y);

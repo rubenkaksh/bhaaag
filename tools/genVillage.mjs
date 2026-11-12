@@ -3,8 +3,8 @@
 // Plain Node ESM, no deps, deterministic. Run: node tools/genVillage.mjs
 //
 // Same hop geometry as L1 (tools/genLevel.mjs: rows of two attached houses, 13 m rope hops, a 20
-// degree descent), so the verified rope limits carry over. Differences: no hillside. Houses stand
-// on timber stilt towers that vanish into a cloud sea; each row is shifted sideways (ROW_X) so the
+// degree descent), so the verified rope limits carry over. Differences: no hillside. Houses are normal
+// height and each stands on its own cloud bank (void below); a far cloud sea is the floor; each row is shifted sideways (ROW_X) so the
 // village zigzags; falling into the clouds kills (killPlaneY). The goal is a cloud pillow under the
 // last house's downhill edge (leap of faith). Solid order matches L1 (kill slab, then roof+wall per
 // route house) so the casual-human bot in tests/content works on both.
@@ -16,7 +16,7 @@ export const ROW_DROP = 4.0;
 export const ROW_X = [0, 4, -4, 2]; // lane x of each row of two houses
 export const CLOUD_TOP_Y = -58; // visual cloud sea surface (the hero sinks into it before dying)
 export const KILL_Y = -64;
-const STILT_BOTTOM = -90;
+export const HOUSE_H = 7; // wall height under the roof: a normal house standing on its own cloud bank
 const ROOF_T = 0.6;
 const HALF_X = 4;
 const HALF_Z = 3.5;
@@ -72,7 +72,7 @@ export function generateVillage() {
     const z0 = h.cz - HALF_Z;
     const z1 = h.cz + HALF_Z;
     add(box(x0, h.top - ROOF_T, z0, x1, h.top, z1), 2);
-    add(box(x0, STILT_BOTTOM, z0, x1, h.top - ROOF_T, z1), 1);
+    add(box(x0, h.top - ROOF_T - HOUSE_H, z0, x1, h.top - ROOF_T, z1), 1);
     pads.push(box(x0 + 1, h.top, z0 + 1, x1 - 1, h.top, z1 - 1));
   }
   const rowFirst = houses.filter((h) => h.k === 0 && h.row > 0);
@@ -83,7 +83,10 @@ export function generateVillage() {
   [1, 3].forEach((row, d) => {
     const h = houses.find((q) => q.row === row && q.k === 0);
     const dx = h.cx + (d === 0 ? -DECOY_X : DECOY_X);
-    add(box(dx - 3.5, STILT_BOTTOM, h.cz - HALF_Z, dx + 3.5, h.top - 0.6, h.cz + HALF_Z), 3);
+    add(
+      box(dx - 3.5, h.top - 0.6 - HOUSE_H, h.cz - HALF_Z, dx + 3.5, h.top - 0.6, h.cz + HALF_Z),
+      3,
+    );
     anchors.push({ pos: [r(dx), r(h.top + ANCHOR_H), r(h.cz + ANCHOR_Z)] });
   });
 
@@ -92,7 +95,17 @@ export function generateVillage() {
     const face = h.cx + dir * HALF_X;
     const xa = Math.min(face, face + dir * BALCONY_DEPTH);
     const xb = Math.max(face, face + dir * BALCONY_DEPTH);
-    add(box(xa, h.top - BALCONY_DROP - 0.3, h.cz - HALF_Z + 1, xb, h.top - BALCONY_DROP, h.cz + HALF_Z - 1), 1);
+    add(
+      box(
+        xa,
+        h.top - BALCONY_DROP - 0.3,
+        h.cz - HALF_Z + 1,
+        xb,
+        h.top - BALCONY_DROP,
+        h.cz + HALF_Z - 1,
+      ),
+      1,
+    );
   });
   houses.forEach((h, i) => {
     const x0 = h.cx - HALF_X;
@@ -107,7 +120,14 @@ export function generateVillage() {
   });
 
   const zEdge = last.cz - HALF_Z;
-  const goal = box(last.cx - 6, last.top - 9, zEdge - GOAL_RUN, last.cx + 6, last.top - 2, zEdge - 0.5);
+  const goal = box(
+    last.cx - 6,
+    last.top - 9,
+    zEdge - GOAL_RUN,
+    last.cx + 6,
+    last.top - 2,
+    zEdge - 0.5,
+  );
 
   return {
     version: 1,
@@ -129,5 +149,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const out = fileURLToPath(new URL('../content/levels/village.json', import.meta.url));
   const level = generateVillage();
   writeFileSync(out, JSON.stringify(level, null, 2) + '\n');
-  console.log(`wrote ${out}: ${level.solids.length} solids, ${level.anchors.length} anchors, ${level.pads.length} pads`);
+  console.log(
+    `wrote ${out}: ${level.solids.length} solids, ${level.anchors.length} anchors, ${level.pads.length} pads`,
+  );
 }

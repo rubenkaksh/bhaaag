@@ -44,7 +44,7 @@ import { easeYawOffset, zipYawTarget } from '../adapters/render/cameraYaw';
 import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
-import { VILLAGE_CLOUD_TOP_Y, buildCloudSea } from '../adapters/render/cloudSea';
+import { VILLAGE_CLOUD_TOP_Y, buildCloudBanks, buildCloudSea } from '../adapters/render/cloudSea';
 import { createGameScene } from '../adapters/render/scene';
 import { DebugHud } from '../adapters/ui/debugHud';
 import { Hud } from '../adapters/ui/hud';
@@ -181,9 +181,11 @@ export function startGame(
   const cfg = mergeTuning();
   let camCfg = cfg.camera;
   const params = new URLSearchParams(location.search);
-  // ?tilt=15|20|30: render-only camera pitch-down (deg) so more of the drop below shows. Default 0.
+  // ?tilt=15|20|30: render-only camera pitch-down (deg) so more of the drop below shows. Default 20 in Cloud Village, else 0.
   const tiltParam = Number(params.get('tilt'));
-  const camTilt = Number.isFinite(tiltParam) ? Math.min(Math.max(tiltParam, 0), 45) * DEG2RAD : 0;
+  const tiltDeg =
+    params.has('tilt') && Number.isFinite(tiltParam) ? tiltParam : mode === 'village' ? 20 : 0;
+  const camTilt = Math.min(Math.max(tiltDeg, 0), 45) * DEG2RAD;
   const isChase = mode === 'chase';
   const isStrategy = mode === 'strategy';
   const isVillage = mode === 'village';
@@ -204,7 +206,13 @@ export function startGame(
           )
         : loadWorldFromJson(isVillage ? villageText : levelText);
   const gs = createGameScene(canvas);
-  const level: Group | null = cs === null ? gs.buildWorld(world, { houseDress: !isStrategy, floorY: isVillage ? VILLAGE_CLOUD_TOP_Y : undefined }) : null;
+  const level: Group | null =
+    cs === null
+      ? gs.buildWorld(world, {
+          houseDress: !isStrategy,
+          floorY: isVillage ? VILLAGE_CLOUD_TOP_Y : undefined,
+        })
+      : null;
   // Chase views: no classic scenery; own rows, endless ground and dragon.
   if (cs !== null) gs.setBlobWorld(world);
   const rowsView = isChase ? new ChaseRowsView(() => gs.refreshFlags()) : null;
@@ -212,7 +220,11 @@ export function startGame(
   let viewTier = gs.getTier();
   let ground = isChase ? new EndlessGround(treesFor(viewTier)) : null;
   const dragonView = isChase ? new DragonSpriteView(viewTier) : null;
-  if (isVillage) gs.scene.add(buildCloudSea(viewTier));
+  if (isVillage) {
+    gs.scene.add(buildCloudSea(viewTier));
+    const banks = buildCloudBanks(world.solids, world.style);
+    if (banks !== null) gs.scene.add(banks);
+  }
   if (rowsView !== null) gs.scene.add(rowsView.root);
   if (ground !== null) gs.scene.add(ground.group);
   if (dragonView !== null) gs.scene.add(dragonView.group);
@@ -396,7 +408,11 @@ export function startGame(
       deadT += stepDt;
       if (cs !== null) {
         // Chase: the card owns the restart (RETRY / MENU); R also retries. No auto-restart.
-        if (!overShown && !catchHold && deadT >= (cur.deadCause === DEAD_CAUGHT ? CHASE_OVER_DELAY_S : 0.4)) {
+        if (
+          !overShown &&
+          !catchHold &&
+          deadT >= (cur.deadCause === DEAD_CAUGHT ? CHASE_OVER_DELAY_S : 0.4)
+        ) {
           showChaseOver();
         }
         if (overShown && (frame.pressed & BTN_RESTART) !== 0) {
@@ -771,7 +787,15 @@ export function startGame(
     ground.snap(heroView.group.position.z);
     const d = c.dragon;
     // Reversed chase camera: the real dragon is already in front of the rig, no pinning.
-    dragonView.update(d.z, nowSec, phase === 'dead' && cur.deadCause === DEAD_CAUGHT ? 1 : 0, cur.px, d.gap, gs.camera.position.z, false);
+    dragonView.update(
+      d.z,
+      nowSec,
+      phase === 'dead' && cur.deadCause === DEAD_CAUGHT ? 1 : 0,
+      cur.px,
+      d.gap,
+      gs.camera.position.z,
+      false,
+    );
     const k = phase === 'pan' ? 0 : cloudCoverFor(d.gap, cfg);
     cloudK = k;
     applyCloud(cloudK);

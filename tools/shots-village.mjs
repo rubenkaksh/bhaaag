@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 
 const label = process.argv[2] ?? 'shot';
-const tilt = process.env.TILT ?? '0';
+const tilt = process.env.TILT ?? '';
 const port = Number(process.env.PORT ?? 4184);
 mkdirSync('art/shots/auto', { recursive: true });
 const srv = spawn('pnpm', ['exec', 'vite', 'preview', '--port', String(port), '--strictPort'], { stdio: 'ignore' });
@@ -39,7 +39,7 @@ for (const tier of (process.env.TIERS ?? 'low,medium').split(',')) {
       console.log(`[${tier}/${name}] page error: ${e.message}`);
     });
     const shot = (s) => page.screenshot({ path: `art/shots/auto/${label}-village-${tier}-${name}-${s}.png` });
-    await page.goto(`${base}?mode=village&gfx=${tier}&tilt=${tilt}&debug`);
+    await page.goto(`${base}?mode=village&gfx=${tier}${tilt === '' ? '' : `&tilt=${tilt}`}&debug`);
     await page.waitForTimeout(2000);
     await shot('lobby');
     await page.getByText('PLAY', { exact: true }).first().click({ timeout: 3000 }).catch(() => {});
