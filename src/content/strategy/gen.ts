@@ -104,7 +104,7 @@ export const SEGMENTS: readonly Segment[] = [
     houses: 9,
     perBand: [2, 2],
     gaps: [11, 12],
-    heights: [H_MID, H_HIGH],
+    heights: ALL_H,
     roadAfter: false,
     mix: [1, 1, 1, 1, 3],
     shift: 0,
@@ -441,6 +441,20 @@ function link(
   mix: readonly number[],
   freeze: boolean,
 ): boolean {
+  // The house keeps its seeded storey count unless no kind of link can make the step work.
+  if (linkWith(L, rng, s, q, [L.houses[q].h], mix, freeze)) return true;
+  return !freeze && linkWith(L, rng, s, q, heights, mix, freeze);
+}
+
+function linkWith(
+  L: Layout,
+  rng: Rng,
+  s: number,
+  q: number,
+  heights: readonly number[],
+  mix: readonly number[],
+  freeze: boolean,
+): boolean {
   const Q = L.houses[q];
   const P = s >= 0 ? L.houses[s] : null;
   const road = s <= -2 ? L.roads[-2 - s] : null;
@@ -515,13 +529,15 @@ function linkRoad(L: Layout, p: number, ri: number): boolean {
 function lateral(L: Layout, rng: Rng, from: number, to: number, heights: readonly number[]): boolean {
   const P = L.houses[from];
   const H = L.houses[to];
-  const opts = rng() < 0.5 ? [P.h, P.h - STOREY] : [P.h - STOREY, P.h];
+  const own = H.h; // the seeded storey count first, then level with the neighbour or one lower
+  const opts = rng() < 0.5 ? [own, P.h, P.h - STOREY] : [own, P.h - STOREY, P.h];
   for (let i = 0; i < opts.length; i++) {
     if (heights.indexOf(opts[i]) < 0) continue;
     H.h = opts[i];
     const nb = buildNodes(L);
     if (moveOf(nb.nodes[nb.roofOf[from]], nb.nodes[nb.roofOf[to]], nb.nodes) === MOVE_JUMP) return true;
   }
+  H.h = own;
   return false;
 }
 
@@ -556,7 +572,10 @@ function attach(L: Layout, rng: Rng, ids: number[], heights: readonly number[], 
       }
       if (nbs.length === 0) continue;
       const nbh = pick(rng, nbs).h;
-      me.h = rng() < trap && heights.indexOf(nbh - STOREY) >= 0 ? nbh - STOREY : nbh;
+      // Keep the seeded storey count when it is no taller than the neighbour (a decoy taller than
+      // the house it hangs off could not be reached); a taller one is pulled level, or a storey
+      // under on a trap roll.
+      if (me.h > nbh) me.h = rng() < trap && heights.indexOf(nbh - STOREY) >= 0 ? nbh - STOREY : nbh;
       done[i] = true;
       progress = true;
     }

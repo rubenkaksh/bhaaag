@@ -10,7 +10,11 @@ houses from the Nagarkot ridge to Bhaktapur. `generateStrategyLevel(seed)` retur
 JSON (zod-validated by `load.ts`), so the sim and renderer need nothing new.
 
 1. **Grid.** Five lanes (x = -24..24, 12 m apart), 8 m square houses, rows down the 20 degree
-   hill. Roof heights are whole storeys: 7, 11 or 15 m over the ground (4 m step).
+   hill. Roof heights are whole storeys: 1, 2 or 3 storeys = 7, 11 or 15 m over the local ground (4 m
+   step). Each house is rolled a storey count from the seed, in every segment alike (the ridge too),
+   so house size does not trend with altitude: the descent is the hill, not the houses. A route
+   house keeps its roll unless no link kind can make the step work with it (then any storey count
+   is tried); a link kind is chosen for the rolled height, not the height for the kind.
 2. **Segments.** ridge (9 houses, rows of 2, 11-12 m gaps: lines only) -> hillside (15, rows of
    3-5) -> road -> turnings (15, rows of 4-5) -> road -> lower slope (36, rows of 4-5) -> road ->
    Bhaktapur town (25, rows of 4-5, last house is the goal). About 32 rows, about 500 m.
@@ -20,8 +24,9 @@ JSON (zod-validated by `load.ts`), so the sim and renderer need nothing new.
    a trampoline (one storey up, or two via a balcony), or a zipline (gold, wide gap or lethal
    drop). A feature is only placed on a route where the step fails without it. A fails: the seed
    is rejected. B fails: B ends there (a long dead end) and starts again at the next road.
-4. **Decoys make the maze.** Every other house hangs sideways off a placed neighbour: level with
-   it, or one storey lower (60-85% depending on segment). One storey down is the commitment: you
+4. **Decoys make the maze.** Every other house hangs sideways off a placed neighbour and keeps its
+   own rolled storey count when that is no taller than the neighbour (a taller decoy could not be
+   reached); a taller one is pulled level, or one storey lower (60-85% depending on segment). One storey down is the commitment: you
    can hop over, you cannot get back (4 m is out of ledge-grab reach). Decoys get random
    cushions, balconies, pads and lines, some of which rescue and some of which lead further in.
 5. **Dead ends are measured on the real graph.** After placement the graph is rebuilt from
