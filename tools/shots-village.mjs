@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 
 const label = process.argv[2] ?? 'shot';
+const tilt = process.env.TILT ?? '0';
 const port = Number(process.env.PORT ?? 4184);
 mkdirSync('art/shots/auto', { recursive: true });
 const srv = spawn('pnpm', ['exec', 'vite', 'preview', '--port', String(port), '--strictPort'], { stdio: 'ignore' });
@@ -20,7 +21,7 @@ for (let i = 0; i < 50; i++) {
 }
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 let errors = 0;
-for (const tier of ['low', 'medium']) {
+for (const tier of (process.env.TIERS ?? 'low,medium').split(',')) {
   for (const [name, vp] of [
     ['portrait', { width: 390, height: 844 }],
     ['landscape', { width: 844, height: 390 }],
@@ -38,7 +39,7 @@ for (const tier of ['low', 'medium']) {
       console.log(`[${tier}/${name}] page error: ${e.message}`);
     });
     const shot = (s) => page.screenshot({ path: `art/shots/auto/${label}-village-${tier}-${name}-${s}.png` });
-    await page.goto(`${base}?mode=village&gfx=${tier}&debug`);
+    await page.goto(`${base}?mode=village&gfx=${tier}&tilt=${tilt}&debug`);
     await page.waitForTimeout(2000);
     await shot('lobby');
     await page.getByText('PLAY', { exact: true }).first().click({ timeout: 3000 }).catch(() => {});

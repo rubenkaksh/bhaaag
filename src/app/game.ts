@@ -181,6 +181,9 @@ export function startGame(
   const cfg = mergeTuning();
   let camCfg = cfg.camera;
   const params = new URLSearchParams(location.search);
+  // ?tilt=15|20|30: render-only camera pitch-down (deg) so more of the drop below shows. Default 0.
+  const tiltParam = Number(params.get('tilt'));
+  const camTilt = Number.isFinite(tiltParam) ? Math.min(Math.max(tiltParam, 0), 45) * DEG2RAD : 0;
   const isChase = mode === 'chase';
   const isStrategy = mode === 'strategy';
   const isVillage = mode === 'village';
@@ -326,7 +329,7 @@ export function startGame(
       zipYawTarget(cur.mode === HERO_ATTACHED && cur.dead === 0, vRight, vFwd, camCfg),
       camCfg,
     );
-    updateCamera(curRig, feet, base + zipYaw, cur.camPitch, speed, world.solids, camCfg);
+    updateCamera(curRig, feet, base + zipYaw, cur.camPitch - camTilt, speed, world.solids, camCfg);
   }
 
   const hudUi = new Hud(root, debug, () => restart(), {
