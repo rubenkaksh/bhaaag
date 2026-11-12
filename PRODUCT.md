@@ -21,14 +21,19 @@ Amendment 2026-11-10b (strategy pivot, `docs/lean-scope.md` Amendment 2026-11-10
 - Success addition: a first-time player finds at least one escape path to Bhaktapur within 10 minutes of play (several restarts), and can tell from the colour language alone what each roof offers (gold line zone, cream trampoline/cushion, terracotta hazard) without a tutorial.
 - Budget unchanged: JS bundle under ~600 KB gzipped, initial chunk <= 215 KB gz; the maze level is generated at runtime from a seed (no 100-house JSON in the bundle).
 
+Amendment 2026-11-12 (cloud village, owner decided 2026-11-12; draft `docs/briefs/T297-amendment-draft.md`):
+- Purpose addition: Zipline Tole also has a short, calm-looking but lethal **Cloud Village** descent: one hand-placed level of about 8 to 10 Newari houses above a golden cloud sea, played with the same free-aim zipline, hand-brake and one-hit death as Classic.
+- Success addition: a first-time player opens `?mode=village` (or picks it in the mode switch) and finishes it in under 2 minutes per run, retrying instantly after a death; the cloud sea and houses read as one place without a tutorial.
+- Budget: JS bundle limit unchanged (under ~600 KB gzipped, initial chunk <= 215 KB gz). New texture files: 0 KB by default; new textures over 300 KiB total need owner approval first.
+
 ## Non-goals
 
 Stated in `docs/lean-scope.md` ("Dropped, do NOT build") and `CLAUDE.md`:
 - Godot-portable core rules and the Godot shooter integration (dropped by lean scope).
 - Level validator / never-dead-end proof, replay traces, golden-test gates, CI deploy gates.
-- Multi-level content beyond Classic L1 and the one generated Nagarkot level, assist ladder, level select, GLB asset pipeline.
+- Multi-level content beyond Classic L1, the one generated Nagarkot level and the one hand-placed Cloud Village level; assist ladder, level select, GLB asset pipeline.
 - Melee combat (MVP1 backlog, do not build yet).
-- Modes beyond Classic L1 and Dragon Chase. Amendment 2026-11-10b: plus the Nagarkot->Bhaktapur strategy run (one generated level); no fourth mode, no level select.
+- Modes beyond Classic L1 and Dragon Chase. Amendment 2026-11-10b: plus the Nagarkot->Bhaktapur strategy run (one generated level); plus Cloud Village (Amendment 2026-11-12); no fifth mode, no level select, no per-level progression.
 - Health pips or checkpoints beyond near-instant restart (one-hit death).
 - Amendment 2026-11-10b: a sim-driven level validator stays out; only a pure-graph BFS unit test guards the generated maze. Free-aim zipline in the maze mode is out (fixed lines only); a cushion under every roof is out (cushions are rare destinations).
 Stated in `CLAUDE.md` Locked decisions and `docs/lean-scope.md` Budget: no hand-written custom shaders, no GLB hero model (procedural primitives and stock materials). Small baked textures allowed since 2026-11-09 (graphics overhaul).

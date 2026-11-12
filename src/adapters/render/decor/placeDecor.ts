@@ -399,6 +399,8 @@ function collectBodies(w: World): Body[] {
 // Ground height used by house dressing. buildDecor swaps it to the flat plane when scenery is off
 // (the chase mode draws its own endless ground), then restores the hillside.
 let groundY: (x: number, z: number) => number = terrainY;
+// Cloud Village: houses float, so foot props stand on the house base, not on the far cloud sea.
+let housesFloat = false;
 
 /** Lowest visible wall height at a point just outside a face: the ground, or a neighbour's roof. */
 function visLow(bodies: Body[], x: number, z: number): number {
@@ -605,8 +607,8 @@ function dressHouses(B: Builder, bodies: Body[]): void {
           B.box('trim', 'trim', cxh - 0.7, yBase + 2.1, z0 - 0.2, cxh + 0.7, yBase + 2.3, z0, tc);
         }
         if (!h.decoy && B.room('pot', 2)) {
-          B.pot(cxh - 1.5, groundY(cxh - 1.5, z0 - 0.5), z0 - 0.5);
-          B.pot(cxh + 1.5, groundY(cxh + 1.5, z0 - 0.5), z0 - 0.5);
+          B.pot(cxh - 1.5, housesFloat ? yBase : groundY(cxh - 1.5, z0 - 0.5), z0 - 0.5);
+          B.pot(cxh + 1.5, housesFloat ? yBase : groundY(cxh + 1.5, z0 - 0.5), z0 - 0.5);
         }
       }
       if (!h.decoy) {
@@ -960,6 +962,8 @@ function forest(B: Builder, bodies: Body[], seed: number): number[] {
 
 export type DecorOpts = {
   scenery?: boolean;
+  /** Flat floor height for house dressing when scenery is off (Cloud Village: the cloud top). */
+  floorY?: number;
   /** Dress house walls (decor, laundry, flags, strings). Default true; the strategy maze turns it off. */
   houseDress?: boolean;
 };
@@ -974,7 +978,9 @@ export function buildDecor(world: World, seed = 1729, opts: DecorOpts = {}): Gro
   const bodies = collectBodies(world);
 
   let base: number[];
-  groundY = scenery ? terrainY : (_x, z) => planeY(z);
+  const flat = opts.floorY;
+  housesFloat = flat !== undefined && !scenery;
+  groundY = scenery ? terrainY : flat !== undefined ? () => flat : (_x, z) => planeY(z);
   try {
     if (houseDress) {
       dressHouses(B, bodies);

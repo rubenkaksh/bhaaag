@@ -43,6 +43,7 @@ import { easeSideYaw, easeYawOffset, sideYawTarget, zipYawTarget } from '../adap
 import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
+import type { VillageAssets } from './villageAssets';
 import { createGameScene } from '../adapters/render/scene';
 import { DebugHud } from '../adapters/ui/debugHud';
 import { Hud } from '../adapters/ui/hud';
@@ -176,12 +177,20 @@ export function startGame(
   canvas: HTMLCanvasElement,
   root: HTMLElement,
   mode: GameMode = 'classic',
+  village?: VillageAssets,
 ): GameHandle {
   const cfg = mergeTuning();
   let camCfg = cfg.camera;
   const params = new URLSearchParams(location.search);
+  // ?tilt=15|20|30: render-only camera pitch-down (deg) so more of the drop below shows. Default 20 in Cloud Village, else 0.
+  const tiltParam = Number(params.get('tilt'));
+  const tiltDeg =
+    params.has('tilt') && Number.isFinite(tiltParam) ? tiltParam : mode === 'village' ? 20 : 0;
+  const camTilt = Math.min(Math.max(tiltDeg, 0), 45) * DEG2RAD;
   const isChase = mode === 'chase';
   const isStrategy = mode === 'strategy';
+  const isVillage = mode === 'village';
+  if (isVillage && village === undefined) throw new Error('village assets not loaded');
   const seedParam = params.get('seed');
   const fixedSeed = seedParam !== null && Number.isFinite(Number(seedParam));
   let chaseSeed = fixedSeed ? Number(seedParam) | 0 : (Math.random() * 2147483647) | 0;
@@ -197,9 +206,15 @@ export function startGame(
         ? loadWorldFromObject(
             generateStrategyLevel(fixedSeed ? Number(seedParam) | 0 : STRATEGY_SEED),
           )
-        : loadWorldFromJson(levelText);
+        : loadWorldFromJson(village !== undefined && isVillage ? village.villageText : levelText);
   const gs = createGameScene(canvas);
-  const level: Group | null = cs === null ? gs.buildWorld(world, { houseDress: true }) : null;
+  const level: Group | null =
+    cs === null
+      ? gs.buildWorld(world, {
+          houseDress: true,
+          floorY: village !== undefined && isVillage ? village.VILLAGE_CLOUD_TOP_Y : undefined,
+        })
+      : null;
   // Chase views: no classic scenery; own rows, endless ground and dragon.
   if (cs !== null) gs.setBlobWorld(world);
   const rowsView = isChase ? new ChaseRowsView(() => gs.refreshFlags()) : null;
@@ -207,6 +222,11 @@ export function startGame(
   let viewTier = gs.getTier();
   let ground = isChase ? new EndlessGround(treesFor(viewTier)) : null;
   const dragonView = isChase ? new DragonSpriteView(viewTier) : null;
+  if (village !== undefined && isVillage) {
+    gs.scene.add(village.buildCloudSea(viewTier));
+    const banks = village.buildCloudBanks(world.solids, world.style);
+    if (banks !== null) gs.scene.add(banks);
+  }
   if (rowsView !== null) gs.scene.add(rowsView.root);
   if (ground !== null) gs.scene.add(ground.group);
   if (dragonView !== null) gs.scene.add(dragonView.group);
@@ -337,7 +357,7 @@ export function startGame(
       cur.mode === HERO_ATTACHED || cur.dead !== 0 ? 0 : sideYawTarget(vRight, camCfg),
       camCfg,
     );
-    updateCamera(curRig, feet, base + zipYaw + sideYaw, cur.camPitch, speed, world.solids, camCfg);
+    updateCamera(curRig, feet, base + zipYaw + sideYaw, cur.camPitch - camTilt, speed, world.solids, camCfg);
   }
 
   const hudUi = new Hud(root, debug, () => restart(), {
@@ -345,6 +365,8 @@ export function startGame(
     hopChip: MODE_INFO[mode].hopChip,
     onHint: isStrategy ? null : showHint,
   });
+  // The render pitch is camPitch - tilt, so a centre reticle would no longer mark the look direction.
+  if (camTilt > 0) document.getElementById('hud-reticle')?.style.setProperty('display', 'none');
   const chaseHud = isChase ? new ChaseHud(root, () => restart()) : null;
 
   /** HINT: highlight the best takeable zipline anchor for hintSec. No sim state is touched. */

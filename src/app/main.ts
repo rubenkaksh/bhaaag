@@ -22,6 +22,7 @@ function requestImmersive(): void {
 // The game is created on the first PLAY, so nothing ticks behind the lobby.
 // GameLoop pauses on document.hidden; game.ts wires the viewport watcher.
 let game: GameHandle | null = null;
+let starting = false;
 const lobby = createLobby(document.body, {
   getBestLabel: (mode) => bestLabel(mode, readBest(mode)),
   onPlay: (mode) => {
@@ -31,8 +32,24 @@ const lobby = createLobby(document.body, {
       game.destroy();
       game = null;
     }
-    if (game === null) game = startGame(canvas, document.body, mode);
-    else game.resume();
+    if (game !== null) {
+      game.resume();
+      return;
+    }
+    if (mode !== 'village') {
+      game = startGame(canvas, document.body, mode);
+      return;
+    }
+    // Cloud Village: fetch its level and cloud renderer on demand (kept out of the initial chunk).
+    if (starting) return;
+    starting = true;
+    void import('./villageAssets')
+      .then(({ village }) => {
+        if (game === null) game = startGame(canvas, document.body, mode, village);
+      })
+      .finally(() => {
+        starting = false;
+      });
   },
   onMenu: () => {
     game?.pause();

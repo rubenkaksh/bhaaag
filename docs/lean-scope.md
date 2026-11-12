@@ -47,3 +47,6 @@ momentum carry, bundle budget (~600 KB gz, initial chunk <= 215 KB gz per ADR 00
 draw-call budgets. Runner's vision is OFF in the maze (it would spoil the maze); affordance colour only.
 Flag: 100 houses is within the triangle budget only with house dressing off and merged feature
 meshes; phone frame time is unverified until measured on a device.
+
+## Amendment 2026-11-12 (cloud village, owner decided; recorded, not relitigated)
+Lifted from "Dropped" item 4 and the modes limit: a fourth mode, Cloud Village (`village`), ONE hand-placed level of ~8-10 Newari houses above a cloud sea, free-aim zipline like Classic, same core sim. Still out: level select, a second new level, GLB, shaders, collectibles, new collision types, floating islands. New textures: 0 KB by default, owner approval above 300 KiB. Details: `docs/briefs/T297-amendment-draft.md`.
