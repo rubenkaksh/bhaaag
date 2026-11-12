@@ -24,3 +24,26 @@ Owner approved: higher default tier on capable devices, small textures, set-dres
 
 ## Amendment 2026-11-10 (portrait play and a Dragon Chase score mode, owner lifted)
 Owner lifted two items: portrait is playable (no rotate overlay; the layout adapts, see `docs/three-track-plan.md`), and a second mode, Dragon Chase (score based, endless), joins Classic L1. Still out: any further modes, extra levels, custom shaders, GLB.
+
+## Amendment 2026-11-10b (strategy pivot, owner decided; recorded, not relitigated)
+The owner pivoted the game from "one tuned descent" to a rooftop **strategy maze**. Lifted from
+"Dropped" item 4 and from the modes limit above:
+- A third mode, the Nagarkot->Bhaktapur run: ONE generated level of ~100 houses (ridge, hillside,
+  road turnings, Bhaktapur town). Still exactly one such level; no level select, no GLB, no shaders.
+- The zipline is **fixed**: it exists only at marked line-houses (fixed rope from a launch zone to a
+  fixed far anchor). Everywhere else the hero jumps, climbs (balcony -> roof) or drops. Classic L1
+  and Chase keep free-aim; the gating is a per-level flag.
+- **Trampolines** (launch impulse) and **cushions** (lethal-landing absorber, haystack role) are new
+  world features on target houses.
+- The level is a **graph**: houses are nodes, moves are edges; some paths are dead ends, 1, 2 or n
+  paths reach the goal. Falling to the hillside ground between houses is a dead end (hazard band).
+- Item 2 stays dropped for the *sim* validator, but a cheap **pure-graph BFS reachability unit test**
+  runs in `pnpm test` (not a deploy gate) because a generated 100-node maze cannot be hand-checked.
+- Controls (left stick, jump button, double/triple tap, hold-to-climb) are a separate track; the
+  core only defines the action model (`docs/adr/0011-strategy-maze-core.md`).
+Kept unchanged: three-colour language (gold = interactive incl. line zones, cream = safe incl.
+trampolines/cushions, terracotta = danger incl. hazard bands), one-hit death, instant restart,
+momentum carry, bundle budget (~600 KB gz, initial chunk <= 215 KB gz per ADR 0009), ADR 0009
+draw-call budgets. Runner's vision is OFF in the maze (it would spoil the maze); affordance colour only.
+Flag: 100 houses is within the triangle budget only with house dressing off and merged feature
+meshes; phone frame time is unverified until measured on a device.

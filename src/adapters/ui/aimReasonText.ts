@@ -1,4 +1,12 @@
-import { AIM_BLOCKED, AIM_OUT_OF_RANGE, AIM_TOO_CLOSE, AIM_TOO_FLAT, AIM_TOO_STEEP, AIM_UPHILL } from '../../core/hook';
+import {
+  AIM_BLOCKED,
+  AIM_NO_LINE,
+  AIM_OUT_OF_RANGE,
+  AIM_TOO_CLOSE,
+  AIM_TOO_FLAT,
+  AIM_TOO_STEEP,
+  AIM_UPHILL,
+} from '../../core/hook';
 
 /** HUD text for an aimReason code; empty when there is nothing to explain. */
 export function aimReasonText(code: number): string {
@@ -15,6 +23,8 @@ export function aimReasonText(code: number): string {
       return 'Too steep';
     case AIM_BLOCKED:
       return 'Line blocked';
+    case AIM_NO_LINE:
+      return 'Stand on a line pad';
     default:
       return '';
   }

@@ -18,6 +18,8 @@ import { RIDGE_Z } from '../../core/world';
 import type { World } from '../../core/world';
 import { buildRopePost } from '../../app/ropePost';
 import { buildDecor, groundAt } from './decor/placeDecor';
+import { buildStrategyFeatures, minSolidZ } from './strategyView';
+import { setTerrainExtent } from './terrain';
 import { tileNormal, tileTexture } from './tileTexture';
 
 // Palette: desaturated warm world, three-colour language on top (gold interactive,
@@ -224,11 +226,15 @@ function dressingMeshes(world: World): Mesh[] {
 export type BuildLevelOpts = {
   /** Hillside ground, forest, hill trees, field walls, birds and the rope post. Default true. */
   scenery?: boolean;
+  /** Decor dressing of house walls (laundry, flags, strings). Default true; strategy mode uses false. */
+  houseDress?: boolean;
 };
 
 /** Level geometry: one merged mesh per colour (styles, pads, goal, pitched roofs) plus anchor spheres. */
 export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group {
   const scenery = opts.scenery !== false;
+  const strategy = world.lineOnly === 1;
+  if (scenery) setTerrainExtent(strategy ? minSolidZ(world) : null);
   const g = new Group();
   g.name = 'level';
   g.userData.route = world.route.slice();
@@ -273,11 +279,17 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
 
   const dress = dressingMeshes(world);
   for (let i = 0; i < dress.length; i++) g.add(dress[i]);
-  g.add(buildDecor(world, undefined, { scenery }));
+  g.add(buildDecor(world, undefined, { scenery, houseDress: opts.houseDress }));
+  if (strategy) {
+    const feats = buildStrategyFeatures(world);
+    for (let i = 0; i < feats.length; i++) g.add(feats[i]);
+  }
   if (scenery) g.add(buildRopePost(world));
 
   const sphere = new SphereGeometry(ANCHOR_R, 12, 8);
-  for (let i = 0; i < world.anchors.length; i++) {
+  // lineOnly worlds (strategy maze): 100 anchors would break the draw-call budget, and the
+  // rope ends are drawn as posts by buildStrategyFeatures instead.
+  for (let i = 0; i < (strategy ? 0 : world.anchors.length); i++) {
     const a = world.anchors[i];
     const m = new Mesh(
       sphere,
@@ -288,7 +300,7 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
     m.userData.anchorId = i;
     g.add(m);
   }
-  if (world.anchors.length > 0) g.add(buildAnchorRings(world));
+  if (world.anchors.length > 0 && !strategy) g.add(buildAnchorRings(world));
   return g;
 }
 

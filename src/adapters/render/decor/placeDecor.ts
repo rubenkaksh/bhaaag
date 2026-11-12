@@ -947,11 +947,16 @@ function forest(B: Builder, bodies: Body[], seed: number): number[] {
   return [base.canopy, base.trunk, base.conifer];
 }
 
-export type DecorOpts = { scenery?: boolean };
+export type DecorOpts = {
+  scenery?: boolean;
+  /** Dress house walls (decor, laundry, flags, strings). Default true; the strategy maze turns it off. */
+  houseDress?: boolean;
+};
 
 /** Builds the non-collider scenery. Deterministic for a given (world, seed). */
 export function buildDecor(world: World, seed = 1729, opts: DecorOpts = {}): Group {
   const scenery = opts.scenery !== false;
+  const houseDress = opts.houseDress !== false;
   const B = new Builder(world, mulberry32(seed));
   const g = new Group();
   g.name = 'decor';
@@ -960,8 +965,10 @@ export function buildDecor(world: World, seed = 1729, opts: DecorOpts = {}): Gro
   let base: number[];
   groundY = scenery ? terrainY : (_x, z) => planeY(z);
   try {
-    dressHouses(B, bodies);
-    stringHouses(B, bodies);
+    if (houseDress) {
+      dressHouses(B, bodies);
+      stringHouses(B, bodies);
+    }
     if (scenery) {
       hillTrees(B, bodies, seed);
       fieldWalls(B, seed);

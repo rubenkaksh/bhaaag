@@ -3,6 +3,7 @@
 import type { Tuning } from './config';
 import {
   BTN_ACTION,
+  BTN_CLIMB,
   BTN_DROP,
   BTN_HOOK,
   BTN_JUMP,
@@ -16,14 +17,19 @@ import type { InputFrame } from './input';
 import {
   DEAD_FELL,
   DEAD_HARD_LANDING,
+  DEAD_HAZARD,
   DEAD_WALL,
   HERO_ATTACHED,
   HERO_AIRBORNE,
   HERO_DEAD,
+  HERO_EV_BOUNCE,
   HERO_EV_CLING,
+  HERO_EV_CUSHION,
   HERO_EV_DIED,
+  HERO_EV_GRAB,
   HERO_EV_HOOKED,
   HERO_EV_LANDED,
+  HERO_EV_MANTLE,
   HERO_EV_PERFECT,
   HERO_EV_RELEASED,
   HERO_EV_ROLLED,
@@ -43,10 +49,12 @@ import {
   hookRelease,
   hookStep,
   hookTrolleyPos,
+  lineAt,
   pickAnchorAssisted,
   resetHook,
 } from './hook';
 import { SweepHit, circleOverlapsAabbXZ, clampScalar, sweptCapsuleVsAabb } from './math/aabb';
+import type { AABB } from './math/aabb';
 import { Vec3 } from './math/vec3';
 import type { World } from './world';
 
@@ -68,6 +76,12 @@ export const HEAD_FRAC = 0.9; // aim ray starts at this fraction of the hero hei
 const LAND_TOL = 2 * SKIN; // feet this close above a surface count as touching it
 const AT_END_PROBE = 0.1; // extra reach past the rope stop when checking for a wall
 const RUNOUT_TOL = 0.05; // launch-surface match tolerance, metres
+const SLAB_TOL = 0.05; // a tramp/cushion slab counts when its top is this close to the feet
+const GRAB_PROBE = 0.08; // airborne wall probe length toward the stick, metres (ledge grab)
+
+// Index of the solid that blocked the last sweepAxis / sweepVec call (-1 when none). Written
+// and read inside one step only, like groundRamp.
+let hitSolid = -1;
 
 // Support surface found by the last groundHeight call: -1 = a solid top (or none), else a ramp
 // id. Written and read inside one step, never carried between steps, so state copies stay exact.
@@ -108,6 +122,7 @@ function sweepAxis(
   let bnx = 0;
   let bny = 0;
   let bnz = 0;
+  hitSolid = -1;
   for (let i = 0; i < w.solids.length; i++) {
     sweptCapsuleVsAabb(scratchBase, height, radius, scratchDelta, w.solids[i], scratchHit);
     if (!scratchHit.hit) continue;
@@ -126,6 +141,7 @@ function sweepAxis(
       bnx = scratchHit.nx;
       bny = scratchHit.ny;
       bnz = scratchHit.nz;
+      hitSolid = i;
     }
   }
   scratchHit.hit = blocked;
@@ -162,6 +178,7 @@ function sweepVec(
   let bnx = 0;
   let bny = 0;
   let bnz = 0;
+  hitSolid = -1;
   for (let i = 0; i < w.solids.length; i++) {
     sweptCapsuleVsAabb(scratchBase, height, radius, scratchDelta, w.solids[i], scratchHit);
     if (!scratchHit.hit) continue;
@@ -176,6 +193,7 @@ function sweepVec(
       bnx = scratchHit.nx;
       bny = scratchHit.ny;
       bnz = scratchHit.nz;
+      hitSolid = i;
     }
   }
   scratchHit.hit = blocked;
@@ -301,14 +319,84 @@ function killHero(s: HeroState, cause: number): void {
   s.vz = 0;
   s.grounded = 0;
   s.perfect = 0;
+  s.hasLedge = 0;
   resetHook(s.hook);
+}
+
+// Index of the slab in list whose top is within SLAB_TOL of y and whose xz rect overlaps the
+// capsule footprint, or -1. Tramps and cushions are thin slabs laid on roof tops (ADR 0011).
+function slabAt(list: AABB[], x: number, z: number, radius: number, y: number): number {
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i];
+    if (!circleOverlapsAabbXZ(b, x, z, radius)) continue;
+    const d = b.max.y - y;
+    if (d > -SLAB_TOL && d < SLAB_TOL) return i;
+  }
+  return -1;
+}
+
+// Index of the hazard volume containing the feet point, or -1.
+function hazardAt(w: World, x: number, y: number, z: number): number {
+  for (let i = 0; i < w.hazards.length; i++) {
+    const b = w.hazards[i];
+    if (x < b.min.x || x > b.max.x || z < b.min.z || z > b.max.z) continue;
+    if (y < b.min.y || y > b.max.y) continue;
+    return i;
+  }
+  return -1;
+}
+
+// Trampoline contact: the feet are on a tramp slab. Never lethal; the hero leaves the roof
+// again at tramp.vUp (plus jumpBonus when JUMP is held), horizontal speed kept under carryCap.
+function bounceHero(s: HeroState, cfg: Tuning, jumpHeld: boolean): void {
+  const hs = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+  const cap = cfg.landing.carryCap;
+  if (hs > cap) {
+    const k = cap / hs;
+    s.vx *= k;
+    s.vz *= k;
+  }
+  s.vy = cfg.tramp.vUp + (jumpHeld ? cfg.tramp.jumpBonus : 0);
+  s.bounceAir = 1;
+  s.grounded = 0;
+  s.mode = HERO_AIRBORNE;
+  s.runOut = 0;
+  s.perfect = 0;
+  s.chainT = 0;
+  s.eventBits |= HERO_EV_BOUNCE;
+  if (s.hook.state === HOOK_ATTACHED || s.hook.state === HOOK_AT_END) resetHook(s.hook);
+}
+
+// Cushion contact: the landing is absorbed at any speed; the hero stands still for
+// cushion.lockSec (move input ignored in moveFree).
+function cushionHero(s: HeroState, cfg: Tuning): void {
+  s.vx = 0;
+  s.vy = 0;
+  s.vz = 0;
+  s.grounded = 1;
+  s.mode = HERO_GROUNDED;
+  s.runOut = 0;
+  s.perfect = 0;
+  s.chainT = 0;
+  s.landLockT = cfg.cushion.lockSec;
+  s.eventBits |= HERO_EV_CUSHION | HERO_EV_LANDED;
+  if (s.hook.state === HOOK_ATTACHED || s.hook.state === HOOK_AT_END) resetHook(s.hook);
 }
 
 // Feet are on the surface groundHeight just found (groundRamp says which); s.v* is the velocity
 // at touchdown. The impact speed is the speed into the surface along its normal (ADR 0002; on a
 // flat top that is -vy, as before). Classifies the landing, keeps the tangential part and turns
 // its horizontal speed into run speed (capped at carryCap, kept through a roll).
-function landHero(s: HeroState, w: World, cfg: Tuning): void {
+// Tramp and cushion slabs (ADR 0011) are checked first and are never lethal.
+function landHero(s: HeroState, w: World, cfg: Tuning, jumpHeld: boolean): void {
+  if (w.tramps.length > 0 && slabAt(w.tramps, s.px, s.pz, cfg.hero.radius, s.py) >= 0) {
+    bounceHero(s, cfg, jumpHeld);
+    return;
+  }
+  if (w.cushions.length > 0 && slabAt(w.cushions, s.px, s.pz, cfg.hero.radius, s.py) >= 0) {
+    cushionHero(s, cfg);
+    return;
+  }
   let nx = 0;
   let ny = 1;
   let nz = 0;
@@ -369,6 +457,8 @@ function releaseHero(s: HeroState, cfg: Tuning, withJump: boolean): void {
   s.grounded = 0;
   s.runOut = 0;
   s.mode = HERO_AIRBORNE;
+  s.hasLedge = 0;
+  s.climbT = 0;
   s.hookCd = cfg.release.hookCooldownSec;
   s.eventBits |= HERO_EV_RELEASED;
 }
@@ -379,33 +469,43 @@ function tryFire(s: HeroState, input: InputFrame, world: World, cfg: Tuning): vo
   if (wasPressed(input, BTN_HOOK)) s.hookIntentT = cfg.release.hookIntentSec;
   if (s.hookIntentT <= 0) return;
   if (s.hookCd > 0 || s.hook.state !== HOOK_IDLE) return;
-  let yaw = s.camYaw;
-  let pitch = s.camPitch;
-  if (input.hasAim === 1) {
-    yaw = dequantizeTurn(input.aimYaw);
-    pitch = dequantizeTurn(input.aimPitch);
-  }
-  const cp = Math.cos(pitch);
-  const head = s.py + cfg.hero.height * HEAD_FRAC;
   const handY = s.py + cfg.rope.handToFeet;
-  const magnet = hasButton(input, BTN_ACTION) ? cfg.aim.magnetDegTouch : cfg.aim.magnetDegDesktop;
-  pickAnchorAssisted(
-    world,
-    cfg,
-    s.px,
-    handY,
-    s.pz,
-    s.px,
-    head,
-    s.pz,
-    Math.sin(yaw) * cp,
-    Math.sin(pitch),
-    Math.cos(yaw) * cp,
-    cfg.rope.maxLen,
-    magnet,
-    scratchAim,
-  );
-  if (scratchAim.anchorId === NO_ANCHOR) return;
+  if (world.lineOnly === 1) {
+    // Fixed line (ADR 0011): no aim; the zone under the feet names the anchor.
+    if (s.grounded !== 1) return;
+    const li = lineAt(world, cfg, s.px, s.py, s.pz);
+    if (li < 0) return;
+    scratchAim.anchorId = world.lines[li].anchorId;
+  } else {
+    let yaw = s.camYaw;
+    let pitch = s.camPitch;
+    if (input.hasAim === 1) {
+      yaw = dequantizeTurn(input.aimYaw);
+      pitch = dequantizeTurn(input.aimPitch);
+    }
+    const cp = Math.cos(pitch);
+    const head = s.py + cfg.hero.height * HEAD_FRAC;
+    const magnet = hasButton(input, BTN_ACTION)
+      ? cfg.aim.magnetDegTouch
+      : cfg.aim.magnetDegDesktop;
+    pickAnchorAssisted(
+      world,
+      cfg,
+      s.px,
+      handY,
+      s.pz,
+      s.px,
+      head,
+      s.pz,
+      Math.sin(yaw) * cp,
+      Math.sin(pitch),
+      Math.cos(yaw) * cp,
+      cfg.rope.maxLen,
+      magnet,
+      scratchAim,
+    );
+    if (scratchAim.anchorId === NO_ANCHOR) return;
+  }
   s.hookIntentT = 0;
   let speedAlong = 0;
   // Momentum seeds the rope whenever the hero is on the ground (a run-up pays) or still inside
@@ -498,12 +598,12 @@ function rideStep(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
     const gh = groundHeight(world, s.px, s.pz, r, oldY + cfg.hero.stepUp);
     if (gh > NO_GROUND && gh >= s.py - LAND_TOL) {
       s.py = gh;
-      landHero(s, world, cfg);
+      landHero(s, world, cfg, hasButton(input, BTN_JUMP));
       return;
     }
   }
   if (blocked) {
-    wallHit(s, cfg);
+    wallHit(s, world, cfg);
     return;
   }
   if (st === HOOK_AT_END) {
@@ -525,19 +625,52 @@ function rideStep(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
       s.px += h.dirX * reach * pf;
       s.py += h.dirY * reach * pf;
       s.pz += h.dirZ * reach * pf;
-      wallHit(s, cfg);
+      wallHit(s, world, cfg);
       return;
     }
     s.mode = HERO_HANGING;
     s.vx = 0;
     s.vy = 0;
     s.vz = 0;
+    s.hasLedge = 0;
     resetHook(h);
   }
 }
 
-// scratchHit holds the blocking face. Above vCling the hero dies, otherwise it clings.
-function wallHit(s: HeroState, cfg: Tuning): void {
+// Records the top of solid idx (whose side face scratchHit names) as the held ledge when it is
+// within climb reach above the feet and nothing sits on it within a hero height. The wall
+// normal must be horizontal (a side face). Returns true when a ledge was recorded.
+function recordLedge(s: HeroState, w: World, cfg: Tuning, idx: number): boolean {
+  s.hasLedge = 0;
+  if (idx < 0 || scratchHit.ny !== 0) return false;
+  const b = w.solids[idx];
+  const dTop = b.max.y - s.py;
+  if (dTop < cfg.climb.reachMin || dTop > cfg.climb.reachMax) return false;
+  const r = cfg.hero.radius;
+  const nx = scratchHit.nx;
+  const nz = scratchHit.nz;
+  // The wall face the hero leans on, measured along the normal axis.
+  const face = nx !== 0 ? (nx > 0 ? b.max.x : b.min.x) : nz > 0 ? b.max.z : b.min.z;
+  // Stand point: the whole footprint on the roof, mantleFwd past the edge.
+  const push = r + cfg.climb.mantleFwd;
+  const inX = nx !== 0 ? face - nx * push : s.px;
+  const inZ = nz !== 0 ? face - nz * push : s.pz;
+  // Head room: the highest surface under the stand point up to a hero height above the
+  // ledge must be the ledge itself.
+  const above = groundHeight(w, inX, inZ, r, b.max.y + cfg.hero.height);
+  if (above > b.max.y + SLAB_TOL) return false;
+  s.hasLedge = 1;
+  s.hangLedgeY = b.max.y;
+  s.hangNx = nx;
+  s.hangNz = nz;
+  s.hangWall = face;
+  s.climbT = 0;
+  return true;
+}
+
+// scratchHit holds the blocking face (hitSolid its solid). Above vCling the hero dies,
+// otherwise it clings; a ledge within reach is kept for a mantle.
+function wallHit(s: HeroState, w: World, cfg: Tuning): void {
   const h = s.hook;
   const vImpact =
     h.v * Math.max(0, -(h.dirX * scratchHit.nx + h.dirY * scratchHit.ny + h.dirZ * scratchHit.nz));
@@ -550,15 +683,55 @@ function wallHit(s: HeroState, cfg: Tuning): void {
   s.vy = 0;
   s.vz = 0;
   s.eventBits |= HERO_EV_CLING;
+  if (w.climb === 1) recordLedge(s, w, cfg, hitSolid);
   resetHook(h);
 }
 
-function hangStep(s: HeroState, input: InputFrame, cfg: Tuning): void {
+// Airborne horizontal sweep blocked by solid idx: grab its top when in reach (ADR 0011).
+function tryGrab(s: HeroState, w: World, cfg: Tuning, idx: number): boolean {
+  if (s.vy > cfg.climb.vyMax || s.vy < -cfg.climb.vyMax) return false;
+  if (!recordLedge(s, w, cfg, idx)) return false;
+  s.mode = HERO_HANGING;
   s.vx = 0;
   s.vy = 0;
   s.vz = 0;
-  if (wasPressed(input, BTN_JUMP)) releaseHero(s, cfg, true);
-  else if (wasPressed(input, BTN_DROP)) releaseHero(s, cfg, false);
+  s.runOut = 0;
+  s.eventBits |= HERO_EV_GRAB;
+  return true;
+}
+
+function hangStep(s: HeroState, input: InputFrame, cfg: Tuning, dt: number): void {
+  s.vx = 0;
+  s.vy = 0;
+  s.vz = 0;
+  if (wasPressed(input, BTN_JUMP)) {
+    releaseHero(s, cfg, true);
+    return;
+  }
+  if (wasPressed(input, BTN_DROP)) {
+    releaseHero(s, cfg, false);
+    return;
+  }
+  if (s.hasLedge !== 1) return;
+  if (!hasButton(input, BTN_CLIMB)) {
+    s.climbT = 0;
+    return;
+  }
+  s.climbT += dt;
+  if (s.climbT < cfg.climb.holdSec) return;
+  // Mantle: stand on the ledge with the whole footprint on the roof, mantleFwd past the
+  // edge, measured from the wall face (the hero hangs a radius short of it).
+  const push = cfg.hero.radius + cfg.climb.mantleFwd;
+  if (s.hangNx !== 0) s.px = s.hangWall - s.hangNx * push;
+  if (s.hangNz !== 0) s.pz = s.hangWall - s.hangNz * push;
+  s.py = s.hangLedgeY;
+  s.yaw = Math.atan2(-s.hangNx, -s.hangNz);
+  s.grounded = 1;
+  s.mode = HERO_GROUNDED;
+  s.hasLedge = 0;
+  s.climbT = 0;
+  s.chainT = 0;
+  s.eventBits |= HERO_EV_MANTLE;
 }
 
 export function step(s: HeroState, input: InputFrame, world: World, cfg: Tuning): void {
@@ -569,6 +742,7 @@ export function step(s: HeroState, input: InputFrame, world: World, cfg: Tuning)
   if (s.rollT > 0) s.rollT = s.rollT > dt ? s.rollT - dt : 0;
   if (s.hookCd > 0) s.hookCd = s.hookCd > dt ? s.hookCd - dt : 0;
   if (s.hookIntentT > 0) s.hookIntentT = s.hookIntentT > dt ? s.hookIntentT - dt : 0;
+  if (s.landLockT > 0) s.landLockT = s.landLockT > dt ? s.landLockT - dt : 0;
 
   // Camera.
   s.camYaw += dequantizeTurn(input.lookYaw);
@@ -589,15 +763,18 @@ export function step(s: HeroState, input: InputFrame, world: World, cfg: Tuning)
         s.launchY = s.py;
         s.grounded = 0;
         s.mode = HERO_ATTACHED;
+        s.bounceAir = 0;
       }
     }
   }
 
   if (s.mode === HERO_ATTACHED) rideStep(s, input, world, cfg, dt);
-  else if (s.mode === HERO_HANGING) hangStep(s, input, cfg);
+  else if (s.mode === HERO_HANGING) hangStep(s, input, cfg, dt);
   else moveFree(s, input, world, cfg, dt);
 
   if (s.dead === 0 && s.py < world.killPlaneY) killHero(s, DEAD_FELL);
+  if (s.dead === 0 && world.hazards.length > 0 && hazardAt(world, s.px, s.py, s.pz) >= 0)
+    killHero(s, DEAD_HAZARD);
 }
 
 // Grounded on a slippery slope (frame in the slope scratch): weak steering toward the wanted
@@ -649,9 +826,11 @@ function slideVelocity(
 }
 
 function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt: number): void {
-  // Desired horizontal velocity, camera-relative.
-  let mx = dequantizeAxis(input.moveX);
-  let my = dequantizeAxis(input.moveY);
+  // Desired horizontal velocity, camera-relative. A cushion landing locks the controls for
+  // landLockT (ADR 0011).
+  const locked = s.landLockT > 0;
+  let mx = locked ? 0 : dequantizeAxis(input.moveX);
+  let my = locked ? 0 : dequantizeAxis(input.moveY);
   const mag = Math.sqrt(mx * mx + my * my);
   if (mag > 1) {
     mx /= mag;
@@ -663,7 +842,7 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   const wantZ = (my * cy - mx * sy) * cfg.hero.run;
 
   if (s.grounded === 1) {
-    if (wasPressed(input, BTN_JUMP)) {
+    if (!locked && wasPressed(input, BTN_JUMP)) {
       s.vy = cfg.hero.jump;
       s.grounded = 0;
     } else {
@@ -711,6 +890,24 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
     const k = 1 - cfg.physics.airDrag * dt;
     s.vx *= k;
     s.vz *= k;
+    // After a trampoline bounce only: the stick steers horizontal velocity toward the wanted
+    // direction at tramp.airSteer m/s^2, never pushing speed past tramp.airSteerCap.
+    if (s.bounceAir === 1 && mag > 0 && !locked) {
+      const cap = cfg.tramp.airSteerCap;
+      const tx = (wantX / cfg.hero.run) * cap;
+      const tz = (wantZ / cfg.hero.run) * cap;
+      const dx = tx - s.vx;
+      const dz = tz - s.vz;
+      const dl = Math.sqrt(dx * dx + dz * dz);
+      const maxD = cfg.tramp.airSteer * dt;
+      if (dl <= maxD) {
+        s.vx = tx;
+        s.vz = tz;
+      } else {
+        s.vx += (dx / dl) * maxD;
+        s.vz += (dz / dl) * maxD;
+      }
+    }
   }
 
   // Horizontal move, per axis. Grounded bodies ignore geometry below stepUp.
@@ -738,6 +935,25 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   if (rampBarrierHeightAt(world, s.px, s.pz, r) > s.py + cfg.hero.stepUp) {
     s.pz = oldPz;
     s.vz = 0;
+  }
+
+  // Ledge grab (ADR 0011, climb levels only): in the air, holding the stick toward a wall
+  // (or facing it with no input) probes a few cm that way; a wall there whose top is in
+  // reach is grabbed. The probe, not the blocked sweep, is the test, because a blocked
+  // airborne hero has its velocity zeroed and would never touch the wall again.
+  if (world.climb === 1 && s.grounded === 0) {
+    let gx = wantX;
+    let gz = wantZ;
+    if (mag === 0) {
+      gx = Math.sin(s.yaw);
+      gz = Math.cos(s.yaw);
+    }
+    const gl = Math.sqrt(gx * gx + gz * gz);
+    if (gl > 1e-6) {
+      const k = GRAB_PROBE / gl;
+      sweepVec(world, s.px, s.py, s.pz, cfg.hero.height, r, gx * k, 0, gz * k);
+      if (scratchHit.hit && tryGrab(s, world, cfg, hitSolid)) return;
+    }
   }
 
   const sp2 = s.vx * s.vx + s.vz * s.vz;
@@ -775,10 +991,11 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
       // A blocked down-sweep leaves the feet SKIN above the top: land there.
       if (gh > NO_GROUND && gh >= s.py - LAND_TOL) {
         s.py = gh;
-        landHero(s, world, cfg);
+        landHero(s, world, cfg, hasButton(input, BTN_JUMP));
       }
     }
   }
 
+  if (s.grounded === 1) s.bounceAir = 0;
   if (s.dead === 0) s.mode = s.grounded === 1 ? HERO_GROUNDED : HERO_AIRBORNE;
 }

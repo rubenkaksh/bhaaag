@@ -52,11 +52,17 @@ export class Hud {
   private readonly altFill: HTMLElement;
   private altPct = -1;
 
-  constructor(root: HTMLElement, debug: boolean, onPlayAgain: () => void) {
+  constructor(
+    root: HTMLElement,
+    debug: boolean,
+    onPlayAgain: () => void,
+    opts: { hint?: string; hopChip?: boolean } = {},
+  ) {
     this.objective = el(root, 'div', 'hud-objective');
     this.objective.innerHTML =
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5 22.5 12 12 22.5 1.5 12Z" fill="#ffc83a" stroke="#2a1a0e" stroke-width="1.5"/><path d="M12 6.5 17.5 12 12 17.5 6.5 12Z" fill="none" stroke="#2a1a0e" stroke-width="1.5"/></svg><span>Reach the Target</span>';
     this.hop = el(root, 'div', 'hud-hop');
+    if (opts.hopChip === false) this.hop.style.display = 'none';
     this.alt = el(root, 'div', 'hud-alt');
     this.alt.innerHTML = '<i class="alt-fill"></i><i class="alt-dot"></i>';
     this.altFill = this.alt.querySelector('.alt-fill') as HTMLElement;
@@ -78,7 +84,7 @@ export class Hud {
     this.wpLabel = this.wp.querySelector('.wp-label') as HTMLElement;
     this.wpArrow = this.wp.querySelector('.wp-arrow') as HTMLElement;
     this.hint = el(root, 'div', 'hud-hint');
-    this.hint.textContent = 'Aim at a glowing anchor and hook';
+    this.hint.textContent = opts.hint ?? 'Aim at a glowing anchor and hook';
     this.reticle = el(root, 'div', 'hud-reticle');
     this.reason = el(root, 'div', 'hud-reason', 'off');
     this.toastEl = el(root, 'div', 'hud-toast', 'off');
@@ -92,7 +98,7 @@ export class Hud {
     btn.textContent = 'PLAY AGAIN';
     btn.addEventListener('click', onPlayAgain);
     this.win.append(h, this.winTime, this.winBest, btn);
-    this.action = root.querySelector<HTMLElement>('#btn-action');
+    this.action = root.querySelector<HTMLElement>('#btn-jump');
     this.setTime(0);
   }
 
@@ -221,13 +227,14 @@ export class Hud {
     this.win.classList.add('off');
   }
 
-  /** Touch action button label (HOOK / BRAKE). */
+  /** Right-hand touch button label: JUMP, HOOK, BRAKE or CLIMB (icon and aria-label follow). */
   setActionLabel(text: string): void {
     if (this.action === null || text === this.actionText) return;
     this.actionText = text;
-    // Icons live in index.html; only the mode and accessible label change.
-    const brake = text === 'BRAKE';
-    this.action.dataset.mode = brake ? 'brake' : 'hook';
+    // Icons live in index.html; only the mode, visible label and accessible label change.
+    this.action.dataset.mode = text.toLowerCase();
+    const lbl = this.action.querySelector('.lbl');
+    if (lbl !== null) lbl.textContent = text;
     this.action.setAttribute('aria-label', text.charAt(0) + text.slice(1).toLowerCase());
   }
 

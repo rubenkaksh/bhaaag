@@ -16,6 +16,42 @@ export const TERRAIN_Z_MIN = -360; // downhill, across the valley
 const VALLEY_Z = -150; // the plane stops descending here
 const VALLEY_DROP = 5; // further drop while it rolls out into the valley floor
 const FAR_RISE_Z = -260; // the far valley wall starts to rise
+const VALLEY_ABOVE_END = VALLEY_Z - TERRAIN_Z_MIN; // 210: valley start sits this far above the z-min edge
+const FAR_RISE_ABOVE_END = 100;
+
+// Extent override for long levels (strategy maze runs to z -700): the valley, far wall and the
+// z-min edge slide down together. Default (null) leaves every value exactly as above.
+let zMinNow = TERRAIN_Z_MIN;
+let valleyZNow = VALLEY_Z;
+let farRiseZNow = FAR_RISE_Z;
+
+/**
+ * Lets the drawn terrain follow a long level: the plane keeps its grade down to
+ * `lastSolidZ - margin`, then rolls into the valley. Pass null (or a level shorter than the
+ * default) to restore the stock extents. Never moves the plane inside the hill.
+ */
+export function setTerrainExtent(lastSolidZ: number | null, margin = 30): void {
+  const want = lastSolidZ === null ? TERRAIN_Z_MIN : lastSolidZ - margin - VALLEY_ABOVE_END;
+  zMinNow = Math.min(TERRAIN_Z_MIN, want);
+  if (zMinNow === TERRAIN_Z_MIN) {
+    valleyZNow = VALLEY_Z;
+    farRiseZNow = FAR_RISE_Z;
+  } else {
+    valleyZNow = zMinNow + VALLEY_ABOVE_END;
+    farRiseZNow = zMinNow + FAR_RISE_ABOVE_END;
+  }
+}
+
+/** Downhill edge of the drawn terrain right now (TERRAIN_Z_MIN unless extended). */
+export function terrainZMin(): number {
+  return zMinNow;
+}
+
+/** Where the plane stops descending right now (-150 unless extended). */
+export function terrainValleyZ(): number {
+  return valleyZNow;
+}
+
 const BLEND_X0 = HILL_HALF_X; // exact plane inside this
 const BLEND_X1 = HILL_HALF_X + 18; // fully blended outside this
 
@@ -42,11 +78,11 @@ function wobble(x: number, z: number): number {
 export function terrainY(x: number, z: number): number {
   // Centre-line profile: the plane, then a valley floor, then the far wall rising.
   let base = planeY(z);
-  if (z < VALLEY_Z) {
-    const d = VALLEY_Z - z;
-    base = planeY(VALLEY_Z) - VALLEY_DROP * (1 - Math.exp(-d / 40));
-    if (z < FAR_RISE_Z) {
-      const f = FAR_RISE_Z - z;
+  if (z < valleyZNow) {
+    const d = valleyZNow - z;
+    base = planeY(valleyZNow) - VALLEY_DROP * (1 - Math.exp(-d / 40));
+    if (z < farRiseZNow) {
+      const f = farRiseZNow - z;
       base += 0.0006 * f * f;
     }
   } else if (z > 40) {

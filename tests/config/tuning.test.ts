@@ -32,6 +32,7 @@ const schema = z.strictObject({
     previewHz: num,
     previewMaxSec: num,
     previewReleaseSamples: num,
+    tapRadiusNdc: num,
   }),
   release: z.strictObject({
     inputBufferMs: num,
@@ -86,6 +87,10 @@ const schema = z.strictObject({
     armRelease: num,
     downhillBias: num,
     fovSpeed: num,
+    frontPitchDeg: num,
+    zipYawDeg: num,
+    zipYawMinDiagDeg: num,
+    zipYawEase: num,
   }),
   validator: z.strictObject({
     minReleaseWindowTicks: num,
@@ -115,6 +120,16 @@ const schema = z.strictObject({
     decoyGain: num,
     oneHouseBase: num,
     oneHouseGain: num,
+  }),
+  line: z.strictObject({ zoneTol: num }),
+  tramp: z.strictObject({ vUp: num, jumpBonus: num, airSteer: num, airSteerCap: num }),
+  cushion: z.strictObject({ lockSec: num }),
+  climb: z.strictObject({
+    reachMin: num,
+    reachMax: num,
+    holdSec: num,
+    vyMax: num,
+    mantleFwd: num,
   }),
 });
 

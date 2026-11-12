@@ -19,7 +19,6 @@
  * ------------------------------------------------------------------ */
 #stick-zone,
 #look-zone,
-#btn-action,
 #btn-jump {
   display: none;
   position: fixed;
@@ -45,7 +44,7 @@
 }
 
 /* ------------------------------------------------------------------ *
- * Right 60% — look-drag + tap-to-aim zone.
+ * Right 60% — tap-to-aim + swipe-down zone (no view control).
  * ------------------------------------------------------------------ */
 #look-zone {
   top: 0;
@@ -62,7 +61,7 @@
  * ------------------------------------------------------------------ */
 #stick-base,
 #stick-knob {
-  position: absolute;
+  position: fixed; /* client px offsets, whatever box #stick-zone occupies (portrait: bottom-left) */
   display: none;
   border-radius: 50%;
   pointer-events: none;
@@ -115,48 +114,51 @@
 }
 
 /* ------------------------------------------------------------------ *
- * ACTION (hook / brake): round, bottom-right. JUMP sits directly above,
- * centres aligned, gap 10px (ADR 0005 D8). Icons are inline SVG in
- * index.html; data-mode picks hook or brake.
+ * The ONE right-hand button (JUMP; label and icon follow the context: Hook on a line pad, Brake
+ * on the rope, Climb while hanging at a ledge). Big thumb target, bottom-right. data-mode picks
+ * the icon; the label text is set by hud.setActionLabel (docs/controls.md).
  * ------------------------------------------------------------------ */
-#btn-action,
 #btn-jump {
+  --a: clamp(88px, 27vh, 124px);
   box-sizing: border-box;
   border: 2px solid var(--ring);
   border-radius: 50%;
   padding: 0;
   color: var(--ink);
   z-index: 20;
-}
-#btn-action {
-  --a: clamp(68px, 21vh, 96px);
-  --j: clamp(56px, 16vh, 76px);
   right: calc(var(--pad) + env(safe-area-inset-right, 0px));
   bottom: calc(var(--pad) + env(safe-area-inset-bottom, 0px));
   width: var(--a);
   height: var(--a);
   background: rgba(28, 20, 16, 0.55);
+  flex-direction: column;
+  gap: 2px;
 }
-#btn-jump {
-  --a: clamp(68px, 21vh, 96px);
-  --j: clamp(56px, 16vh, 76px);
-  width: var(--j);
-  height: var(--j);
-  right: calc(var(--pad) + (var(--a) - var(--j)) / 2 + env(safe-area-inset-right, 0px));
-  bottom: calc(var(--pad) + var(--a) + 10px + env(safe-area-inset-bottom, 0px));
-  background: rgba(28, 20, 16, 0.55);
-}
-#btn-action svg,
 #btn-jump svg {
-  width: 56%;
-  height: 56%;
+  width: 48%;
+  height: 48%;
   pointer-events: none;
 }
-#btn-action[data-mode='hook'] .ic-brake,
-#btn-action[data-mode='brake'] .ic-hook {
+#btn-jump .lbl {
+  font: 700 clamp(10px, 1.6vh, 13px) var(--font);
+  letter-spacing: 0.08em;
+  pointer-events: none;
+}
+#btn-jump .ic-hook,
+#btn-jump .ic-brake,
+#btn-jump .ic-climb {
   display: none;
 }
-#btn-action:active,
+#btn-jump[data-mode='hook'] .ic-jump,
+#btn-jump[data-mode='brake'] .ic-jump,
+#btn-jump[data-mode='climb'] .ic-jump {
+  display: none;
+}
+#btn-jump[data-mode='hook'] .ic-hook,
+#btn-jump[data-mode='brake'] .ic-brake,
+#btn-jump[data-mode='climb'] .ic-climb {
+  display: inline;
+}
 #btn-jump:active {
   background: rgba(255, 200, 58, 0.35);
   border-color: var(--gold);
@@ -165,13 +167,9 @@
 /* Coarse pointers only: the whole touch layer disappears on desktop. */
 @media (pointer: coarse) {
   #stick-zone,
-  #look-zone,
-  #btn-action,
-  #btn-jump {
+  #look-zone {
     display: block;
   }
-  /* Centre the text glyphs inside the round buttons. */
-  #btn-action,
   #btn-jump {
     display: flex;
     align-items: center;
@@ -208,19 +206,9 @@
   #stick-knob.ghost {
     bottom: calc(var(--ab) + 64px);
   }
-  #btn-action,
   #btn-jump {
-    --a: clamp(76px, 22vw, 100px);
-    --j: clamp(60px, 17vw, 80px);
-    /* centre distance between the two buttons, resolved on a 45 degree arc up and to the left */
-    --arc: calc(((var(--a) + var(--j)) / 2 + 12px) * 0.7071);
-  }
-  #btn-action {
+    --a: clamp(92px, 28vw, 120px);
     right: calc(var(--pad) + env(safe-area-inset-right, 0px));
     bottom: var(--ab);
-  }
-  #btn-jump {
-    right: calc(var(--pad) + (var(--a) - var(--j)) / 2 + var(--arc) + env(safe-area-inset-right, 0px));
-    bottom: calc(var(--ab) + (var(--a) - var(--j)) / 2 + var(--arc));
   }
 }

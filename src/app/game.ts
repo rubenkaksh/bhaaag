@@ -10,6 +10,7 @@ import {
   DEAD_WALL,
   HERO_AIRBORNE,
   HERO_ATTACHED,
+  HERO_HANGING,
   HERO_EV_CLING,
   HERO_EV_DIED,
   HERO_EV_HOOKED,
@@ -24,18 +25,22 @@ import {
   NO_ANCHOR,
   AimResult,
   aimReason,
+  lineAt,
   pickAnchorAssisted,
 } from '../core/hook';
-import { BTN_ACTION, BTN_HOOK, BTN_REEL, BTN_RESTART, newInputFrame } from '../core/input';
+import { BTN_REEL, BTN_RESTART, newInputFrame, quantizeTurn } from '../core/input';
 import { aabbContainsPoint } from '../core/math/aabb';
 import { PreviewResult, PREVIEW_NONE, previewShot } from '../core/preview';
 import { step } from '../core/sim';
 import { Vec3 } from '../core/math/vec3';
-import { loadWorldFromJson } from '../content/load';
+import { loadWorldFromJson, loadWorldFromObject } from '../content/load';
+import { STRATEGY_SEED, generateStrategyLevel } from '../content/strategy/gen';
 import { DesktopInput } from '../adapters/input/desktop';
-import { TouchInput } from '../adapters/input/touch';
+import { TouchInput, type ActionMode } from '../adapters/input/touch';
 import { Sfx } from '../adapters/audio/sfx';
 import { CameraRig, updateCamera } from '../adapters/render/cameraRig';
+import { easeYawOffset, zipYawTarget } from '../adapters/render/cameraYaw';
+import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
 import { createGameScene } from '../adapters/render/scene';
@@ -79,7 +84,7 @@ import { CameraFx } from '../adapters/render/cameraFx';
 import { DustPuff } from '../adapters/render/dustPuff';
 import { GameLoop } from './loop';
 import { framingFor } from '../adapters/render/framing';
-import { readBest, writeBest } from './modes/mode';
+import { MODE_INFO, readBest, writeBest } from './modes/mode';
 import type { GameMode } from './modes/mode';
 import { readViewport, watchViewport } from './viewport';
 import type { ViewportLayout } from './viewport';
@@ -119,12 +124,13 @@ function smooth(p: number): number {
   return c * c * (3 - 2 * c);
 }
 
+const DEG2RAD = Math.PI / 180;
+
 // YAW CONVENTION (the one conversion between sim and camera rig).
-// Sim: forward = (sin c, cos c) in (x, z), yaw 0 faces +z, +lookYaw increases c.
+// Sim: forward = (sin c, cos c) in (x, z), yaw 0 faces +z, no player view control (the sim camYaw is fixed).
 // Rig: look dir = (sin r, -cos r), yaw 0 faces -z, +r turns right.
-// Matching look directions gives r = PI - c. That is a mirror, so two input
-// signs flip with it: lookYaw (mouse right must turn the view right) and
-// moveX (D/stick-right must move toward screen-right). Applied in onStep.
+// Matching look directions gives r = PI - c. That is a mirror, so moveX flips with it
+// (D/stick-right must move toward screen-right). Applied in onStep.
 function camYawToRig(simCamYaw: number): number {
   return Math.PI - simCamYaw;
 }
@@ -174,6 +180,7 @@ export function startGame(
   let camCfg = cfg.camera;
   const params = new URLSearchParams(location.search);
   const isChase = mode === 'chase';
+  const isStrategy = mode === 'strategy';
   const seedParam = params.get('seed');
   const fixedSeed = seedParam !== null && Number.isFinite(Number(seedParam));
   let chaseSeed = fixedSeed ? Number(seedParam) | 0 : (Math.random() * 2147483647) | 0;
@@ -182,9 +189,16 @@ export function startGame(
     cfg.chase.startGap = gapParam;
   }
   let cs: ChaseState | null = isChase ? newChaseState(chaseSeed, 0, cfg) : null;
-  let world = cs !== null ? cs.rw.world : loadWorldFromJson(levelText);
+  let world =
+    cs !== null
+      ? cs.rw.world
+      : isStrategy
+        ? loadWorldFromObject(
+            generateStrategyLevel(fixedSeed ? Number(seedParam) | 0 : STRATEGY_SEED),
+          )
+        : loadWorldFromJson(levelText);
   const gs = createGameScene(canvas);
-  const level: Group | null = cs === null ? gs.buildWorld(world) : null;
+  const level: Group | null = cs === null ? gs.buildWorld(world, { houseDress: !isStrategy }) : null;
   // Chase views: no classic scenery; own rows, endless ground and dragon.
   if (cs !== null) gs.setBlobWorld(world);
   const rowsView = isChase ? new ChaseRowsView(() => gs.refreshFlags()) : null;
@@ -258,10 +272,14 @@ export function startGame(
   let runT = 0;
   let nextRouteIndex = 0;
   let anyInput = false;
-  let brakeLatch = false;
   let brakeWas = false;
   let viewport: ViewportLayout = readViewport();
   let lensShiftPx = 0;
+  let zipYaw = 0; // automatic zipline camera yaw offset (rig radians), 0 = front view
+  let tapAnchor = NO_ANCHOR; // anchor picked by tap-to-aim, sticky until fired or cleared
+  let aimYaw = 0;
+  let aimPitch = 0;
+  let aimId = NO_ANCHOR;
   let jsMs = 0;
   let stepMs = 0;
   let best = readBest(mode);
@@ -272,17 +290,12 @@ export function startGame(
     cur.py = world.spawn.y;
     cur.pz = world.spawn.z;
     cur.yaw = world.spawnYaw;
+    // Fixed front view: no player view control, so the sim camera never changes after this.
+    // Camera sits BEHIND the hero looking downhill; the rig only pans sideways to keep the hero centred.
     cur.camYaw = world.spawnYaw;
-    cur.camPitch = 0;
-    // Frame the first route anchor so the start view already shows what to hook.
-    const first = world.anchors[world.route[0]];
-    if (first !== undefined) {
-      const dx = first.px - cur.px;
-      const dy = first.py - (cur.py + cfg.hero.height * HEAD_FRAC);
-      const dz = first.pz - cur.pz;
-      cur.camYaw = Math.atan2(dx, dz);
-      cur.camPitch = Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
-    }
+    cur.camPitch = cfg.camera.frontPitchDeg * DEG2RAD;
+    zipYaw = 0;
+    tapAnchor = NO_ANCHOR;
     cur.grounded = 1;
     cur.mode = HERO_AIRBORNE;
     copyHeroState(prev, cur);
@@ -293,24 +306,29 @@ export function startGame(
     feet.y = cur.py;
     feet.z = cur.pz;
     const speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
-    // Chase: reversed rig (r = -c) so the camera sits downhill of the hero and looks back
-    // up the slope at the dragon. Screen right still equals the sim right vector, so the
-    // movement mapping is untouched. Classic keeps the behind-hero forward view.
-    const rigYaw = isChase ? -cur.camYaw : camYawToRig(cur.camYaw);
-    // Chase: tilt a few degrees up the slope so the distant dragon sits in frame, not off the top.
-    const rigPitch = isChase ? cur.camPitch + 0.14 : cur.camPitch;
-    updateCamera(
-      curRig,
-      feet,
-      rigYaw,
-      rigPitch,
-      speed,
-      world.solids,
+    if (isChase) {
+      // Chase: reversed rig (r = -c) so the camera sits downhill of the hero and looks back
+      // up the slope at the dragon. Screen right still equals the sim right vector, so the
+      // movement mapping is untouched. Tilted a few degrees up the slope so the dragon is in frame.
+      updateCamera(curRig, feet, -cur.camYaw, cur.camPitch + 0.14, speed, world.solids, camCfg);
+      return;
+    }
+    const base = camYawToRig(cur.camYaw);
+    // Screen frame of the behind view: right = (cos r, sin r), away = (sin r, -cos r) in (x, z).
+    const vRight = cur.vx * Math.cos(base) + cur.vz * Math.sin(base);
+    const vFwd = cur.vx * Math.sin(base) - cur.vz * Math.cos(base);
+    zipYaw = easeYawOffset(
+      zipYaw,
+      zipYawTarget(cur.mode === HERO_ATTACHED && cur.dead === 0, vRight, vFwd, camCfg),
       camCfg,
     );
+    updateCamera(curRig, feet, base + zipYaw, cur.camPitch, speed, world.solids, camCfg);
   }
 
-  const hudUi = new Hud(root, debug, () => restart());
+  const hudUi = new Hud(root, debug, () => restart(), {
+    hint: MODE_INFO[mode].hint,
+    hopChip: MODE_INFO[mode].hopChip,
+  });
   const chaseHud = isChase ? new ChaseHud(root, () => restart()) : null;
 
   /** Canonical respawn: spawn point, zero velocity, hook idle, camera facing spawnYaw. */
@@ -333,7 +351,6 @@ export function startGame(
     runT = 0;
     nextRouteIndex = 0;
     anyInput = false;
-    brakeLatch = false;
     animEv = 0;
     animImpact = 0;
     previewTarget = NO_ANCHOR;
@@ -359,7 +376,6 @@ export function startGame(
     copyHeroState(prev, cur);
     input.sample(frame);
     frame.moveX = -frame.moveX;
-    frame.lookYaw = -frame.lookYaw;
 
     if (phase === 'pan') {
       // Drain input so nothing pressed during the flyover fires on the first play tick.
@@ -389,21 +405,30 @@ export function startGame(
       }
     } else if (phase === 'play') {
       if (input instanceof TouchInput) {
-        // One contextual button: HOOK (press) off the rope, BRAKE (hold) on it.
-        const held = (frame.buttons & BTN_ACTION) !== 0;
-        if (cur.mode === HERO_ATTACHED) {
-          if (!held) brakeLatch = false;
-          if (held && !brakeLatch) frame.buttons |= BTN_REEL;
-        } else {
-          brakeLatch = held; // still holding from the hook press: no brake until re-press
-          if ((frame.pressed & BTN_ACTION) !== 0) {
-            frame.pressed |= BTN_HOOK;
-            frame.buttons |= BTN_HOOK;
-          }
+        // One right-hand button; its press mapping lives in TouchInput (docs/controls.md).
+        let mode: ActionMode = 'jump';
+        if (cur.mode === HERO_ATTACHED) mode = 'brake';
+        else if (cur.mode === HERO_HANGING && cur.hasLedge === 1) mode = 'climb';
+        else if (
+          world.lineOnly === 1 &&
+          cur.grounded === 1 &&
+          lineAt(world, cfg, cur.px, cur.py, cur.pz) >= 0
+        ) {
+          mode = 'hook';
         }
-        hudUi.setActionLabel(cur.mode === HERO_ATTACHED ? 'BRAKE' : 'HOOK');
+        input.actionMode = mode;
+        hudUi.setActionLabel(mode.toUpperCase());
+      }
+      consumeTap();
+      computeAim();
+      if (aimId !== NO_ANCHOR && cur.mode !== HERO_ATTACHED) {
+        frame.hasAim = 1;
+        frame.aimYaw = quantizeTurn(aimYaw);
+        frame.aimPitch = quantizeTurn(aimPitch);
       }
       step(cur, frame, world, cfg);
+      if ((cur.eventBits & HERO_EV_HOOKED) !== 0 || cur.mode === HERO_ATTACHED)
+        tapAnchor = NO_ANCHOR;
       if (cs !== null) chaseStep(cs, cur, world, cfg);
       runT += stepDt;
 
@@ -446,7 +471,6 @@ export function startGame(
         deadT = 0;
         anyInput = false;
         if (cs === null) hudUi.toast(DEATH_MSG[cur.deadCause] ?? 'You fell');
-        else if (document.pointerLockElement) document.exitPointerLock();
       } else if (
         cs === null &&
         cur.dead === 0 &&
@@ -456,11 +480,10 @@ export function startGame(
         phase = 'won';
         if (best === 0 || runT < best) {
           best = runT;
-          writeBest('classic', best);
+          writeBest(mode, best);
         }
         hudUi.showWin(runT, best);
         hudUi.pulseTimer();
-        if (document.pointerLockElement) document.exitPointerLock();
       }
       updateReticle();
       updatePreview();
@@ -513,14 +536,78 @@ export function startGame(
   }
 
   /** Gold + big when pickAnchor (same args the sim uses on press) finds a target. */
+  function isLineOnly(): boolean {
+    return world.lineOnly === 1;
+  }
+
+  /** Tap on an anchor = aim at it (touch). The tap is consumed either way. */
+  function consumeTap(): void {
+    if (!(input instanceof TouchInput) || !input.tapPending) return;
+    input.tapPending = false;
+    if (isLineOnly()) return;
+    if (cur.mode === HERO_ATTACHED) return;
+    const i = pickAnchorAtNdc(
+      gs.camera,
+      world.anchors,
+      input.tapNdcX,
+      input.tapNdcY,
+      gs.camera.aspect,
+      cfg.aim.tapRadiusNdc,
+      cur.px,
+      cur.py,
+      cur.pz,
+      cfg.rope.maxLen * 1.5,
+    );
+    tapAnchor = i < 0 ? NO_ANCHOR : i;
+  }
+
+  /**
+   * Aim without a look control: the tapped anchor, else the glowing next route anchor. Writes
+   * aimId / aimYaw / aimPitch (direction from the head); with no target the fixed front view.
+   */
+  function computeAim(): void {
+    if (isLineOnly()) {
+      // Strategy levels: ziplines are fixed (line zones), aim is bypassed entirely.
+      aimId = NO_ANCHOR;
+      aimYaw = cur.camYaw;
+      aimPitch = cur.camPitch;
+      return;
+    }
+    let id = tapAnchor;
+    if (id === NO_ANCHOR) {
+      const r = world.route[nextRouteIndex];
+      id = r === undefined ? NO_ANCHOR : r;
+    }
+    aimId = id;
+    aimYaw = cur.camYaw;
+    aimPitch = cur.camPitch;
+    if (id === NO_ANCHOR) return;
+    const a = world.anchors[id];
+    if (a === undefined) {
+      aimId = NO_ANCHOR;
+      return;
+    }
+    const dx = a.px - cur.px;
+    const dy = a.py - (cur.py + cfg.hero.height * HEAD_FRAC);
+    const dz = a.pz - cur.pz;
+    aimYaw = Math.atan2(dx, dz);
+    aimPitch = Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
+  }
+
   function updateReticle(): void {
     previewTarget = NO_ANCHOR;
-    if (phase !== 'play' || cur.mode === HERO_ATTACHED || cur.hook.state !== HOOK_IDLE) {
+    if (
+      phase !== 'play' ||
+      isLineOnly() ||
+      cur.mode === HERO_ATTACHED ||
+      cur.hook.state !== HOOK_IDLE
+    ) {
       hudUi.setReticle(0);
       hudUi.setAimReason('');
       return;
     }
-    const cp = Math.cos(cur.camPitch);
+    computeAim();
+    const cp = Math.cos(aimPitch);
     pickAnchorAssisted(
       world,
       cfg,
@@ -530,9 +617,9 @@ export function startGame(
       cur.px,
       cur.py + cfg.hero.height * HEAD_FRAC,
       cur.pz,
-      Math.sin(cur.camYaw) * cp,
-      Math.sin(cur.camPitch),
-      Math.cos(cur.camYaw) * cp,
+      Math.sin(aimYaw) * cp,
+      Math.sin(aimPitch),
+      Math.cos(aimYaw) * cp,
       cfg.rope.maxLen,
       coarse ? cfg.aim.magnetDegTouch : cfg.aim.magnetDegDesktop,
       aim,
@@ -551,9 +638,9 @@ export function startGame(
             cur.px,
             cur.py + cfg.hero.height * HEAD_FRAC,
             cur.pz,
-            Math.sin(cur.camYaw) * cp,
-            Math.sin(cur.camPitch),
-            Math.cos(cur.camYaw) * cp,
+            Math.sin(aimYaw) * cp,
+            Math.sin(aimPitch),
+            Math.cos(aimYaw) * cp,
             cfg.rope.maxLen,
             coarse ? cfg.aim.magnetDegTouch : cfg.aim.magnetDegDesktop,
           ),
@@ -862,7 +949,11 @@ export function startGame(
               cloud: cloudK,
             }
           : {};
-      (window as unknown as { __ztStats?: unknown }).__ztStats = { ...gs.frameStats(), jsMs, ...extra };
+      (window as unknown as { __ztStats?: unknown }).__ztStats = {
+        ...gs.frameStats(),
+        jsMs,
+        ...extra,
+      };
     }
     const info = gs.renderer.info.render;
     hud?.update(cur, info.calls, info.triangles);

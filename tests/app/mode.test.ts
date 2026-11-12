@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BEST_KEYS,
   GAME_MODES,
+  MODE_INFO,
   MODE_KEY,
   bestLabel,
   loadMode,
@@ -20,12 +21,14 @@ function memStore(init: Record<string, string> = {}) {
 }
 
 describe('game modes', () => {
-  it('lists classic and chase', () => {
-    expect(GAME_MODES).toEqual(['classic', 'chase']);
+  it('lists classic, chase and strategy', () => {
+    expect(GAME_MODES).toEqual(['classic', 'chase', 'strategy']);
+    expect(BEST_KEYS.strategy).toBe('bhagdori.best.strategy');
     expect(BEST_KEYS.classic).toBe('bhagdori.best.l1');
   });
   it('parseMode accepts only known modes', () => {
     expect(parseMode('chase')).toBe('chase');
+    expect(parseMode('strategy')).toBe('strategy');
     expect(parseMode('x')).toBeNull();
     expect(parseMode(null)).toBeNull();
   });
@@ -67,5 +70,16 @@ describe('game modes', () => {
     expect(bestLabel('classic', 0)).toBe('No best time yet');
     expect(bestLabel('chase', 1234.7)).toBe('Best score 1234');
     expect(bestLabel('chase', 0)).toBe('No best score yet');
+  });
+});
+
+describe('per-mode HUD text', () => {
+  it('Nagarkot hides the HOP chip and names the gold pad; others keep the anchor hint and chip', () => {
+    expect(MODE_INFO.strategy.hopChip).toBe(false);
+    expect(MODE_INFO.strategy.hint).toBe('Stand on a gold pad and press Hook');
+    for (const m of ['classic', 'chase'] as const) {
+      expect(MODE_INFO[m].hopChip).toBe(true);
+      expect(MODE_INFO[m].hint).toBe('Aim at a glowing anchor and hook');
+    }
   });
 });

@@ -10,6 +10,8 @@ export const BTN_RESTART = 16;
 export const BTN_AIM = 32;
 // Contextual action button: Hook -> Release -> Mantle/Brake.
 export const BTN_ACTION = 64;
+// Held while hanging: mantles onto the ledge after climb.holdSec (ADR 0011).
+export const BTN_CLIMB = 128;
 
 // Max magnitude of a quantized axis value (int16-safe).
 export const AXIS_MAX = 32767;
@@ -28,6 +30,8 @@ export class InputFrame {
   hasAim = 0; // 0 or 1
   buttons = 0; // bitmask of buttons currently held
   pressed = 0; // bitmask of buttons pressed THIS tick (edge-triggered)
+  taps = 0; // 0..3: completed tap count on the action area this tick (reserved for the
+  // controls track; the sim ignores it, ADR 0011)
 }
 
 export function newInputFrame(): InputFrame {
@@ -44,6 +48,7 @@ export function copyInputFrame(dst: InputFrame, src: InputFrame): void {
   dst.hasAim = src.hasAim;
   dst.buttons = src.buttons;
   dst.pressed = src.pressed;
+  dst.taps = src.taps;
 }
 
 export function clearInputFrame(f: InputFrame): void {
@@ -56,6 +61,7 @@ export function clearInputFrame(f: InputFrame): void {
   f.hasAim = 0;
   f.buttons = 0;
   f.pressed = 0;
+  f.taps = 0;
 }
 
 // Clamp v to -1..1, scale to +-AXIS_MAX, round to the nearest integer.

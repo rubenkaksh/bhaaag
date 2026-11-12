@@ -24,6 +24,7 @@ import { createComposer } from './postFx';
 import { buildBlob, placeBlob } from './blob';
 import type { World } from '../../core/world';
 import { buildLevelMeshes } from './levelView';
+import type { BuildLevelOpts } from './levelView';
 import { buildDust, buildSkyView, updateDust } from './skyView';
 import {
   GRAPHICS_TIER_EVENT,
@@ -55,7 +56,7 @@ export type GameScene = {
   setTier: (tier: GraphicsTier) => void;
   resize: () => void;
   /** Builds the level meshes (replacing any previous level) and returns their group. */
-  buildWorld: (world: World) => Group;
+  buildWorld: (world: World, opts?: BuildLevelOpts) => Group;
   setBlobWorld: (world: World) => void;
   render: () => void;
   dispose: () => void;
@@ -384,10 +385,10 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     worldRef = world;
   }
 
-  function buildWorld(world: World): Group {
+  function buildWorld(world: World, opts: BuildLevelOpts = {}): Group {
     if (level !== null) scene.remove(level);
     worldRef = world;
-    level = buildLevelMeshes(world);
+    level = buildLevelMeshes(world, opts);
     scene.add(level);
     applyForest();
     flagsDirty = true;
