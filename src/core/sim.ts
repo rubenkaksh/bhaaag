@@ -609,6 +609,11 @@ function rideStep(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
     // Far anchor reached with open air beyond: exit the line on its own, carrying the
     // trolley velocity exactly like a manual DROP release at the end.
     releaseHero(s, cfg, false);
+    // Fixed-line worlds: drop gently onto the roof below (the old hang), no flying on.
+    if (world.lineOnly === 1) {
+      s.vx = 0;
+      s.vz = 0;
+    }
   }
 }
 

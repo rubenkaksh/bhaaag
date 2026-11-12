@@ -250,12 +250,11 @@ export class Hud {
     this.action.setAttribute('aria-label', text.charAt(0) + text.slice(1).toLowerCase());
   }
 
-  /** Dims the touch action button while JUMP is unavailable (riding a zipline). */
+  /** Dims the touch action button while JUMP is unavailable (riding a zipline). Visual only: the button still works as hold-to-brake there. */
   setActionDim(dim: boolean): void {
     if (this.action === null || dim === this.actionDim) return;
     this.actionDim = dim;
     this.action.classList.toggle('dim', dim);
-    this.action.setAttribute('aria-disabled', dim ? 'true' : 'false');
   }
 
   /** HINT button lit while a hint highlight is active. */

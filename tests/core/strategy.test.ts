@@ -17,6 +17,8 @@ import { AIM_NO_LINE, AIM_OK, HOOK_IDLE, aimReason } from '../../src/core/hook';
 import { BTN_CLIMB, BTN_HOOK, BTN_JUMP, InputFrame, quantizeAxis } from '../../src/core/input';
 import { AABB } from '../../src/core/math/aabb';
 import { Vec3 } from '../../src/core/math/vec3';
+import { loadWorldFromObject } from '../../src/content/load';
+import { generateStrategyLevel } from '../../src/content/strategy/gen';
 import { step } from '../../src/core/sim';
 import { World, addAnchor, addLine, addSolid } from '../../src/core/world';
 
@@ -329,5 +331,40 @@ describe('trampoline air steer', () => {
     expect(s.vx).toBeGreaterThan(0);
     for (let i = 0; i < 30; i++) step(s, f, w, cfg);
     expect(s.vx).toBeLessThanOrEqual(cfg.hero.airSteerCap + 1e-6);
+  });
+});
+
+describe('generated strategy lines', () => {
+  it('every line ridden idle ends alive and at rest on the roof under its anchor', () => {
+    const w = loadWorldFromObject(generateStrategyLevel());
+    expect(w.lines.length).toBeGreaterThan(10);
+    for (let li = 0; li < w.lines.length; li++) {
+      const z = w.lines[li].zone;
+      const a = w.anchors[w.lines[li].anchorId];
+      const s = spawn((z.min.x + z.max.x) / 2, z.min.y, (z.min.z + z.max.z) / 2, 1);
+      const ev = run(s, hookPress(), w, 1);
+      expect(ev & HERO_EV_HOOKED, `line ${li} hooks`).not.toBe(0);
+      run(s, new InputFrame(), w, 60 * 40);
+      expect(s.dead, `line ${li} alive`).toBe(0);
+      expect(s.grounded, `line ${li} grounded`).toBe(1);
+      // On the roof whose footprint holds the anchor.
+      let onRoof = false;
+      for (const b of w.solids) {
+        if (
+          a.px >= b.min.x &&
+          a.px <= b.max.x &&
+          a.pz >= b.min.z &&
+          a.pz <= b.max.z &&
+          s.px >= b.min.x &&
+          s.px <= b.max.x &&
+          s.pz >= b.min.z &&
+          s.pz <= b.max.z &&
+          Math.abs(s.py - b.max.y) < 0.2
+        ) {
+          onRoof = true;
+        }
+      }
+      expect(onRoof, `line ${li} on target roof (${s.px},${s.py},${s.pz})`).toBe(true);
+    }
   });
 });

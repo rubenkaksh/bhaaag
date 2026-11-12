@@ -199,7 +199,7 @@ export function startGame(
           )
         : loadWorldFromJson(levelText);
   const gs = createGameScene(canvas);
-  const level: Group | null = cs === null ? gs.buildWorld(world, { houseDress: !isStrategy }) : null;
+  const level: Group | null = cs === null ? gs.buildWorld(world, { houseDress: true }) : null;
   // Chase views: no classic scenery; own rows, endless ground and dragon.
   if (cs !== null) gs.setBlobWorld(world);
   const rowsView = isChase ? new ChaseRowsView(() => gs.refreshFlags()) : null;
@@ -303,6 +303,7 @@ export function startGame(
     hintId = NO_ANCHOR;
     hintT = 0;
     tapAnchor = NO_ANCHOR;
+    hudUi.setHintActive(false);
     cur.grounded = 1;
     cur.mode = HERO_AIRBORNE;
     copyHeroState(prev, cur);
@@ -364,6 +365,7 @@ export function startGame(
     }
     hintId = id;
     hintT = cfg.aim.hintSec;
+    tapAnchor = id; // desktop HOOK fires at the hinted anchor
     hudUi.setHintActive(true);
   }
 

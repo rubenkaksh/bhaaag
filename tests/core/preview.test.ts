@@ -56,6 +56,7 @@ type Truth = {
   z: number;
   attachTick: number;
   endTick: number;
+  runEndTick: number; // first tick on the rope with the feet off the launch roof
 };
 
 const IDLE = new InputFrame();
@@ -87,6 +88,7 @@ function truth(start: HeroState, w: World, anchor: number, releaseTick: number):
     z: 0,
     attachTick: -1,
     endTick: -1,
+    runEndTick: -1,
   };
   step(s, press(BTN_HOOK), w, cfg);
   if (s.hook.anchorId !== anchor) return r;
@@ -94,6 +96,7 @@ function truth(start: HeroState, w: World, anchor: number, releaseTick: number):
   for (let t = 0; t <= 8 * cfg.fixedHz; t++) {
     if ((s.eventBits & HERO_EV_CLING) !== 0) r.hangCling = true;
     if (s.mode === HERO_ATTACHED && r.attachTick < 0) r.attachTick = t;
+    if (s.mode === HERO_ATTACHED && s.runOut === 0 && r.runEndTick < 0) r.runEndTick = t;
     if (r.attachTick >= 0 && !r.ended && s.mode !== HERO_ATTACHED) {
       r.ended = true;
       r.endTick = t;
@@ -168,7 +171,12 @@ type Row = {
 };
 
 const ROWS: Row[] = [
-  { name: 'safe: lands on a long roof', world: safeWorld, start: () => hero(0, 10, -1), expect: PREVIEW_SAFE },
+  {
+    name: 'safe: lands on a long roof',
+    world: safeWorld,
+    start: () => hero(0, 10, -1),
+    expect: PREVIEW_SAFE,
+  },
   {
     name: 'cling: standing, shallow wall arrival',
     world: clingWorld,
@@ -253,9 +261,8 @@ describe('previewShot vs the real step', () => {
     } else {
       // Lethal: not just the sampled releases, EVERY possible release tick dies.
       expect(base.alive).toBe(false);
-      // A DROP in the first quarter just falls back onto the launch roof (T303): not a save.
-      const from = base.attachTick + 1 + Math.ceil((base.endTick - base.attachTick) / 4);
-      for (let t = from; t < base.endTick; t++) {
+      // (A DROP during the run-out falls back onto the launch roof: not a release.)
+      for (let t = Math.max(base.attachTick + 1, base.runEndTick); t < base.endTick; t++) {
         expect(truth(start, w, 0, t).alive, `release at tick ${t}`).toBe(false);
       }
     }
