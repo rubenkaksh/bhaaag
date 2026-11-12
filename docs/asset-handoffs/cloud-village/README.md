@@ -1,24 +1,24 @@
-# Cloud Village Asset Exploration — Repository Handoff
+# Cloud Village Asset Exploration: Repository Handoff
 
-**Status:** concept/source package staged; no runtime assets or level integrated.
+**Status:** mood-reference notes plus a scoped brief. No runtime assets, no level, no new textures.
 
-## Why this is staged separately
-The current product docs describe the Kathmandu hillside zipline game and its Newari/Kathmandu art direction. A separate T290 handoff describes a cloud-dragon chase. The two directions conflict. This handoff explicitly asks the next agent to inspect active code/modes and resolve that state before implementation.
+## Resolved: no mode conflict
 
-## Repository files added
-- `prompts/QWEN_EXECUTE_CLOUD_VILLAGE.md` — Qwen Flash execution brief. It has been adapted to the actual bhaaag repository and makes the existing art bible authoritative.
-- `skills/game-asset-production-integration/SKILL.md` — asset production and validation workflow.
-- `skills/game-asset-production-integration/README.md` — skill entry point.
+Earlier drafts treated the cloud-dragon chase and the Kathmandu zipline game as conflicting directions. They are not. Three modes ship (`classic`, `chase`, `strategy`, see `src/app/modes/mode.ts`); ADR 0010 is accepted; T290 and T290b are live Chase-mode tasks. Newari/Kathmandu art direction (`docs/art-style-guide.md`) governs all of them.
 
-## Source image files
-The two generated concept sheets are in the companion package, not committed to this branch:
-- `cloud-village-concept-sheet.png`
-- `cloud-village-building-and-level-sheet.png`
+## Concept sheets: loose reference only
 
-The GitHub connector used for this handoff supports text files and Git objects, but not direct local binary upload. Add the images manually under `assets-src/cloud-village-concept/` before asking Qwen to extract from them. Preserve them as source-only references. Do not use either full sheet as a runtime texture.
+Two generated sheets exist in the companion package: `cloud-village-concept-sheet.png` and `cloud-village-building-and-level-sheet.png`.
 
-## Important art-direction note
-The generic floating fantasy village is not automatically compatible with the game's established Kathmandu/Newari look. Use the concept sheets as loose inspiration only unless code/session evidence confirms T290 is an active separate mode. Follow `docs/art-style-guide.md` for the zipline game.
+- Do not add them under `assets-src/` or anywhere else in git (7.2 MB). If kept, store them in the gitignored `docs/reference/` like other references.
+- Do not extract, crop or ship assets from them. They have no alpha, glowing gradient backgrounds, and show off-brief architecture (Chinese jade roofs, torii-like gate, European chimney cottages, decorative gold).
+- Legitimate use, Chase only, as mood: warm-lit cloud sea swallowing building bases (T290b fog-absorb); a distant band of house silhouettes fading into sunset haze; warm-top, cool-underside cloud-puff lighting as a colour target.
+
+## Files in this PR
+
+- `docs/briefs/T290c-chase-cloud-village-backdrop.md`: the executable brief (render-only, allowlist `src/adapters/render/chase/**`).
+- `skills/game-asset-production-integration/`: generic asset-production skill (SKILL.md plus `references/` and per-engine files, `tools/asset_pipeline.py`). Cross-project; owner to decide whether it moves to a user-level `.claude/skills/` and whether the Pillow-based script may live in this repo (new toolchain, ask-before-dependencies rule).
 
 ## Next action
-Run Qwen with `prompts/QWEN_EXECUTE_CLOUD_VILLAGE.md`. It should inspect the repository, determine which game mode is active, then produce reusable assets and one level using the project's existing generators, schemas, collision rules, and performance budgets. It must run tests/build and report exactly what is verified.
+
+Dispatch the T290c brief per sandbox rule 2 with a ledger line; the controller runs the final gates.

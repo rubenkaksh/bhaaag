@@ -1,7 +1,7 @@
 # Game Asset Production & Integration
 
-A reusable workflow for producing, processing, validating, and integrating game assets across 2D, 2.5D, and 3D projects.
+A reusable workflow for turning generated or painted art into engine-ready asset packages.
 
-Read `SKILL.md` before beginning. The skill emphasizes project-first inspection, reproducible processing, gameplay readability, engine-native integration, and honest validation status.
+Read `SKILL.md` first; it links to `references/` (generation, processing, validation, delivery, one file per engine). `tools/asset_pipeline.py` (Pillow) supports inspect, key, slice, pack and validate; it never overwrites sources or existing outputs without `--force`. Confirm options with `--help`.
 
-The included `tools/asset_pipeline.py` helper supports image inspection, background keying, sprite slicing, atlas packing, and validation. Confirm its CLI options with `--help` before use.
+This is a generic, cross-project skill. Bhaaag-specific constraints live in the brief (`docs/briefs/`), not here.
