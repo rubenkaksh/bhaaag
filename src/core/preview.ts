@@ -2,9 +2,16 @@
 // the hero: no second physics or landing model lives here. Lean-scope: plain TS, but still no
 // three/DOM imports, and module-level scratch so a call allocates nothing.
 import type { Tuning } from './config';
-import { HERO_ATTACHED, HERO_EV_CLING, HERO_GROUNDED, HERO_HANGING, HeroState, copyHeroState } from './hero';
+import {
+  HERO_ATTACHED,
+  HERO_EV_CLING,
+  HERO_GROUNDED,
+  HERO_HANGING,
+  HeroState,
+  copyHeroState,
+} from './hero';
 import { HOOK_IDLE } from './hook';
-import { BTN_HOOK, BTN_JUMP, InputFrame, quantizeTurn } from './input';
+import { BTN_DROP, BTN_HOOK, InputFrame, quantizeTurn } from './input';
 import { aabbContainsPoint } from './math/aabb';
 import { HEAD_FRAC, step } from './sim';
 import type { World } from './world';
@@ -41,8 +48,8 @@ const fireFrame = new InputFrame();
 const idleFrame = new InputFrame();
 const jumpFrame = new InputFrame();
 idleFrame.hasAim = 0;
-jumpFrame.pressed = BTN_JUMP;
-jumpFrame.buttons = BTN_JUMP;
+jumpFrame.pressed = BTN_DROP;
+jumpFrame.buttons = BTN_DROP;
 
 // Filled by every run(); the base run's values become the result.
 let endX = 0;
@@ -50,6 +57,7 @@ let endY = 0;
 let endZ = 0;
 let attachTick = -1;
 let endTick = -1;
+let runEndTick = -1; // first tick on the rope with the feet off the launch roof
 
 function atGoal(s: HeroState, world: World): boolean {
   return world.goal.max.y > world.goal.min.y && aabbContainsPoint(world.goal, s.px, s.py, s.pz);
@@ -64,7 +72,7 @@ function recordEnd(s: HeroState, t: number): void {
 
 /**
  * One scripted run from src: tick 0 presses HOOK aimed dead-on at the anchor, then empty input,
- * except a JUMP (the real release) on tick releaseTick (0 = none) if the hero is on the rope.
+ * except a DROP (the real release; JUMP is ignored on the rope) on tick releaseTick (0 = none) if the hero is on the rope.
  *
  * "Survivable" is what the sim does to a hero who then does nothing: the run ends dead (kill),
  * hanging, inside the goal, or grounded at rest. Grounded alone is NOT enough: a hero who lands
@@ -76,6 +84,7 @@ function run(world: World, cfg: Tuning, releaseTick: number): number {
   copyHeroState(sc, real);
   attachTick = -1;
   endTick = -1;
+  runEndTick = -1;
   step(sc, fireFrame, world, cfg);
   if (sc.hook.state === HOOK_IDLE || sc.hook.anchorId !== fireAnchor) return R_NOHOOK;
   const maxTicks = Math.ceil(cfg.aim.previewMaxSec * cfg.fixedHz);
@@ -84,6 +93,7 @@ function run(world: World, cfg: Tuning, releaseTick: number): number {
   for (;;) {
     if ((sc.eventBits & HERO_EV_CLING) !== 0) cling = true;
     if (sc.mode === HERO_ATTACHED && attachTick < 0) attachTick = t;
+    if (sc.mode === HERO_ATTACHED && sc.runOut === 0 && runEndTick < 0) runEndTick = t;
     if (attachTick >= 0 && endTick < 0 && sc.mode !== HERO_ATTACHED) recordEnd(sc, t);
     if (sc.dead === 1) {
       if (endTick < 0) recordEnd(sc, t);
@@ -116,8 +126,8 @@ let fireAnchor = -1;
 
 /**
  * Predicts firing at anchorId from the hero's CURRENT state (run-up speed and the chain window
- * count). Never mutates `state`. Release search: the ride is rerun with JUMP (the real release
- * input, which also covers the timed-release window) pressed at aim.previewReleaseSamples
+ * count). Never mutates `state`. Release search: the ride is rerun with DROP (the real release
+ * input) pressed at aim.previewReleaseSamples
  * evenly spaced ticks between attach and the ride end.
  *
  * Assumptions: the player lets go of the stick when firing (idle input after the press), and
@@ -164,8 +174,11 @@ export function previewShot(
     return;
   }
   // Base ride kills. Search for a release that survives.
-  const a0 = attachTick;
-  const span = endTick - attachTick;
+  // A DROP during the run-out just falls back onto the launch roof: search only after it ends.
+  const a0 = runEndTick > attachTick ? runEndTick : attachTick;
+  const span = endTick - a0;
+  const rideSpan = endTick - attachTick;
+  const attach0 = attachTick;
   const n = cfg.aim.previewReleaseSamples;
   out.outcome = PREVIEW_LETHAL;
   if (a0 < 0 || span <= 0) return;
@@ -178,7 +191,7 @@ export function previewShot(
     if (r === R_OK || r === R_HANG || r === R_CLING) {
       out.outcome = PREVIEW_RELEASE;
       out.releaseTick = tick;
-      out.releaseFrac = (tick - a0) / span;
+      out.releaseFrac = (tick - attach0) / rideSpan;
       return;
     }
   }

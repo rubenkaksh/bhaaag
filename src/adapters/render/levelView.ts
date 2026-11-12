@@ -360,15 +360,24 @@ function buildAnchorRings(world: World): Mesh {
 }
 
 /** Runner's vision: only anchor route[nextRouteIndex] pulses; the rest stay static. */
-export function updateLevelView(group: Group, nowSec: number, nextRouteIndex: number): void {
+export function updateLevelView(
+  group: Group,
+  nowSec: number,
+  nextRouteIndex: number,
+  hintAnchor = -1,
+): void {
   const route = group.userData.route as number[] | undefined;
-  const target =
+  let target =
     route && nextRouteIndex >= 0 && nextRouteIndex < route.length ? route[nextRouteIndex] : -1;
+  // HINT (T299): the hinted anchor takes over the pulse, bigger than the route pulse.
+  const hinted = hintAnchor >= 0;
+  if (hinted) target = hintAnchor;
   for (let i = 0; i < group.children.length; i++) {
     const c = group.children[i];
     if (c.name === 'anchorRings') c.userData.target = target;
     if (c.userData.anchorId === undefined) continue;
-    const k = c.userData.anchorId === target ? 1 + 0.35 * Math.sin(nowSec * 6) : 1;
+    const k =
+      c.userData.anchorId === target ? 1 + (hinted ? 0.9 : 0.35) * Math.sin(nowSec * 6) : 1;
     c.scale.setScalar(k);
   }
 }
