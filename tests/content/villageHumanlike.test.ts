@@ -42,7 +42,7 @@ function play(v: number, style: Style): Outcome {
   s.pz = w.spawn.z;
   s.yaw = w.spawnYaw;
   s.camYaw = w.spawnYaw;
-  s.camPitch = 0; // the game spawns with pitch 0 unless the spawn pose says otherwise
+  s.camPitch = 0; // the real game spawns at cfg.camera.frontPitchDeg; the bot re-aims anyway
   s.grounded = 1;
   const yawErr = u(-10, 10) * DEG;
   const pitchErr = u(-5, 5) * DEG;

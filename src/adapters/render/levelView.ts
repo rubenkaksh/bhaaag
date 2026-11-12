@@ -281,14 +281,20 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
 
   const dress = dressingMeshes(world);
   for (let i = 0; i < dress.length; i++) g.add(dress[i]);
-  g.add(buildDecor(world, undefined, { scenery, houseDress: opts.houseDress, floorY: opts.floorY }));
+  g.add(
+    buildDecor(world, undefined, { scenery, houseDress: opts.houseDress, floorY: opts.floorY }),
+  );
   if (strategy) {
     const feats = buildStrategyFeatures(world);
     for (let i = 0; i < feats.length; i++) g.add(feats[i]);
   }
   // Cloud Village (floorY) has no pre-tied rope or post: the ziplines are the anchors themselves.
   if (scenery) g.add(buildRopePost(world));
-  else ROPE_TIE.set = false;
+  else if (opts.floorY !== undefined) {
+    ROPE_TIE.set = false;
+    ROPE_TIE.live = false;
+    ROPE_TIE.anchorId = -1;
+  }
 
   const sphere = new SphereGeometry(ANCHOR_R, 12, 8);
   // lineOnly worlds (strategy maze): 100 anchors would break the draw-call budget, and the

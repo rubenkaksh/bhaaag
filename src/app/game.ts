@@ -1,6 +1,5 @@
 import tuningJson from '../../content/config/tuning.json';
 import levelText from '../../content/levels/l1.json?raw';
-import villageText from '../../content/levels/village.json?raw';
 import { DEFAULT_TUNING } from '../core/config';
 import type { Tuning } from '../core/config';
 import {
@@ -44,7 +43,7 @@ import { easeSideYaw, easeYawOffset, sideYawTarget, zipYawTarget } from '../adap
 import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
-import { VILLAGE_CLOUD_TOP_Y, buildCloudBanks, buildCloudSea } from '../adapters/render/cloudSea';
+import type { VillageAssets } from './villageAssets';
 import { createGameScene } from '../adapters/render/scene';
 import { DebugHud } from '../adapters/ui/debugHud';
 import { Hud } from '../adapters/ui/hud';
@@ -178,6 +177,7 @@ export function startGame(
   canvas: HTMLCanvasElement,
   root: HTMLElement,
   mode: GameMode = 'classic',
+  village?: VillageAssets,
 ): GameHandle {
   const cfg = mergeTuning();
   let camCfg = cfg.camera;
@@ -190,6 +190,7 @@ export function startGame(
   const isChase = mode === 'chase';
   const isStrategy = mode === 'strategy';
   const isVillage = mode === 'village';
+  if (isVillage && village === undefined) throw new Error('village assets not loaded');
   const seedParam = params.get('seed');
   const fixedSeed = seedParam !== null && Number.isFinite(Number(seedParam));
   let chaseSeed = fixedSeed ? Number(seedParam) | 0 : (Math.random() * 2147483647) | 0;
@@ -205,13 +206,13 @@ export function startGame(
         ? loadWorldFromObject(
             generateStrategyLevel(fixedSeed ? Number(seedParam) | 0 : STRATEGY_SEED),
           )
-        : loadWorldFromJson(isVillage ? villageText : levelText);
+        : loadWorldFromJson(village !== undefined && isVillage ? village.villageText : levelText);
   const gs = createGameScene(canvas);
   const level: Group | null =
     cs === null
       ? gs.buildWorld(world, {
           houseDress: true,
-          floorY: isVillage ? VILLAGE_CLOUD_TOP_Y : undefined,
+          floorY: village !== undefined && isVillage ? village.VILLAGE_CLOUD_TOP_Y : undefined,
         })
       : null;
   // Chase views: no classic scenery; own rows, endless ground and dragon.
@@ -221,9 +222,9 @@ export function startGame(
   let viewTier = gs.getTier();
   let ground = isChase ? new EndlessGround(treesFor(viewTier)) : null;
   const dragonView = isChase ? new DragonSpriteView(viewTier) : null;
-  if (isVillage) {
-    gs.scene.add(buildCloudSea(viewTier));
-    const banks = buildCloudBanks(world.solids, world.style);
+  if (village !== undefined && isVillage) {
+    gs.scene.add(village.buildCloudSea(viewTier));
+    const banks = village.buildCloudBanks(world.solids, world.style);
     if (banks !== null) gs.scene.add(banks);
   }
   if (rowsView !== null) gs.scene.add(rowsView.root);
@@ -364,6 +365,8 @@ export function startGame(
     hopChip: MODE_INFO[mode].hopChip,
     onHint: isStrategy ? null : showHint,
   });
+  // The render pitch is camPitch - tilt, so a centre reticle would no longer mark the look direction.
+  if (camTilt > 0) document.getElementById('hud-reticle')?.style.setProperty('display', 'none');
   const chaseHud = isChase ? new ChaseHud(root, () => restart()) : null;
 
   /** HINT: highlight the best takeable zipline anchor for hintSec. No sim state is touched. */
@@ -446,11 +449,7 @@ export function startGame(
       deadT += stepDt;
       if (cs !== null) {
         // Chase: the card owns the restart (RETRY / MENU); R also retries. No auto-restart.
-        if (
-          !overShown &&
-          !catchHold &&
-          deadT >= (cur.deadCause === DEAD_CAUGHT ? CHASE_OVER_DELAY_S : 0.4)
-        ) {
+        if (!overShown && !catchHold && deadT >= (cur.deadCause === DEAD_CAUGHT ? CHASE_OVER_DELAY_S : 0.4)) {
           showChaseOver();
         }
         if (overShown && (frame.pressed & BTN_RESTART) !== 0) {
@@ -841,15 +840,7 @@ export function startGame(
     ground.snap(heroView.group.position.z);
     const d = c.dragon;
     // Reversed chase camera: the real dragon is already in front of the rig, no pinning.
-    dragonView.update(
-      d.z,
-      nowSec,
-      phase === 'dead' && cur.deadCause === DEAD_CAUGHT ? 1 : 0,
-      cur.px,
-      d.gap,
-      gs.camera.position.z,
-      false,
-    );
+    dragonView.update(d.z, nowSec, phase === 'dead' && cur.deadCause === DEAD_CAUGHT ? 1 : 0, cur.px, d.gap, gs.camera.position.z, false);
     const k = phase === 'pan' ? 0 : cloudCoverFor(d.gap, cfg);
     cloudK = k;
     applyCloud(cloudK);

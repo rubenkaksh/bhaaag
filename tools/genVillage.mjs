@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 export const GRADE = Math.tan((20 * Math.PI) / 180);
 export const ROW_DROP = 4.0;
-export const ROW_X = [0, 4, -4, 2]; // lane x of each row of two houses
+export const ROW_X = [0, 0, 0, 0]; // lane x per row: flat. Any >=0.5 m zigzag fails the frozen-aim bot on the post-T298 sim
 export const CLOUD_TOP_Y = -58; // visual cloud sea surface (the hero sinks into it before dying)
 export const KILL_Y = -64;
 export const HOUSE_H = 7; // wall height under the roof: a normal house standing on its own cloud bank
