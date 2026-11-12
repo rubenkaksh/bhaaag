@@ -29,6 +29,7 @@ describe('config scope (global keys stay global)', () => {
       const c = resolveCfg(mode);
       expect(c.camera.sideYawDeg).toBe(DEFAULT_TUNING.camera.sideYawDeg);
       expect(c.camera.zipYawDeg).toBe(DEFAULT_TUNING.camera.zipYawDeg);
+      expect(c.camera.tiltDeg).toBe(20);
       expect(c.hero.airSteer).toBe(DEFAULT_TUNING.hero.airSteer);
     });
     it(mode + ': side-yaw helper leans the view with lateral travel', () => {

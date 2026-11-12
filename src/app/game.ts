@@ -1,5 +1,5 @@
 import levelText from '../../content/levels/l1.json?raw';
-import { MODE_TILT_DEG, resolveCfg } from './tuning';
+import { resolveCfg } from './tuning';
 import type { Tuning } from '../core/config';
 import {
   copyHeroState,
@@ -166,10 +166,10 @@ export function startGame(
   const cfg = resolveCfg(mode);
   let camCfg = cfg.camera;
   const params = new URLSearchParams(location.search);
-  // ?tilt=15|20|30: render-only camera pitch-down (deg) so more of the drop below shows. Default 20 in Cloud Village, else 0.
+  // ?tilt=15|20|30: render-only camera pitch-down (deg) so more of the drop below shows. Default is camera.tiltDeg (global).
   const tiltParam = Number(params.get('tilt'));
   const tiltDeg =
-    params.has('tilt') && Number.isFinite(tiltParam) ? tiltParam : MODE_TILT_DEG[mode];
+    params.has('tilt') && Number.isFinite(tiltParam) ? tiltParam : cfg.camera.tiltDeg;
   const camTilt = Math.min(Math.max(tiltDeg, 0), 45) * DEG2RAD;
   const isChase = mode === 'chase';
   const isStrategy = mode === 'strategy';

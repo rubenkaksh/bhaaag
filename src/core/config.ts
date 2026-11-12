@@ -100,6 +100,7 @@ export type Tuning = {
     sideYawDeg: number; // yaw toward the side of lateral travel at sideYawSpeed m/s sideways (T300)
     sideYawSpeed: number; // sideways speed that reaches the full offset, m/s
     sideYawEase: number; // per fixed tick ease toward the side-look target
+  tiltDeg: number; // render-only pitch-down of the view (deg), all modes; ?tilt= overrides for debugging
   };
   validator: {
     minReleaseWindowTicks: number;
@@ -260,6 +261,7 @@ export const DEFAULT_TUNING: Tuning = {
     sideYawDeg: 14,
     sideYawSpeed: 5,
     sideYawEase: 0.05,
+    tiltDeg: 20,
   },
   validator: {
     minReleaseWindowTicks: 12,

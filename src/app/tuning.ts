@@ -17,14 +17,6 @@ export const MODE_OVERRIDES: Record<GameMode, TuningOverride> = {
   village: {},
 };
 
-/** Render-only camera pitch-down (deg) default per mode; ?tilt= beats it. Not a Tuning key. */
-export const MODE_TILT_DEG: Record<GameMode, number> = {
-  classic: 0,
-  chase: 0,
-  strategy: 0,
-  village: 20, // owner-approved Cloud Village framing (T297): more of the drop below
-};
-
 export function mergeTuning(): Tuning {
   const src = tuningJson as unknown as Record<string, Record<string, number>>;
   const out = { ...DEFAULT_TUNING } as unknown as Record<string, Record<string, number>>;
