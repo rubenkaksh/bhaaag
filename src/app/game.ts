@@ -921,6 +921,7 @@ export function startGame(
       stepMs = 0;
     }
     if (dragonView !== null) {
+      dragonView.layout(gs.camera);
       if (phase === 'dead' && cur.deadCause === DEAD_CAUGHT) {
         const t = deadT + alpha * stepDt;
         const ck = Math.min(1, Math.max(0, t / CHASE_OVER_DELAY_S));

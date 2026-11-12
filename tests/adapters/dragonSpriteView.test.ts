@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PerspectiveCamera, Texture } from 'three';
+import { Mesh, PerspectiveCamera, Sprite, Texture } from 'three';
 
 type Job = { path: string; ok: (t: Texture) => void; err: () => void };
 const jobs: Job[] = [];
@@ -47,6 +47,7 @@ describe('DragonSpriteView', () => {
     resolveAll();
     const c = cam();
     v.update(0, 0, 0, 0, 5, 0, false);
+    v.layout(c);
     v.setCatch(c, 0.5, 0, 0);
     const mat = (v as unknown as { headMat: { depthTest: boolean } }).headMat;
     expect(mat.depthTest).toBe(false);
@@ -55,17 +56,42 @@ describe('DragonSpriteView', () => {
     expect(fresh).not.toBe(mat);
     expect(fresh.depthTest).toBe(true);
     v.update(0, 0, 0, 0, 5, 0, false);
+    v.layout(c);
     v.setCatch(c, 0.6, 0, 0);
     expect(fresh.depthTest).toBe(false);
   });
 
-  it('a failed segment load still builds, warns once, and drops that variant', () => {
+  it('a failed body-strip load still builds, warns once, and the ribbon falls back to a plain colour', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const v = new DragonSpriteView('low');
-    resolveAll({ fail: 'cloud-seg-b' });
+    resolveAll({ fail: 'body-strip' });
     expect(warn).toHaveBeenCalledTimes(1);
     expect((v as unknown as { built: boolean }).built).toBe(true);
-    expect((v as unknown as { segments: unknown[] }).segments.length).toBeLessThan(6);
+    const mat = (v as unknown as { ribbonMat: { map: unknown } }).ribbonMat;
+    expect(mat.map).toBeNull();
+    v.update(0, 0, 0, 0, 5, 0, false);
+    expect(() => v.layout(cam())).not.toThrow();
+  });
+
+  it('a missing tail builds without a tail sprite and layout does not throw', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const v = new DragonSpriteView('medium');
+    resolveAll({ fail: 'tail' });
+    expect((v as unknown as { tailSprite: unknown }).tailSprite).toBeNull();
+    v.update(0, 0, 0, 0, 5, 0, false);
+    expect(() => v.layout(cam())).not.toThrow();
+  });
+
+  it.each([
+    ['high', 5],
+    ['medium', 5],
+    ['low', 4],
+  ] as const)('the ribbon is one mesh and %s adds at most %i renderables', (tier, max) => {
+    const v = new DragonSpriteView(tier);
+    resolveAll();
+    const r = v.group.children.filter((o) => o instanceof Mesh || o instanceof Sprite);
+    expect(r.length).toBeLessThanOrEqual(max);
+    expect(r.filter((o) => o instanceof Mesh).length).toBe(1);
   });
 
   it('a missing head-a skips the head and the catch beat does not throw', () => {
@@ -75,6 +101,7 @@ describe('DragonSpriteView', () => {
     expect((v as unknown as { headSprite: unknown }).headSprite).toBeNull();
     expect(() => {
       v.update(0, 0, 0, 0, 5, 0, false);
+      v.layout(cam());
       v.setCatch(cam(), 0.5, 0, 0);
     }).not.toThrow();
   });

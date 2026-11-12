@@ -122,3 +122,16 @@ describe('irisRadius', () => {
     }
   });
 });
+
+describe('v2 head constants', () => {
+  it('v2 head is square', () => {
+    expect(HEAD_H_OVER_W).toBe(1);
+  });
+  it('FACE_FRAC is the measured antler span', () => {
+    expect(FACE_FRAC).toBeGreaterThanOrEqual(0.84);
+    expect(FACE_FRAC).toBeLessThanOrEqual(0.95);
+  });
+  it.each(ASPECTS)('fill frame keeps the whole head inside the width at %s', (_n, a) => {
+    expect(faceW(a, pose(a, 0).h)).toBeLessThanOrEqual(1.0 + 1e-9);
+  });
+});
