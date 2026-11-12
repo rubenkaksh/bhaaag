@@ -1,6 +1,5 @@
 import levelText from '../../content/levels/l1.json?raw';
 import { resolveCfg } from './tuning';
-import type { Tuning } from '../core/config';
 import {
   copyHeroState,
   DEAD_FELL,
