@@ -126,6 +126,7 @@ const schema = z.strictObject({
     decoyGain: num,
     oneHouseBase: num,
     oneHouseGain: num,
+    frontPov: num,
   }),
   line: z.strictObject({ zoneTol: num }),
   tramp: z.strictObject({ vUp: num, jumpBonus: num, airSteer: num, airSteerCap: num }),
