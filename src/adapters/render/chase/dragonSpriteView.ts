@@ -3,6 +3,7 @@
 // along the body: x(s,t) = A(s) * sin(k*s - w*t), amplitude growing toward the tail.
 // Textures are preloaded once via TextureLoader; the update loop only mutates transforms.
 import {
+  CanvasTexture,
   Group,
   LinearFilter,
   MathUtils,
@@ -21,28 +22,59 @@ import type { CatchPose } from './catchPose';
 
 const HOVER = 7; // metres above the hill line at the head (in-frame, above the hero)
 const HEAD_SCALE = 20; // head sprite world width (aspect kept from the crop)
-const BODY_LEN = 48; // world length of the segment chain (toward +Z / uphill)
+const BODY_LEN = 44; // world length of the segment chain (toward +Z / uphill)
 const WAVE_K = 2.2; // spatial frequency along the body
 const WAVE_W = 1.4; // temporal frequency (rad/s)
 const WAVE_AMP = 8; // lateral amplitude at the tail
+const V_AMP = 4.5; // vertical amplitude at the tail, metres
+const V_PHASE = Math.PI / 2; // vertical phase lead over the lateral wave
+const BODY_LIFT = 4; // extra clearance for segments (not the head), metres
+const LIFT_U = 0.35; // lift ramps in over u 0..LIFT_U so the neck stays on the head
+const SEG_W0 = 0.92; // width factor at u = 0
+const SEG_W1 = 0.58; // taper: w = HEAD_SCALE * (SEG_W0 - SEG_W1 * u)
+const SEG_ASPECT = 0.66; // height / width
+
+// Mist cards: soft cool-grey radial sprites that wash roofs out under the body.
+const MIST_PX = 128;
+const MIST_COLOR = 0xcdd0da; // = CLOUD_FOG_COLOR in game.ts
+const MIST_SCALE = 1.8;
+const MIST_MAX_W = 18;
+const MIST_ASPECT = 0.55;
+const MIST_OP = 0.5;
+const MIST_MIN = 0.55;
+const MIST_PULL = 5;
+const MIST_DROP = 0.35;
+const ROUTE_CLEAR = 4;
+const ROUTE_FADE = 6;
+const LENS_NEAR = 8;
+const LENS_FADE = 8;
 const HEAD_SWAP_S = 2.6; // seconds between head pose swaps
 const HEAD_AHEAD = 14; // during play: the head is pinned this far in front of the camera
 
 const SEGMENTS_BY_TIER: Record<GraphicsTier, number> = { low: 6, medium: 10, high: 12 };
 
 // Segment textures in order from neck to tail; the chain cycles through these.
-const SEG_PATHS = [
-  '/assets/dragon/cloud-seg-a.webp',
-  '/assets/dragon/cloud-seg-b.webp',
-  '/assets/dragon/cloud-puff-d.webp',
-  '/assets/dragon/cloud-puff-e.webp',
-];
+const SEG_PATHS = ['/assets/dragon/cloud-seg-a.webp', '/assets/dragon/cloud-seg-b.webp'];
 
 type Segment = {
   sprite: Sprite;
   mat: SpriteMaterial;
   t: number; // normalized distance from head, 0..1
+  h: number; // sprite height (world)
+  mist: Sprite | null;
+  mistMat: SpriteMaterial | null;
 };
+
+function clamp01(x: number): number {
+  return x < 0 ? 0 : x > 1 ? 1 : x;
+}
+function smooth01(x: number): number {
+  const t = clamp01(x);
+  return t * t * (3 - 2 * t);
+}
+function hasMist(tier: GraphicsTier, i: number, count: number): boolean {
+  return tier === 'low' ? i === count - 2 : i % 2 === 0;
+}
 
 function prepTexture(tex: Texture): Texture {
   tex.colorSpace = SRGBColorSpace;
@@ -62,6 +94,7 @@ export class DragonSpriteView {
   private disposed = false;
   private readonly warned = new Set<string>();
   private readonly textureTotal = 2 + SEG_PATHS.length;
+  private mistTex: CanvasTexture | null = null;
   private headSprite: Sprite | null = null;
   private headMat: SpriteMaterial | null = null;
   private segments: Segment[] = [];
@@ -123,6 +156,27 @@ export class DragonSpriteView {
     }
   }
 
+  private mistTexture(): CanvasTexture | null {
+    if (this.mistTex !== null) return this.mistTex;
+    if (typeof document === 'undefined') return null; // node test env: no mist
+    const c = document.createElement('canvas');
+    c.width = MIST_PX;
+    c.height = MIST_PX;
+    const g = c.getContext('2d');
+    if (g === null) return null;
+    const r = MIST_PX / 2;
+    const grad = g.createRadialGradient(r, r, 0, r, r, r);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.45, 'rgba(255,255,255,0.55)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, MIST_PX, MIST_PX);
+    const t = new CanvasTexture(c);
+    t.colorSpace = SRGBColorSpace;
+    this.mistTex = t;
+    return t;
+  }
+
   setTier(tier: GraphicsTier): void {
     if (tier === this.tier) return;
     this.tier = tier;
@@ -143,6 +197,8 @@ export class DragonSpriteView {
     for (const s of this.segments) {
       this.group.remove(s.sprite);
       s.mat.dispose();
+      if (s.mist !== null) this.group.remove(s.mist);
+      if (s.mistMat !== null) s.mistMat.dispose();
     }
     this.segments = [];
   }
@@ -177,11 +233,32 @@ export class DragonSpriteView {
       const mat = new SpriteMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false });
       const sprite = new Sprite(mat);
       // Taper: fat near the head, thin at the tail; overlap keeps the chain continuous.
-      const w = HEAD_SCALE * (0.85 - 0.55 * t);
-      sprite.scale.set(w, w * 0.62, 1);
+      const w = HEAD_SCALE * (SEG_W0 - SEG_W1 * t);
+      const flip = (i >> 1) % 2 === 1 ? -1 : 1; // mirror every other pair for variety
+      sprite.scale.set(flip * w, w * SEG_ASPECT, 1);
       sprite.renderOrder = 1;
       this.group.add(sprite);
-      this.segments.push({ sprite, mat, t });
+      let mist: Sprite | null = null;
+      let mistMat: SpriteMaterial | null = null;
+      const mt = hasMist(this.tier, i, count) ? this.mistTexture() : null;
+      if (mt !== null) {
+        mistMat = new SpriteMaterial({
+          map: mt,
+          color: MIST_COLOR,
+          transparent: true,
+          depthWrite: false,
+          depthTest: true,
+          fog: false,
+          toneMapped: false,
+        });
+        mist = new Sprite(mistMat);
+        const mw = Math.min(MIST_MAX_W, MIST_SCALE * w);
+        mist.scale.set(mw, mw * MIST_ASPECT, 1);
+        mist.renderOrder = 0;
+        mist.visible = false;
+        this.group.add(mist);
+      }
+      this.segments.push({ sprite, mat, t, h: w * SEG_ASPECT, mist, mistMat });
     }
   }
 
@@ -223,13 +300,18 @@ export class DragonSpriteView {
     // laterally with a traveling sine wave whose amplitude grows toward the tail.
     // During play the chain sweeps past the camera; fade segments out before they blot the view.
     const fadeStart = camZ - 6;
+    const heroZ = dragonZ - gap;
     for (const s of this.segments) {
       const u = s.t;
       const segZ = headZ + u * BODY_LEN;
-      const segY = hillY(segZ) + HOVER + 2 * Math.sin(u * Math.PI * 0.5);
-      const amp = WAVE_AMP * u * u; // small near the head, large at the tail
+      const u2 = u * u;
       const phase = WAVE_K * u * Math.PI * 2 - WAVE_W * time;
+      const amp = WAVE_AMP * u2; // small near the head, large at the tail
       const offsetX = amp * Math.sin(phase);
+      const vWave = Math.sin(phase + V_PHASE);
+      const offsetY = V_AMP * u2 * vWave; // same travelling wave, phase-led: corkscrew
+      const lift = BODY_LIFT * smooth01(u / LIFT_U);
+      const segY = hillY(segZ) + HOVER + lift + 2 * Math.sin(u * Math.PI * 0.5) + offsetY;
       s.sprite.position.set(headX + offsetX, segY, segZ);
       // Orient toward the tangent of the wave (screen-space lean).
       s.mat.rotation = Math.atan2(amp * Math.cos(phase) * WAVE_K * Math.PI * 2, BODY_LEN) * 0.5;
@@ -237,6 +319,16 @@ export class DragonSpriteView {
       if (pin && segZ > fadeStart) op = Math.max(0, 1 - (segZ - fadeStart) / 4);
       s.mat.opacity = op;
       s.sprite.visible = op > 0.01;
+      if (s.mist !== null && s.mistMat !== null) {
+        const mistZ = segZ - MIST_PULL;
+        const routeK = clamp01((mistZ - heroZ - ROUTE_CLEAR) / ROUTE_FADE);
+        const lensK = clamp01((mistZ - camZ - LENS_NEAR) / LENS_FADE);
+        const dipK = 0.5 - 0.5 * vWave; // 1 at the bottom of the vertical wave
+        const mop = MIST_OP * op * routeK * lensK * (MIST_MIN + (1 - MIST_MIN) * dipK);
+        s.mist.position.set(headX + offsetX, segY - MIST_DROP * s.h, mistZ);
+        s.mistMat.opacity = mop;
+        s.mist.visible = mop > 0.01;
+      }
     }
   }
 
@@ -286,6 +378,10 @@ export class DragonSpriteView {
     for (const s of this.segments) {
       s.mat.opacity *= bodyOp;
       s.sprite.visible = s.mat.opacity > 0.01;
+      if (s.mist !== null && s.mistMat !== null) {
+        s.mistMat.opacity *= bodyOp;
+        s.mist.visible = s.mistMat.opacity > 0.01;
+      }
     }
   }
 
@@ -297,7 +393,9 @@ export class DragonSpriteView {
 
   /** Head sprite centre as viewport fractions from the top-left (valid after setCatch). */
   headScreen(camera: PerspectiveCamera, out: { x: number; y: number }): void {
-    this.pTop.copy(this.headSprite?.position ?? this.target).project(camera);
+    const head = this.headSprite;
+    if (head === null) return; // no head: leave out as the caller set it
+    this.pTop.copy(head.position).project(camera);
     out.x = 0.5 + this.pTop.x / 2;
     out.y = 0.5 - this.pTop.y / 2;
   }
@@ -307,6 +405,8 @@ export class DragonSpriteView {
     this.clearBuilt();
     for (const t of this.headTextures) t?.dispose();
     for (const t of this.segTextures) t?.dispose();
+    this.mistTex?.dispose();
+    this.mistTex = null;
     this.built = false;
   }
 }
