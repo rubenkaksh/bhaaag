@@ -234,7 +234,9 @@
   background: #ffc83a;
   box-shadow: 0 0 10px 2px rgba(255, 200, 58, 0.8);
 }
-#hud-reticle.off {
+#hud-reticle.off,
+#hud-reticle.look,
+#hud-reticle.gone {
   display: none;
 }
 #hud-reason {

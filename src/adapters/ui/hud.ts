@@ -177,6 +177,11 @@ export class Hud {
   }
 
   /** 0 = hidden, 1 = neutral, 2 = valid target (gold). */
+  /** Permanently hide the reticle for this HUD (modes that never showed it). */
+  hideReticle(): void {
+    this.reticle.classList.add('gone');
+  }
+
   setReticle(state: number): void {
     if (state === this.reticleState) return;
     this.reticleState = state;
@@ -277,6 +282,7 @@ export class Hud {
   setLookActive(on: boolean): void {
     this.lookBtn.classList.toggle('on', on);
     this.lookBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    this.reticle.classList.toggle('look', on); // free look: the centre dot no longer marks the aim
   }
 
   destroy(): void {

@@ -345,8 +345,9 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
     onHint: isStrategy ? null : showHint,
     onLook: toggleLook,
   });
-  // The render pitch is camPitch - tilt, so a centre reticle would no longer mark the look direction.
-  if (camTilt > 0) document.getElementById('hud-reticle')?.style.setProperty('display', 'none');
+  // Cloud Village never showed the reticle (its tilted view has no aim dot); every other mode keeps
+  // it, including the gold target-found state. The HUD hides it while LOOK is active.
+  if (isVillage && camTilt > 0) hudUi.hideReticle();
   const chaseHud = isChase ? new ChaseHud(root, () => restart()) : null;
 
   /** LOOK button / L key: toggle free look-around. Off eases the camera back to the follow view. */

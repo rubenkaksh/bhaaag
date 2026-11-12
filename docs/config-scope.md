@@ -30,6 +30,13 @@ A mode may override only what is listed in `MODE_OVERRIDES` (same file) and in t
 | HINT button | shown | hidden in strategy | `world.lineOnly`: no free aim, nothing to hint |
 | Camera base rig (chase `frontPov`) | 0 = behind view | `chase.frontPov` 1 = ahead view | chase-only flag; yaw offsets still apply |
 
+## Known exception: the maze graph
+
+`src/content/strategy/graph.ts` (the Nagarkot Run reach model and generator) reads `DEFAULT_TUNING` directly, not the
+merged per-mode tuning. Content generation must stay deterministic and independent of the runtime tuning
+overlay, so the dead-end and route numbers are fixed by the defaults. If a mode override ever touches a hero/rope
+key the graph uses, the generated level will not follow it.
+
 ## History
 
 LOOK mode (look-around toggle) and the wider side lean were added after device testing: the player could not tell where the next path was. The LOOK offset is render-only, sits on top of the follow view in every mode, and never changes the sim or the stick direction. In Chase the danger vignette is unaffected.

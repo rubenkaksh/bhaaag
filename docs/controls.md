@@ -11,8 +11,8 @@ covers Hook, Mantle and Brake (release on the rope is DROP) with one thumb targe
   the right side = Drop.
 - **LOOK** button, bottom centre of the HUD (all modes): tap to toggle look-around. While on, a drag on the
   look zone (anywhere outside the stick zone) turns the camera around the hero (yaw up to `lookYawMaxDeg`, pitch
-  `lookPitchMinDeg`..`lookPitchMaxDeg`); taps (tap-to-aim) and the Drop swipe are suspended and nothing hooks. The stick
-  and the JUMP button keep working. Tap LOOK again, or wait `lookIdleSec` (4 s) without a drag, and the camera eases back
+  `lookPitchMinDeg`..`lookPitchMaxDeg`); touch taps (tap-to-aim) and the Drop swipe are suspended, so a drag or tap never aims,
+  drops or hooks. Everything else keeps working: the stick, the JUMP button and the context action button. Tap LOOK again, or wait `lookIdleSec` (4 s) without a drag, and the camera eases back
   to the follow view (`lookEase`). Never changes movement direction (still relative to the follow view).
 - Right thumb: ONE big button (`#btn-jump`). Its label is the context (`ActionMode`, set by
   `game.ts` each frame, drawn by `hud.setActionLabel`):
@@ -35,7 +35,7 @@ covers Hook, Mantle and Brake (release on the rope is DROP) with one thumb targe
 
 ## Desktop (unchanged, plus one key)
 
-WASD / arrows move, **L toggles LOOK** (mouse drag then turns the camera, no hook or brake fires; no pointer lock), Space jump, E or left click hook, hold R or right mouse brake,
+WASD / arrows move, **L toggles LOOK** (a mouse drag then turns the camera and the mouse click/drag no longer hooks or brakes; no pointer lock; the keyboard keeps working: Space jump, E hook, hold R brake, Shift/Ctrl/Q drop, F climb), Space jump, E or left click hook, hold R or right mouse brake,
 Shift / Ctrl / Q drop, **F hold = climb (mantle)**, Esc menu.
 
 ## Camera and aim

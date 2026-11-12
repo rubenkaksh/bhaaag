@@ -86,7 +86,7 @@ export const PIECE_CAP: Record<PieceId, number> = {
   trim: 700,
 };
 
-/** Pieces that scale with the house count (everything but the forest). */
+/** Pieces that do NOT scale with the house count (the forest); every other piece does. */
 const HOUSE_PIECES_UNSCALED: PieceId[] = ['canopy', 'trunk', 'conifer'];
 /** The caps above are sized for the ten-house levels. */
 const CAP_BASE_HOUSES = 10;
