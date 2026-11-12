@@ -39,7 +39,7 @@ import { DesktopInput } from '../adapters/input/desktop';
 import { TouchInput, type ActionMode } from '../adapters/input/touch';
 import { Sfx } from '../adapters/audio/sfx';
 import { CameraRig, updateCamera } from '../adapters/render/cameraRig';
-import { easeSideYaw, easeYawOffset, sideYawTarget, zipYawTarget } from '../adapters/render/cameraYaw';
+import { chaseRigYaw, easeSideYaw, easeYawOffset, sideYawTarget, zipYawTarget } from '../adapters/render/cameraYaw';
 import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
@@ -314,8 +314,8 @@ export function startGame(
     cur.py = world.spawn.y;
     cur.pz = world.spawn.z;
     cur.yaw = world.spawnYaw;
-    // Fixed front view: no player view control, so the sim camera never changes after this.
-    // Camera sits BEHIND the hero looking downhill; the rig only pans sideways to keep the hero centred.
+    // Fixed view: no player view control, so the sim camera never changes after this.
+    // Camera sits BEHIND the hero looking downhill (Chase frontPov 1 flips it ahead, see tickCamera).
     cur.camYaw = world.spawnYaw;
     cur.camPitch = cfg.camera.frontPitchDeg * DEG2RAD;
     zipYaw = 0;
@@ -335,10 +335,11 @@ export function startGame(
     feet.z = cur.pz;
     const speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
     if (isChase) {
-      // Chase: reversed rig (r = -c) so the camera sits downhill of the hero and looks back
-      // up the slope at the dragon. Screen right still equals the sim right vector, so the
-      // movement mapping is untouched. Tilted a few degrees up the slope so the dragon is in frame.
-      updateCamera(curRig, feet, -cur.camYaw, cur.camPitch + 0.14, speed, world.solids, camCfg);
+      // Chase: frontPov 0 (default) is the behind view, same rig as classic (r = PI - c), looking
+      // downhill along the run; the dragon is then behind the camera (HUD vignette warns).
+      // frontPov 1 is the old camera ahead of the hero, tilted up the slope at the dragon.
+      const front = cfg.chase.frontPov >= 0.5;
+      updateCamera(curRig, feet, chaseRigYaw(cur.camYaw, cfg.chase.frontPov), cur.camPitch + (front ? 0.14 : 0), speed, world.solids, camCfg);
       return;
     }
     const base = camYawToRig(cur.camYaw);

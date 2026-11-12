@@ -134,6 +134,7 @@ export type Tuning = {
     decoyGain: number; // added chance at difficulty 1
     oneHouseBase: number; // chance of a one-house (short rest) row at difficulty 0
     oneHouseGain: number; // added chance at difficulty 1
+    frontPov: number; // 0 (default) = camera behind the hero looking downhill, 1 = ahead of the hero looking back at the dragon
   };
   // --- Strategy maze (ADR 0011, appended) ---
   line: {
@@ -291,6 +292,7 @@ export const DEFAULT_TUNING: Tuning = {
     decoyGain: 0.3,
     oneHouseBase: 0.2,
     oneHouseGain: 0.15,
+    frontPov: 0,
   },
   line: {
     zoneTol: 0.6,

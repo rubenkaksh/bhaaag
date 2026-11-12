@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { easeSideYaw, easeYawOffset, sideYawTarget, zipYawTarget } from '../../src/adapters/render/cameraYaw';
+import { chaseRigYaw, easeSideYaw, easeYawOffset, sideYawTarget, zipYawTarget } from '../../src/adapters/render/cameraYaw';
 
 const cfg = { zipYawDeg: 45, zipYawMinDiagDeg: 20, zipYawEase: 0.1,
   sideYawDeg: 14,
@@ -45,5 +45,29 @@ describe('side camera yaw (T300)', () => {
     expect(y).toBeCloseTo(14 * D);
     for (let i = 0; i < 200; i++) y = easeSideYaw(y, sideYawTarget(0, cfg), cfg);
     expect(y).toBe(0);
+  });
+});
+
+describe('chase rig yaw', () => {
+  const look = (r: number) => [Math.sin(r), -Math.cos(r)];
+  const c = 3.14159; // chase spawnYaw: hero travels (sin c, cos c) = -z
+  it('front POV looks against the hero travel direction', () => {
+    const [lx, lz] = look(chaseRigYaw(c, 1));
+    expect(lx * Math.sin(c) + lz * Math.cos(c)).toBeCloseTo(-1, 4);
+  });
+  it('behind view looks along the hero travel direction', () => {
+    const [lx, lz] = look(chaseRigYaw(c, 0));
+    expect(lx * Math.sin(c) + lz * Math.cos(c)).toBeCloseTo(1, 4);
+  });
+  it('frontPov 0 is the classic behind rig, r = PI - c, for any sim yaw', () => {
+    for (const y of [0, 1, 3.14159, -2.2]) expect(chaseRigYaw(y, 0)).toBeCloseTo(Math.PI - y, 10);
+  });
+  it('behind view: stick-up (hero travel) is away from the camera, screen right = hero right', () => {
+    const r = chaseRigYaw(c, 0);
+    const right = [Math.cos(r), Math.sin(r)]; // rig screen-right in (x, z)
+    const heroRight = [Math.cos(c), -Math.sin(c)]; // sim right of forward (sin c, cos c)
+    // moveX is negated in game.ts (mirror), so screen right is the negated sim right vector
+    expect(right[0] * heroRight[0] + right[1] * heroRight[1]).toBeCloseTo(-1, 4);
+    expect(chaseRigYaw(c, 0.49)).toBeCloseTo(Math.PI - c, 10);
   });
 });
