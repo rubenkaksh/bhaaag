@@ -16,7 +16,7 @@ import { AABB } from '../../core/math/aabb';
 import { Vec3 } from '../../core/math/vec3';
 import { RIDGE_Z } from '../../core/world';
 import type { World } from '../../core/world';
-import { buildRopePost } from '../../app/ropePost';
+import { ROPE_TIE, buildRopePost } from '../../app/ropePost';
 import { buildDecor, groundAt } from './decor/placeDecor';
 import { buildStrategyFeatures, minSolidZ } from './strategyView';
 import { setTerrainExtent } from './terrain';
@@ -286,7 +286,9 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
     const feats = buildStrategyFeatures(world);
     for (let i = 0; i < feats.length; i++) g.add(feats[i]);
   }
-  if (scenery || opts.floorY !== undefined) g.add(buildRopePost(world));
+  // Cloud Village (floorY) has no pre-tied rope or post: the ziplines are the anchors themselves.
+  if (scenery) g.add(buildRopePost(world));
+  else ROPE_TIE.set = false;
 
   const sphere = new SphereGeometry(ANCHOR_R, 12, 8);
   // lineOnly worlds (strategy maze): 100 anchors would break the draw-call budget, and the
