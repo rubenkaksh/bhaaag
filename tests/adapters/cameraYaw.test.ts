@@ -5,6 +5,7 @@ const cfg = { zipYawDeg: 45, zipYawMinDiagDeg: 20, zipYawEase: 0.1,
   sideYawDeg: 14,
   sideYawSpeed: 5,
   sideYawEase: 0.1,
+  sideYawEaseBack: 0.05,
 };
 const D = Math.PI / 180;
 
@@ -45,6 +46,11 @@ describe('side camera yaw (T300)', () => {
     expect(y).toBeCloseTo(14 * D);
     for (let i = 0; i < 200; i++) y = easeSideYaw(y, sideYawTarget(0, cfg), cfg);
     expect(y).toBe(0);
+  });
+  it('returns slower than it opens', () => {
+    const out = easeSideYaw(0, 10 * D, cfg);
+    const back = easeSideYaw(10 * D, 0, cfg);
+    expect(10 * D - back).toBeLessThan(out);
   });
 });
 

@@ -99,7 +99,14 @@ export type Tuning = {
     zipYawEase: number;
     sideYawDeg: number; // yaw toward the side of lateral travel at sideYawSpeed m/s sideways (T300)
     sideYawSpeed: number; // sideways speed that reaches the full offset, m/s
-    sideYawEase: number; // per fixed tick ease toward the side-look target
+    sideYawEase: number; // per fixed tick ease toward a larger side-look target
+    sideYawEaseBack: number; // per fixed tick ease back toward 0 (slower = smoother return)
+    lookYawMaxDeg: number; // LOOK mode: max yaw from the follow view
+    lookPitchMinDeg: number; // LOOK mode: lowest pitch offset (negative = down)
+    lookPitchMaxDeg: number; // LOOK mode: highest pitch offset
+    lookDragDegPerPx: number; // LOOK mode: view turn per px of drag
+    lookIdleSec: number; // LOOK mode switches itself off after this idle time (0 = never)
+    lookEase: number; // LOOK mode: per fixed tick ease back to the follow view
   tiltDeg: number; // render-only pitch-down of the view (deg), all modes; ?tilt= overrides for debugging
   };
   validator: {
@@ -258,9 +265,16 @@ export const DEFAULT_TUNING: Tuning = {
     zipYawDeg: 45,
     zipYawMinDiagDeg: 20,
     zipYawEase: 0.06,
-    sideYawDeg: 14,
-    sideYawSpeed: 5,
-    sideYawEase: 0.05,
+    sideYawDeg: 35,
+    sideYawSpeed: 2.5,
+    sideYawEase: 0.07,
+    sideYawEaseBack: 0.035,
+    lookYawMaxDeg: 170,
+    lookPitchMinDeg: -25,
+    lookPitchMaxDeg: 40,
+    lookDragDegPerPx: 0.3,
+    lookIdleSec: 4,
+    lookEase: 0.08,
     tiltDeg: 20,
   },
   validator: {

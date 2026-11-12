@@ -33,6 +33,7 @@ export class Hud {
   private readonly winBest: HTMLElement;
   private readonly action: HTMLElement | null;
   private readonly hintBtn: HTMLElement;
+  private readonly lookBtn: HTMLElement;
   private actionDim = false;
   private timerText = '';
   private actionText = '';
@@ -58,7 +59,7 @@ export class Hud {
     root: HTMLElement,
     debug: boolean,
     onPlayAgain: () => void,
-    opts: { hint?: string; hopChip?: boolean; onHint?: (() => void) | null } = {},
+    opts: { hint?: string; hopChip?: boolean; onHint?: (() => void) | null; onLook?: (() => void) | null } = {},
   ) {
     this.objective = el(root, 'div', 'hud-objective');
     this.objective.innerHTML =
@@ -89,6 +90,16 @@ export class Hud {
     else {
       const cb = opts.onHint;
       this.hintBtn.addEventListener('click', () => cb());
+    }
+    this.lookBtn = el(root, 'button', 'hud-lookbtn');
+    (this.lookBtn as HTMLButtonElement).type = 'button';
+    this.lookBtn.setAttribute('aria-label', 'Look around (L)');
+    this.lookBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.8-7 10-7 10 7 10 7-3.8 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></g></svg><span>LOOK</span>';
+    if (opts.onLook === null || opts.onLook === undefined) this.lookBtn.style.display = 'none';
+    else {
+      const cb = opts.onLook;
+      this.lookBtn.addEventListener('click', () => cb());
     }
     this.wp = el(root, 'div', 'hud-waypoint', 'off');
     this.wp.innerHTML =
@@ -262,8 +273,15 @@ export class Hud {
     this.hintBtn.classList.toggle('on', on);
   }
 
+  /** LOOK button lit while look-around mode is on. */
+  setLookActive(on: boolean): void {
+    this.lookBtn.classList.toggle('on', on);
+    this.lookBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+
   destroy(): void {
     this.hintBtn.remove();
+    this.lookBtn.remove();
     this.objective.remove();
     this.hop.remove();
     this.alt.remove();

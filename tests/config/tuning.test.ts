@@ -97,6 +97,13 @@ const schema = z.strictObject({
     sideYawDeg: num,
     sideYawSpeed: num,
     sideYawEase: num,
+    sideYawEaseBack: num,
+    lookYawMaxDeg: num,
+    lookPitchMinDeg: num,
+    lookPitchMaxDeg: num,
+    lookDragDegPerPx: num,
+    lookIdleSec: num,
+    lookEase: num,
     tiltDeg: num,
   }),
   validator: z.strictObject({
