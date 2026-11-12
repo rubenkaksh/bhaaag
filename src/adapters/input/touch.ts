@@ -15,7 +15,7 @@
 //   Button  ONE big right-thumb button (#btn-jump, label set by the game via actionMode):
 //           jump  -> press = BTN_JUMP (held while down); double tap = Hook, triple tap = Drop
 //           hook  -> press = BTN_HOOK (line pad in a lineOnly level)
-//           brake -> hold >= BRAKE_HOLD_MS = BTN_REEL; short tap = BTN_JUMP (release off the rope)
+//           brake -> hold >= BRAKE_HOLD_MS = BTN_REEL; short tap does nothing (JUMP is ignored on the rope; triple tap = Drop)
 //           climb -> hold >= CLIMB_HOLD_MS = BTN_CLIMB (mantle); short tap = BTN_JUMP (wall jump)
 //           Tap counting and hold thresholds live in tapGesture.ts; docs/controls.md has the table.
 //   Drop    fast downward swipe on #look-zone (> SWIPE_DOWN_PX within
@@ -410,8 +410,7 @@ export class TouchInput {
     this.roles.delete(e.pointerId);
     this.jumpId = -1;
     const dur = this.tapper.release(e.timeStamp);
-    // Deferred jump: off the rope or off a wall a short tap jumps, a hold brakes / climbs.
-    if (this.pressMode === 'brake' && dur >= 0 && dur < BRAKE_HOLD_MS) this.pressedPending |= BTN_JUMP;
+    // Deferred jump: off a wall a short tap jumps, a hold climbs. On the rope JUMP is ignored.
     if (this.pressMode === 'climb' && dur >= 0 && dur < CLIMB_HOLD_MS) this.pressedPending |= BTN_JUMP;
   };
 

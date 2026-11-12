@@ -46,6 +46,7 @@ import { updateLevelView } from '../adapters/render/levelView';
 import { createGameScene } from '../adapters/render/scene';
 import { DebugHud } from '../adapters/ui/debugHud';
 import { Hud } from '../adapters/ui/hud';
+import { pickHintAnchor } from './hint';
 import { altitudeFraction } from '../adapters/ui/progress';
 import { aimReasonText } from '../adapters/ui/aimReasonText';
 import { AimPreviewView } from '../adapters/render/aimPreviewView';
@@ -277,6 +278,8 @@ export function startGame(
   let lensShiftPx = 0;
   let sideYaw = 0; // side-look yaw offset (rig radians), eased toward lateral travel
   let zipYaw = 0; // automatic zipline camera yaw offset (rig radians), 0 = front view
+  let hintId = NO_ANCHOR; // anchor highlighted by HINT (T299); render-only, never read by the sim
+  let hintT = 0;
   let tapAnchor = NO_ANCHOR; // anchor picked by tap-to-aim, sticky until fired or cleared
   let aimYaw = 0;
   let aimPitch = 0;
@@ -297,6 +300,8 @@ export function startGame(
     cur.camPitch = cfg.camera.frontPitchDeg * DEG2RAD;
     zipYaw = 0;
     sideYaw = 0;
+    hintId = NO_ANCHOR;
+    hintT = 0;
     tapAnchor = NO_ANCHOR;
     cur.grounded = 1;
     cur.mode = HERO_AIRBORNE;
@@ -337,8 +342,30 @@ export function startGame(
   const hudUi = new Hud(root, debug, () => restart(), {
     hint: MODE_INFO[mode].hint,
     hopChip: MODE_INFO[mode].hopChip,
+    onHint: isStrategy ? null : showHint,
   });
   const chaseHud = isChase ? new ChaseHud(root, () => restart()) : null;
+
+  /** HINT: highlight the best takeable zipline anchor for hintSec. No sim state is touched. */
+  function showHint(): void {
+    if (phase !== 'play' || world.lineOnly === 1) return;
+    const id = pickHintAnchor(
+      world,
+      cfg,
+      cur.px,
+      cur.py,
+      cur.pz,
+      nextRouteIndex,
+      coarse ? cfg.aim.magnetDegTouch : cfg.aim.magnetDegDesktop,
+    );
+    if (id === NO_ANCHOR) {
+      hudUi.toast('No zipline in reach');
+      return;
+    }
+    hintId = id;
+    hintT = cfg.aim.hintSec;
+    hudUi.setHintActive(true);
+  }
 
   /** Canonical respawn: spawn point, zero velocity, hook idle, camera facing spawnYaw. */
   function restart(): void {
@@ -426,7 +453,15 @@ export function startGame(
           mode = 'hook';
         }
         input.actionMode = mode;
+        hudUi.setActionDim(cur.mode === HERO_ATTACHED); // JUMP is ignored on the rope (T303)
         hudUi.setActionLabel(mode.toUpperCase());
+      }
+      if (hintId !== NO_ANCHOR) {
+        hintT -= stepDt;
+        if (hintT <= 0 || cur.mode === HERO_ATTACHED) {
+          hintId = NO_ANCHOR;
+          hudUi.setHintActive(false);
+        }
       }
       consumeTap();
       computeAim();
@@ -698,7 +733,15 @@ export function startGame(
     let tz = goalCz;
     let have = hasGoal;
     const wpIdx = cs !== null ? 0 : nextRouteIndex; // chase: route[0] is always the next row
-    if (wpIdx < world.route.length) {
+    if (hintId !== NO_ANCHOR) {
+      const a = world.anchors[hintId];
+      if (a !== undefined) {
+        tx = a.px;
+        ty = a.py;
+        tz = a.pz;
+        have = true;
+      }
+    } else if (wpIdx < world.route.length) {
       const a = world.anchors[world.route[wpIdx]];
       if (a !== undefined) {
         tx = a.px;
@@ -871,7 +914,7 @@ export function startGame(
     if (cs !== null && rowsView !== null && ground !== null && dragonView !== null) {
       renderChase(nowSec, frameDt);
     } else if (level !== null) {
-      updateLevelView(level, nowSec, nextRouteIndex);
+      updateLevelView(level, nowSec, nextRouteIndex, hintId);
       hudUi.setTime(runT);
       hudUi.setHop(nextRouteIndex, world.route.length);
       hudUi.setAltitude(altitudeFraction(cur.py, world.spawn.y, hasGoal ? goalCy : world.spawn.y));
@@ -976,6 +1019,10 @@ export function startGame(
     anyInput = true;
     if (phase === 'pan') panSkip = true;
   };
+  const onHintKey = (e: KeyboardEvent): void => {
+    if (e.code === 'KeyH' && !e.repeat && !isStrategy) showHint();
+  };
+  window.addEventListener('keydown', onHintKey);
   window.addEventListener('keydown', onAnyInput, true);
   window.addEventListener('pointerdown', onAnyInput, true);
   // pointerup (not pointerdown) is the user activation on touch browsers.
@@ -1018,6 +1065,7 @@ export function startGame(
     destroy(): void {
       loop.stop();
       unwatchViewport();
+      window.removeEventListener('keydown', onHintKey);
       window.removeEventListener('keydown', onAnyInput, true);
       window.removeEventListener('pointerdown', onAnyInput, true);
       window.removeEventListener('pointerup', onUnlockGesture, true);

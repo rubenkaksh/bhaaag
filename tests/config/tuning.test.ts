@@ -33,6 +33,7 @@ const schema = z.strictObject({
     previewMaxSec: num,
     previewReleaseSamples: num,
     tapRadiusNdc: num,
+    hintSec: num,
   }),
   release: z.strictObject({
     inputBufferMs: num,

@@ -15,7 +15,8 @@
     "brakeDecel": 10
   },
   "aim": { "magnetDegDesktop": 4, "magnetDegTouch": 6, "routeAssistDeg": 16, "routeAssistLateDeg": 10, "routeAssistEarlyHops": 2, "snapRadius": 1.2, "previewHz": 15, "previewMaxSec": 8, "previewReleaseSamples": 12,
-    "tapRadiusNdc": 0.18 },
+    "tapRadiusNdc": 0.18,
+    "hintSec": 4 },
   "release": { "inputBufferMs": 100, "coyoteMs": 120, "jumpUp": 5, "jumpFwd": 2, "carry": 1.0, "hookCooldownSec": 0.15, "hookIntentSec": 0.5, "perfectLo": 0.7, "perfectHi": 1.0, "perfectBoost": 2, "perfectUp": 2 },
   "landing": {
     "vyClean": 7,

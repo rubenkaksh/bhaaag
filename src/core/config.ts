@@ -29,6 +29,7 @@ export type Tuning = {
     previewMaxSec: number;
     previewReleaseSamples: number;
     tapRadiusNdc: number;
+    hintSec: number; // how long a HINT highlight stays on a zipline anchor (T299)
   };
   release: {
     inputBufferMs: number;
@@ -187,6 +188,7 @@ export const DEFAULT_TUNING: Tuning = {
     previewMaxSec: 8,
     previewReleaseSamples: 12,
     tapRadiusNdc: 0.18,
+    hintSec: 4,
   },
   release: {
     inputBufferMs: 100,

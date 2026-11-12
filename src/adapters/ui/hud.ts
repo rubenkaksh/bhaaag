@@ -32,6 +32,8 @@ export class Hud {
   private readonly winTime: HTMLElement;
   private readonly winBest: HTMLElement;
   private readonly action: HTMLElement | null;
+  private readonly hintBtn: HTMLElement;
+  private actionDim = false;
   private timerText = '';
   private actionText = '';
   private reticleState = -1;
@@ -56,7 +58,7 @@ export class Hud {
     root: HTMLElement,
     debug: boolean,
     onPlayAgain: () => void,
-    opts: { hint?: string; hopChip?: boolean } = {},
+    opts: { hint?: string; hopChip?: boolean; onHint?: (() => void) | null } = {},
   ) {
     this.objective = el(root, 'div', 'hud-objective');
     this.objective.innerHTML =
@@ -78,6 +80,16 @@ export class Hud {
     this.pause.addEventListener('click', () => {
       window.dispatchEvent(new CustomEvent('zt-menu'));
     });
+    this.hintBtn = el(root, 'button', 'hud-hintbtn');
+    (this.hintBtn as HTMLButtonElement).type = 'button';
+    this.hintBtn.setAttribute('aria-label', 'Hint: show a zipline to take (H)');
+    this.hintBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></g></svg><span>HINT</span>';
+    if (opts.onHint === null || opts.onHint === undefined) this.hintBtn.style.display = 'none';
+    else {
+      const cb = opts.onHint;
+      this.hintBtn.addEventListener('click', () => cb());
+    }
     this.wp = el(root, 'div', 'hud-waypoint', 'off');
     this.wp.innerHTML =
       '<i class="wp-stem"></i><span class="wp-arrow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 14l4-4 4 4" fill="none" stroke="#ffc83a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><svg class="wp-dia" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5 22.5 12 12 22.5 1.5 12Z" fill="#ffc83a" stroke="#2a1a0e" stroke-width="1.5"/><path d="M12 6.5 17.5 12 12 17.5 6.5 12Z" fill="none" stroke="#2a1a0e" stroke-width="1.5"/></svg><span class="wp-label"></span>';
@@ -238,7 +250,21 @@ export class Hud {
     this.action.setAttribute('aria-label', text.charAt(0) + text.slice(1).toLowerCase());
   }
 
+  /** Dims the touch action button while JUMP is unavailable (riding a zipline). */
+  setActionDim(dim: boolean): void {
+    if (this.action === null || dim === this.actionDim) return;
+    this.actionDim = dim;
+    this.action.classList.toggle('dim', dim);
+    this.action.setAttribute('aria-disabled', dim ? 'true' : 'false');
+  }
+
+  /** HINT button lit while a hint highlight is active. */
+  setHintActive(on: boolean): void {
+    this.hintBtn.classList.toggle('on', on);
+  }
+
   destroy(): void {
+    this.hintBtn.remove();
     this.objective.remove();
     this.hop.remove();
     this.alt.remove();
