@@ -159,6 +159,9 @@
 #btn-jump[data-mode='climb'] .ic-climb {
   display: inline;
 }
+#btn-jump.dim {
+  opacity: 0.4;
+}
 #btn-jump:active {
   background: rgba(255, 200, 58, 0.35);
   border-color: var(--gold);

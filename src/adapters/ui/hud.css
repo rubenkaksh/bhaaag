@@ -138,6 +138,34 @@
 #hud-pause:active {
   background: rgba(255, 200, 58, 0.35);
 }
+#hud-hintbtn {
+  top: calc(var(--pad) + env(safe-area-inset-top, 0px));
+  right: calc(var(--pad) + clamp(44px, 6vh, 64px) + 8px + env(safe-area-inset-right, 0px));
+  z-index: 31;
+  pointer-events: auto;
+  cursor: pointer;
+  box-sizing: border-box;
+  height: clamp(44px, 6vh, 64px);
+  padding: 0 0.8em;
+  border: 0;
+  border-radius: 18px;
+  background: var(--panel);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font: 700 clamp(11px, 1.7vh, 15px) var(--font);
+  letter-spacing: 0.08em;
+  -webkit-tap-highlight-color: transparent;
+}
+#hud-hintbtn svg {
+  height: 1.7em;
+  width: 1.7em;
+}
+#hud-hintbtn:active,
+#hud-hintbtn.on {
+  background: rgba(255, 200, 58, 0.45);
+}
 #hud-hint {
   top: calc(var(--pad) + clamp(32px, 5.4vh, 58px) + 8px + env(safe-area-inset-top, 0px));
   left: 50%;
@@ -535,6 +563,11 @@
     top: calc(var(--hud-top) + env(safe-area-inset-top, 0px));
     height: var(--pill-h);
     font-size: clamp(18px, 6vw, 28px);
+  }
+  #hud-hintbtn {
+    top: calc(var(--hud-top) + env(safe-area-inset-top, 0px));
+    right: calc(var(--hud-side) + var(--pill-h) + 8px + env(safe-area-inset-right, 0px));
+    height: var(--pill-h);
   }
   #hud-pause {
     top: calc(var(--hud-top) + env(safe-area-inset-top, 0px));

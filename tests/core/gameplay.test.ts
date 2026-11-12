@@ -14,7 +14,7 @@ import {
   HeroState,
   copyHeroState,
 } from '../../src/core/hero';
-import { AXIS_MAX, BTN_HOOK, BTN_JUMP, BTN_REEL, InputFrame } from '../../src/core/input';
+import { AXIS_MAX, BTN_DROP, BTN_HOOK, BTN_JUMP, BTN_REEL, InputFrame } from '../../src/core/input';
 import { AABB } from '../../src/core/math/aabb';
 import { Vec3 } from '../../src/core/math/vec3';
 import { step } from '../../src/core/sim';
@@ -130,20 +130,40 @@ describe('gameplay: rope ride', () => {
     expect(arrival(true)).toBeLessThan(arrival(false) - 1);
   });
 
-  it('(f) JUMP release flies forward and up', () => {
+  it('(f) JUMP is ignored on the rope; DROP releases (T303)', () => {
     const w = twoRoofs();
     const s = hero(0, 10, -1, 1);
     fireAndAttach(s, w);
     run(s, w, 40);
     expect(s.mode).toBe(HERO_ATTACHED);
-    const chordVy = s.hook.dirY * s.hook.v;
-    const chordVz = s.hook.dirZ * s.hook.v;
     step(s, frame(0, BTN_JUMP), w, cfg);
+    expect(s.eventBits & HERO_EV_RELEASED).toBe(0);
+    expect(s.mode).toBe(HERO_ATTACHED);
+    step(s, frame(0, BTN_DROP), w, cfg);
     expect(s.eventBits & HERO_EV_RELEASED).toBe(HERO_EV_RELEASED);
     expect(s.mode).toBe(HERO_AIRBORNE);
-    expect(s.vy).toBeCloseTo(chordVy + cfg.release.jumpUp, 6);
-    expect(s.vz).toBeGreaterThan(chordVz);
-    expect(s.vy).toBeGreaterThan(chordVy);
+  });
+
+  it('auto-exits at the far anchor with the trolley velocity, no press needed (T298)', () => {
+    const w = new World();
+    addSolid(w, box(-5, 0, -10, 5, 10, 0)); // launch roof only: open air past the far anchor
+    addAnchor(w, 0, 1, 26);
+    w.killPlaneY = -30;
+    const s = hero(0, 10, -1, 1);
+    fireAndAttach(s, w);
+    let exitedAt = -1;
+    for (let i = 0; i < 900 && exitedAt < 0; i++) {
+      const vBefore = s.hook.v;
+      const dirY = s.hook.dirY;
+      step(s, IDLE, w, cfg);
+      if ((s.eventBits & HERO_EV_RELEASED) !== 0) {
+        exitedAt = i;
+        expect(s.mode).not.toBe(HERO_HANGING);
+        expect(s.vy).toBeCloseTo(dirY * vBefore, 1);
+      }
+    }
+    expect(exitedAt).toBeGreaterThan(0);
+    expect(s.dead).toBe(0);
   });
 });
 
@@ -311,26 +331,6 @@ describe('gameplay: timed release', () => {
     return { s, w };
   }
 
-  it('JUMP inside the window adds the boost along the horizontal chord and sets PERFECT', () => {
-    const { s, w } = rideTo(0.85);
-    const chordVz = s.hook.dirZ * s.hook.v;
-    step(s, frame(0, BTN_JUMP), w, cfg);
-    expect(s.eventBits & HERO_EV_PERFECT).toBe(HERO_EV_PERFECT);
-    expect(s.eventBits & HERO_EV_RELEASED).toBe(HERO_EV_RELEASED);
-    expect(s.perfect).toBe(1);
-    expect(s.vz).toBeCloseTo(chordVz + cfg.release.jumpFwd + cfg.release.perfectBoost, 6);
-  });
-
-  it('JUMP just before the window is the plain release: no boost, no event', () => {
-    const { s, w } = rideTo(cfg.release.perfectLo, true);
-    expect(s.hook.s / span(s)).toBeLessThan(cfg.release.perfectLo);
-    const chordVz = s.hook.dirZ * s.hook.v;
-    step(s, frame(0, BTN_JUMP), w, cfg);
-    expect(s.eventBits & HERO_EV_PERFECT).toBe(0);
-    expect(s.perfect).toBe(0);
-    expect(s.vz).toBeCloseTo(chordVz + cfg.release.jumpFwd, 6);
-  });
-
   it('a hang JUMP is never timed', () => {
     const s = hero(0, 5, 0, 0);
     s.mode = HERO_HANGING;
@@ -360,8 +360,8 @@ describe('gameplay: timed release', () => {
 
   it('firing a new rope forfeits the timed-release carry', () => {
     const { s, w } = rideTo(0.85);
-    step(s, frame(0, BTN_JUMP), w, cfg);
-    expect(s.perfect).toBe(1);
+    step(s, frame(0, BTN_DROP), w, cfg);
+    s.perfect = 1;
     run(s, w, 10); // past the hook cooldown
     s.hookCd = 0;
     s.hookIntentT = 0;

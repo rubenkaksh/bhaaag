@@ -37,8 +37,8 @@
 //    - Play-only HUD (score chip, objective hint, dragon gap bar, touch controls) is hidden
 //      while the card is up. Pause stays.
 //
-// 4. Budgets: T290e replaced the segment chain with one ribbon mesh + tail sprite; the head is
-//    a square 512x512 sprite (HEAD_H_OVER_W 1) and "face" now means the whole antler span.
+// 4. Budgets: no new textures beyond replacing the three wrong crops with one real cloud
+//    (sheet bounds about 650,1272,950,1380). SEG_PATHS becomes seg-a, seg-b, puff-d, puff-e.
 //    No per-frame allocation in the beat. Classic mode and src/core untouched.
 //
 // 5. Acceptance (judged from screenshots at 390x844 and 844x390):
@@ -47,10 +47,10 @@
 //    card frame: face fully visible beside/above the card, every card line readable, no grass
 //    or rock anywhere in the dragon.
 
-/** Head sprite height / width: square v2 head (512x512, re-centred). */
-export const HEAD_H_OVER_W = 1;
-/** Share of the head sprite's width the catch framing must fit: antler tip to antler tip on head-a v2. */
-export const FACE_FRAC = 0.9;
+/** Head crop height / width (915 x 306 source crop). */
+export const HEAD_H_OVER_W = 306 / 915;
+/** Share of the head sprite's width taken by the face with mane (measured on head-a). */
+export const FACE_FRAC = 0.29;
 /** Metres in front of the camera for the camera-space head (in front of the hero at the catch). */
 export const CATCH_DIST = 9;
 /** At or above this aspect the card frame uses the side-by-side layout. */

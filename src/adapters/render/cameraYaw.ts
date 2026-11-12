@@ -7,6 +7,9 @@ export interface ZipYawCfg {
   zipYawDeg: number;
   zipYawMinDiagDeg: number;
   zipYawEase: number;
+  sideYawDeg: number;
+  sideYawSpeed: number;
+  sideYawEase: number;
 }
 
 /**
@@ -30,5 +33,24 @@ export function zipYawTarget(
 /** One fixed-tick ease of the offset toward target; snaps to it when within a hair. */
 export function easeYawOffset(cur: number, target: number, cfg: ZipYawCfg): number {
   const next = cur + (target - cur) * cfg.zipYawEase;
+  return Math.abs(target - next) < 1e-4 ? target : next;
+}
+
+/**
+ * Yaw offset toward the side the hero is moving sideways (T300): proportional to the sideways
+ * speed vRight (screen-right m/s in the behind view), saturating at sideYawSpeed. Positive turns
+ * the view right, so more of the map on that side is on screen. 0 when sideYawSpeed is 0.
+ */
+export function sideYawTarget(vRight: number, cfg: ZipYawCfg): number {
+  if (!(cfg.sideYawSpeed > 0)) return 0;
+  let k = vRight / cfg.sideYawSpeed;
+  if (k > 1) k = 1;
+  if (k < -1) k = -1;
+  return k * cfg.sideYawDeg * DEG;
+}
+
+/** One fixed-tick ease of the side offset toward target (sideYawEase). */
+export function easeSideYaw(cur: number, target: number, cfg: ZipYawCfg): number {
+  const next = cur + (target - cur) * cfg.sideYawEase;
   return Math.abs(target - next) < 1e-4 ? target : next;
 }
