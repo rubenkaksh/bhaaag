@@ -96,6 +96,9 @@ export type Tuning = {
     zipYawDeg: number;
     zipYawMinDiagDeg: number;
     zipYawEase: number;
+    sideYawDeg: number; // yaw toward the side of lateral travel at sideYawSpeed m/s sideways (T300)
+    sideYawSpeed: number; // sideways speed that reaches the full offset, m/s
+    sideYawEase: number; // per fixed tick ease toward the side-look target
   };
   validator: {
     minReleaseWindowTicks: number;
@@ -251,6 +254,9 @@ export const DEFAULT_TUNING: Tuning = {
     zipYawDeg: 45,
     zipYawMinDiagDeg: 20,
     zipYawEase: 0.06,
+    sideYawDeg: 14,
+    sideYawSpeed: 5,
+    sideYawEase: 0.05,
   },
   validator: {
     minReleaseWindowTicks: 12,

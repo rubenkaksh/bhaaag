@@ -39,7 +39,7 @@ import { DesktopInput } from '../adapters/input/desktop';
 import { TouchInput, type ActionMode } from '../adapters/input/touch';
 import { Sfx } from '../adapters/audio/sfx';
 import { CameraRig, updateCamera } from '../adapters/render/cameraRig';
-import { easeYawOffset, zipYawTarget } from '../adapters/render/cameraYaw';
+import { easeSideYaw, easeYawOffset, sideYawTarget, zipYawTarget } from '../adapters/render/cameraYaw';
 import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
@@ -275,6 +275,7 @@ export function startGame(
   let brakeWas = false;
   let viewport: ViewportLayout = readViewport();
   let lensShiftPx = 0;
+  let sideYaw = 0; // side-look yaw offset (rig radians), eased toward lateral travel
   let zipYaw = 0; // automatic zipline camera yaw offset (rig radians), 0 = front view
   let tapAnchor = NO_ANCHOR; // anchor picked by tap-to-aim, sticky until fired or cleared
   let aimYaw = 0;
@@ -295,6 +296,7 @@ export function startGame(
     cur.camYaw = world.spawnYaw;
     cur.camPitch = cfg.camera.frontPitchDeg * DEG2RAD;
     zipYaw = 0;
+    sideYaw = 0;
     tapAnchor = NO_ANCHOR;
     cur.grounded = 1;
     cur.mode = HERO_AIRBORNE;
@@ -322,7 +324,14 @@ export function startGame(
       zipYawTarget(cur.mode === HERO_ATTACHED && cur.dead === 0, vRight, vFwd, camCfg),
       camCfg,
     );
-    updateCamera(curRig, feet, base + zipYaw, cur.camPitch, speed, world.solids, camCfg);
+    // Side look (T300): lean the view toward lateral travel on foot / in the air; the rope
+    // already has its own diagonal yaw, so the side offset eases back to 0 while attached.
+    sideYaw = easeSideYaw(
+      sideYaw,
+      cur.mode === HERO_ATTACHED || cur.dead !== 0 ? 0 : sideYawTarget(vRight, camCfg),
+      camCfg,
+    );
+    updateCamera(curRig, feet, base + zipYaw + sideYaw, cur.camPitch, speed, world.solids, camCfg);
   }
 
   const hudUi = new Hud(root, debug, () => restart(), {

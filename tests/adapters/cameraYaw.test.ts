@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { easeYawOffset, zipYawTarget } from '../../src/adapters/render/cameraYaw';
+import { easeSideYaw, easeYawOffset, sideYawTarget, zipYawTarget } from '../../src/adapters/render/cameraYaw';
 
-const cfg = { zipYawDeg: 45, zipYawMinDiagDeg: 20, zipYawEase: 0.1 };
+const cfg = { zipYawDeg: 45, zipYawMinDiagDeg: 20, zipYawEase: 0.1,
+  sideYawDeg: 14,
+  sideYawSpeed: 5,
+  sideYawEase: 0.1,
+};
 const D = Math.PI / 180;
 
 describe('zip camera yaw', () => {
@@ -23,6 +27,23 @@ describe('zip camera yaw', () => {
     for (let i = 0; i < 200; i++) y = easeYawOffset(y, 45 * D, cfg);
     expect(y).toBeCloseTo(45 * D);
     for (let i = 0; i < 200; i++) y = easeYawOffset(y, 0, cfg);
+    expect(y).toBe(0);
+  });
+});
+
+describe('side camera yaw (T300)', () => {
+  it('leans toward the side of travel, saturates, and is zero at rest', () => {
+    expect(sideYawTarget(0, cfg)).toBe(0);
+    expect(sideYawTarget(2.5, cfg)).toBeCloseTo(7 * D);
+    expect(sideYawTarget(-2.5, cfg)).toBeCloseTo(-7 * D);
+    expect(sideYawTarget(50, cfg)).toBeCloseTo(14 * D);
+    expect(sideYawTarget(-50, cfg)).toBeCloseTo(-14 * D);
+  });
+  it('eases out toward the side and returns to exactly zero when movement stops', () => {
+    let y = 0;
+    for (let i = 0; i < 200; i++) y = easeSideYaw(y, sideYawTarget(5, cfg), cfg);
+    expect(y).toBeCloseTo(14 * D);
+    for (let i = 0; i < 200; i++) y = easeSideYaw(y, sideYawTarget(0, cfg), cfg);
     expect(y).toBe(0);
   });
 });

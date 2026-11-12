@@ -51,7 +51,10 @@
     "frontPitchDeg": -12,
     "zipYawDeg": 45,
     "zipYawMinDiagDeg": 20,
-    "zipYawEase": 0.06
+    "zipYawEase": 0.06,
+    "sideYawDeg": 14,
+    "sideYawSpeed": 5,
+    "sideYawEase": 0.05
   },
   "validator": {
     "minReleaseWindowTicks": 12,
