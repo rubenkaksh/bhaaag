@@ -33,7 +33,7 @@
   },
   "wall": { "vCling": 7.5 },
   "roof": { "slipDeg": 15, "mu": 0.2, "control": 0.3, "uphillRun": 0.4 },
-  "hero": { "walk": 3.5, "run": 6, "radius": 0.35, "stepUp": 0.4, "jump": 4.5, "height": 1.8, "accel": 40, "friction": 30 },
+  "hero": { "walk": 3.5, "run": 6, "radius": 0.35, "stepUp": 0.4, "jump": 4.5, "height": 1.8, "accel": 40, "friction": 30, "airSteer": 14, "airSteerCap": 6 },
   "camera": {
     "dist": 4.5,
     "distSlide": 6.5,

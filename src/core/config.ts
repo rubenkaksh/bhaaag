@@ -75,6 +75,8 @@ export type Tuning = {
     height: number;
     accel: number;
     friction: number;
+    airSteer: number; // m/s^2 the stick turns horizontal velocity while airborne (not after a bounce)
+    airSteerCap: number; // horizontal speed it pulls toward at full stick, m/s; faster heroes keep their speed
   };
   camera: {
     dist: number;
@@ -228,6 +230,8 @@ export const DEFAULT_TUNING: Tuning = {
     height: 1.8,
     accel: 40,
     friction: 30,
+    airSteer: 14,
+    airSteerCap: 6,
   },
   camera: {
     dist: 4.5,

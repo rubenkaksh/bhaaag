@@ -30,7 +30,6 @@ import {
   HERO_EV_HOOKED,
   HERO_EV_LANDED,
   HERO_EV_MANTLE,
-  HERO_EV_PERFECT,
   HERO_EV_RELEASED,
   HERO_EV_ROLLED,
   HERO_GROUNDED,
@@ -526,28 +525,7 @@ function tryFire(s: HeroState, input: InputFrame, world: World, cfg: Tuning): vo
 
 function rideStep(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt: number): void {
   const h = s.hook;
-  if (wasPressed(input, BTN_JUMP)) {
-    // Timed release: JUMP late on the rope adds a forward boost along the horizontal chord.
-    const span = h.len - cfg.rope.trolleyStop;
-    const frac = span > 0 ? h.s / span : 0;
-    const hl = Math.sqrt(h.dirX * h.dirX + h.dirZ * h.dirZ);
-    const bx = hl > 1e-6 ? h.dirX / hl : 0;
-    const bz = hl > 1e-6 ? h.dirZ / hl : 0;
-    const timed =
-      h.state === HOOK_ATTACHED &&
-      hl > 1e-6 &&
-      frac >= cfg.release.perfectLo &&
-      frac <= cfg.release.perfectHi;
-    releaseHero(s, cfg, true);
-    if (timed) {
-      s.vx += bx * cfg.release.perfectBoost;
-      s.vz += bz * cfg.release.perfectBoost;
-      s.vy += cfg.release.perfectUp - cfg.release.jumpUp; // a flatter, faster exit than a plain jump
-      s.perfect = 1;
-      s.eventBits |= HERO_EV_PERFECT;
-    }
-    return;
-  }
+  // JUMP is ignored on the rope (T303): DROP is the only manual release.
   if (wasPressed(input, BTN_DROP)) {
     releaseHero(s, cfg, false);
     return;
@@ -628,12 +606,9 @@ function rideStep(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
       wallHit(s, world, cfg);
       return;
     }
-    s.mode = HERO_HANGING;
-    s.vx = 0;
-    s.vy = 0;
-    s.vz = 0;
-    s.hasLedge = 0;
-    resetHook(h);
+    // Far anchor reached with open air beyond: exit the line on its own, carrying the
+    // trolley velocity exactly like a manual DROP release at the end.
+    releaseHero(s, cfg, false);
   }
 }
 
@@ -890,16 +865,27 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
     const k = 1 - cfg.physics.airDrag * dt;
     s.vx *= k;
     s.vz *= k;
-    // After a trampoline bounce only: the stick steers horizontal velocity toward the wanted
-    // direction at tramp.airSteer m/s^2, never pushing speed past tramp.airSteerCap.
-    if (s.bounceAir === 1 && mag > 0 && !locked) {
-      const cap = cfg.tramp.airSteerCap;
-      const tx = (wantX / cfg.hero.run) * cap;
-      const tz = (wantZ / cfg.hero.run) * cap;
+    // Air steer: the stick turns horizontal velocity toward the wanted direction. After a
+    // trampoline bounce it pulls toward tramp.airSteerCap at tramp.airSteer m/s^2; on any other
+    // airborne state (jump, rope release) toward hero.airSteerCap at hero.airSteer m/s^2, never
+    // slowing a hero already faster than the cap (T302).
+    if (mag > 0 && !locked) {
+      const bounce = s.bounceAir === 1;
+      let tx: number;
+      let tz: number;
+      if (bounce) {
+        tx = (wantX / cfg.hero.run) * cfg.tramp.airSteerCap;
+        tz = (wantZ / cfg.hero.run) * cfg.tramp.airSteerCap;
+      } else {
+        const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+        const tm = Math.max(cfg.hero.airSteerCap * mag, sp);
+        tx = (wantX / (cfg.hero.run * mag)) * tm;
+        tz = (wantZ / (cfg.hero.run * mag)) * tm;
+      }
       const dx = tx - s.vx;
       const dz = tz - s.vz;
       const dl = Math.sqrt(dx * dx + dz * dz);
-      const maxD = cfg.tramp.airSteer * dt;
+      const maxD = (bounce ? cfg.tramp.airSteer : cfg.hero.airSteer) * dt;
       if (dl <= maxD) {
         s.vx = tx;
         s.vz = tz;

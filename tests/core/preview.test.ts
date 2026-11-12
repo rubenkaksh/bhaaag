@@ -11,7 +11,7 @@ import {
   HeroState,
   copyHeroState,
 } from '../../src/core/hero';
-import { BTN_HOOK, BTN_JUMP, InputFrame } from '../../src/core/input';
+import { BTN_DROP, BTN_HOOK, InputFrame } from '../../src/core/input';
 import { AABB } from '../../src/core/math/aabb';
 import { Vec3 } from '../../src/core/math/vec3';
 import {
@@ -111,7 +111,7 @@ function truth(start: HeroState, w: World, anchor: number, releaseTick: number):
       return r;
     }
     const jump = t + 1 === releaseTick && s.mode === HERO_ATTACHED;
-    step(s, jump ? press(BTN_JUMP) : IDLE, w, cfg);
+    step(s, jump ? press(BTN_DROP) : IDLE, w, cfg);
   }
   return r; // cap: still moving in the air counts as not surviving
 }
@@ -176,10 +176,10 @@ const ROWS: Row[] = [
     expect: PREVIEW_RELEASE, // cling = the player must act (plan 4.1)
   },
   {
-    name: 'release: wall arrival kills, jump onto the roof saves',
+    name: 'lethal: wall arrival kills and JUMP no longer kicks onto the roof (T303)',
     world: () => wallWorld(4, 4.5),
     start: () => hero(0, 10, -1),
-    expect: PREVIEW_RELEASE,
+    expect: PREVIEW_LETHAL,
   },
   {
     name: 'lethal: anchor too deep under the roof edge, nothing below',
@@ -253,7 +253,9 @@ describe('previewShot vs the real step', () => {
     } else {
       // Lethal: not just the sampled releases, EVERY possible release tick dies.
       expect(base.alive).toBe(false);
-      for (let t = base.attachTick + 1; t < base.endTick; t++) {
+      // A DROP in the first quarter just falls back onto the launch roof (T303): not a save.
+      const from = base.attachTick + 1 + Math.ceil((base.endTick - base.attachTick) / 4);
+      for (let t = from; t < base.endTick; t++) {
         expect(truth(start, w, 0, t).alive, `release at tick ${t}`).toBe(false);
       }
     }

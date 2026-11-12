@@ -163,12 +163,12 @@ describe('cushion', () => {
     const w = slabWorld('cushion');
     const s = spawn(0, 30, 0, 0);
     const f = new InputFrame();
-    f.moveY = quantizeAxis(1);
     let landedAt = -1;
     for (let i = 0; i < 400; i++) {
       step(s, f, w, cfg);
       if ((s.eventBits & HERO_EV_CUSHION) !== 0) {
         landedAt = i;
+        f.moveY = quantizeAxis(1); // hold forward through the lock only
         expect(s.landLockT).toBeCloseTo(cfg.cushion.lockSec, 6);
         expect(s.vx).toBe(0);
         expect(s.vz).toBe(0);
@@ -320,12 +320,14 @@ describe('trampoline air steer', () => {
     expect(s.vz).toBe(0);
   });
 
-  it('does not steer after an ordinary jump', () => {
+  it('steers after an ordinary jump with the hero.airSteer values (T302)', () => {
     const w = slabWorld('cushion');
     const s = spawn(0, 3, 0, 0);
     const f = new InputFrame();
     f.moveX = quantizeAxis(1);
     for (let i = 0; i < 10; i++) step(s, f, w, cfg);
-    expect(s.vx).toBe(0);
+    expect(s.vx).toBeGreaterThan(0);
+    for (let i = 0; i < 30; i++) step(s, f, w, cfg);
+    expect(s.vx).toBeLessThanOrEqual(cfg.hero.airSteerCap + 1e-6);
   });
 });

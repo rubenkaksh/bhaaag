@@ -4,7 +4,7 @@
 import type { Tuning } from './config';
 import { HERO_ATTACHED, HERO_EV_CLING, HERO_GROUNDED, HERO_HANGING, HeroState, copyHeroState } from './hero';
 import { HOOK_IDLE } from './hook';
-import { BTN_HOOK, BTN_JUMP, InputFrame, quantizeTurn } from './input';
+import { BTN_DROP, BTN_HOOK, InputFrame, quantizeTurn } from './input';
 import { aabbContainsPoint } from './math/aabb';
 import { HEAD_FRAC, step } from './sim';
 import type { World } from './world';
@@ -41,8 +41,8 @@ const fireFrame = new InputFrame();
 const idleFrame = new InputFrame();
 const jumpFrame = new InputFrame();
 idleFrame.hasAim = 0;
-jumpFrame.pressed = BTN_JUMP;
-jumpFrame.buttons = BTN_JUMP;
+jumpFrame.pressed = BTN_DROP;
+jumpFrame.buttons = BTN_DROP;
 
 // Filled by every run(); the base run's values become the result.
 let endX = 0;
@@ -64,7 +64,7 @@ function recordEnd(s: HeroState, t: number): void {
 
 /**
  * One scripted run from src: tick 0 presses HOOK aimed dead-on at the anchor, then empty input,
- * except a JUMP (the real release) on tick releaseTick (0 = none) if the hero is on the rope.
+ * except a DROP (the real release; JUMP is ignored on the rope) on tick releaseTick (0 = none) if the hero is on the rope.
  *
  * "Survivable" is what the sim does to a hero who then does nothing: the run ends dead (kill),
  * hanging, inside the goal, or grounded at rest. Grounded alone is NOT enough: a hero who lands
@@ -116,8 +116,8 @@ let fireAnchor = -1;
 
 /**
  * Predicts firing at anchorId from the hero's CURRENT state (run-up speed and the chain window
- * count). Never mutates `state`. Release search: the ride is rerun with JUMP (the real release
- * input, which also covers the timed-release window) pressed at aim.previewReleaseSamples
+ * count). Never mutates `state`. Release search: the ride is rerun with DROP (the real release
+ * input) pressed at aim.previewReleaseSamples
  * evenly spaced ticks between attach and the ride end.
  *
  * Assumptions: the player lets go of the stick when firing (idle input after the press), and
