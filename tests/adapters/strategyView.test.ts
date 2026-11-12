@@ -20,6 +20,22 @@ describe('strategy rendering', () => {
       expect(names).toContain(n);
     }
   });
+  it('dresses all 100 houses with the real kit (no dropped instances, plain draw count)', () => {
+    const w = loadWorldFromObject(generateStrategyLevel());
+    const g = buildLevelMeshes(w, { houseDress: true });
+    const decor = g.children.find((c) => c.name === 'decor');
+    expect(decor?.userData.stats.dropped).toBe(0);
+    expect(decor?.userData.stats.drawCalls).toBeLessThanOrEqual(22);
+    const shell = (n: string): number => {
+      let count = 0;
+      decor?.traverse((o) => {
+        if (o.name === n) count = (o as unknown as { count: number }).count;
+      });
+      return count;
+    };
+    expect(shell('decor_wallBrick')).toBe(100);
+    expect(shell('decor_wallPlaster')).toBe(100);
+  });
   it('terrain extent follows the level and resets to the stock values', () => {
     setTerrainExtent(null); // the previous test's level build leaves the extent stretched
     const before = terrainY(60, -200);
