@@ -33,6 +33,7 @@ const schema = z.strictObject({
     previewMaxSec: num,
     previewReleaseSamples: num,
     tapRadiusNdc: num,
+    hintSec: num,
   }),
   release: z.strictObject({
     inputBufferMs: num,
@@ -72,6 +73,8 @@ const schema = z.strictObject({
     height: num,
     accel: num,
     friction: num,
+    airSteer: num,
+    airSteerCap: num,
   }),
   camera: z.strictObject({
     dist: num,
@@ -91,6 +94,9 @@ const schema = z.strictObject({
     zipYawDeg: num,
     zipYawMinDiagDeg: num,
     zipYawEase: num,
+    sideYawDeg: num,
+    sideYawSpeed: num,
+    sideYawEase: num,
   }),
   validator: z.strictObject({
     minReleaseWindowTicks: num,

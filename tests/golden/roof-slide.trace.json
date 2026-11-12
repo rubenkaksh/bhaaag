@@ -25,7 +25,7 @@
   ],
   "expect": {
     "ticks": 355,
-    "events": [[82, 12], [294, 12]],
-    "final": { "px": -10.249202, "py": -8, "pz": 0.299936, "vx": 0, "vy": 0, "vz": 0, "mode": 0, "grounded": 1, "dead": 0, "deadCause": 0 }
+    "events": [[82, 12], [270, 12]],
+    "final": { "px": -10.352847, "py": -8, "pz": 0.299929, "vx": 0, "vy": 0, "vz": 0, "mode": 0, "grounded": 1, "dead": 0, "deadCause": 0 }
   }
 }

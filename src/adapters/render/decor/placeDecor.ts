@@ -712,9 +712,20 @@ function dressHouses(B: Builder, bodies: Body[]): void {
         }
       }
     }
-    B.tank(tankX, tankY, tankZ, 0.5, TANK_UNIT_H * 0.8, B.colRaw(B.pick(TANKS)));
-    if (B.room('planter', 1)) B.planter(tankX, top, czh + 1.6);
-    B.pot(tankX, top, z1 - 0.8);
+    // Roof props never sit on a gold line pad, trampoline or cushion: those colours must read.
+    const free = (px: number, pz: number, r: number): boolean => {
+      const pads: AABB[] = [...w.tramps, ...w.cushions];
+      for (let q = 0; q < w.lines.length; q++) pads.push(w.lines[q].zone);
+      for (const a of pads) {
+        if (px > a.min.x - r && px < a.max.x + r && pz > a.min.z - r && pz < a.max.z + r)
+          return false;
+      }
+      return true;
+    };
+    if (free(tankX, tankZ, 0.7))
+      B.tank(tankX, tankY, tankZ, 0.5, TANK_UNIT_H * 0.8, B.colRaw(B.pick(TANKS)));
+    if (free(tankX, czh + 1.6, 0.7) && B.room('planter', 1)) B.planter(tankX, top, czh + 1.6);
+    if (free(tankX, z1 - 0.8, 0.4)) B.pot(tankX, top, z1 - 0.8);
   }
   B.onHouse = false;
 }

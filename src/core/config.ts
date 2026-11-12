@@ -29,6 +29,7 @@ export type Tuning = {
     previewMaxSec: number;
     previewReleaseSamples: number;
     tapRadiusNdc: number;
+    hintSec: number; // how long a HINT highlight stays on a zipline anchor (T299)
   };
   release: {
     inputBufferMs: number;
@@ -75,6 +76,8 @@ export type Tuning = {
     height: number;
     accel: number;
     friction: number;
+    airSteer: number; // m/s^2 the stick turns horizontal velocity while airborne (not after a bounce)
+    airSteerCap: number; // horizontal speed it pulls toward at full stick, m/s; faster heroes keep their speed
   };
   camera: {
     dist: number;
@@ -94,6 +97,9 @@ export type Tuning = {
     zipYawDeg: number;
     zipYawMinDiagDeg: number;
     zipYawEase: number;
+    sideYawDeg: number; // yaw toward the side of lateral travel at sideYawSpeed m/s sideways (T300)
+    sideYawSpeed: number; // sideways speed that reaches the full offset, m/s
+    sideYawEase: number; // per fixed tick ease toward the side-look target
   };
   validator: {
     minReleaseWindowTicks: number;
@@ -182,6 +188,7 @@ export const DEFAULT_TUNING: Tuning = {
     previewMaxSec: 8,
     previewReleaseSamples: 12,
     tapRadiusNdc: 0.18,
+    hintSec: 4,
   },
   release: {
     inputBufferMs: 100,
@@ -228,6 +235,8 @@ export const DEFAULT_TUNING: Tuning = {
     height: 1.8,
     accel: 40,
     friction: 30,
+    airSteer: 14,
+    airSteerCap: 6,
   },
   camera: {
     dist: 4.5,
@@ -247,6 +256,9 @@ export const DEFAULT_TUNING: Tuning = {
     zipYawDeg: 45,
     zipYawMinDiagDeg: 20,
     zipYawEase: 0.06,
+    sideYawDeg: 14,
+    sideYawSpeed: 5,
+    sideYawEase: 0.05,
   },
   validator: {
     minReleaseWindowTicks: 12,

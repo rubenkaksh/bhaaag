@@ -2,7 +2,7 @@
 
 Same scheme in Classic, Chase and the strategy level, portrait and landscape. ADR 0011 leaves the
 tap mapping open ("double/triple tap ... without a core change"); this is the simplest mapping that
-covers Hook, Release, Mantle and Brake with one thumb target. `InputFrame` is unchanged
+covers Hook, Mantle and Brake (release on the rope is DROP) with one thumb target. `InputFrame` is unchanged
 (`taps` 0..3, `BTN_CLIMB`).
 
 ## Touch
@@ -16,7 +16,7 @@ covers Hook, Release, Mantle and Brake with one thumb target. `InputFrame` is un
 |---|---|---|---|---|---|
 | On ground / in air (default) | JUMP | Jump (instant on press) | Jump held (roll carry) | Hook (free aim levels) | Drop |
 | Grounded on a line pad (`lineOnly`, `lineAt >= 0`) | HOOK | Hook (instant) | - | - | Drop |
-| Attached to the rope | BRAKE | Release with jump (on lift, under 180 ms) | Hand-brake (`BTN_REEL`) from 180 ms | - | Drop (release) |
+| Attached to the rope | BRAKE | Ignored (JUMP does nothing on the rope; release is DROP) | Hand-brake (`BTN_REEL`) from 180 ms | - | Drop (release) |
 | Hanging with `hasLedge === 1` | CLIMB | Wall jump (on lift, under 350 ms) | Mantle (`BTN_CLIMB`) from 350 ms | - | Drop (let go) |
 
 - Outside a line pad in a `lineOnly` level the label stays JUMP and the HUD hint reads "Stand on a
