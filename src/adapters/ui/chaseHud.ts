@@ -1,5 +1,6 @@
 import './chaseHud.css';
 import { irisRadius } from '../render/chase/catchPose';
+import { dangerLevel } from './chaseDanger';
 
 function el(parent: HTMLElement, tag: string, id: string, cls = ''): HTMLElement {
   const e = document.createElement(tag);
@@ -12,6 +13,7 @@ function el(parent: HTMLElement, tag: string, id: string, cls = ''): HTMLElement
 /** DOM HUD of Dragon Chase. Everything is created here; destroy() removes it and the body class. */
 export class ChaseHud {
   private readonly cloud: HTMLElement;
+  private readonly vignette: HTMLElement;
   private readonly iris: HTMLElement;
   private readonly score: HTMLElement;
   private readonly scoreText: HTMLElement;
@@ -24,6 +26,7 @@ export class ChaseHud {
   private gapPct = -1;
   private danger = false;
   private cloudV = -1;
+  private vigV = -1;
   private catching = false;
   private irisX = -1;
   private irisY = -1;
@@ -33,6 +36,7 @@ export class ChaseHud {
   constructor(root: HTMLElement, onRetry: () => void) {
     document.body.classList.add('mode-chase');
     this.cloud = el(root, 'div', 'chase-cloud');
+    this.vignette = el(root, 'div', 'chase-danger');
     this.iris = el(root, 'div', 'chase-iris');
     this.score = el(root, 'div', 'chase-score');
     this.score.innerHTML = '<span class="score">0</span><span class="dist">0 m</span>';
@@ -71,6 +75,12 @@ export class ChaseHud {
     if (pct !== this.gapPct) {
       this.gapPct = pct;
       this.gap.style.setProperty('--gap', String(pct / 100));
+    }
+    const v = Math.round(dangerLevel(f) * 50) / 50;
+    if (v !== this.vigV) {
+      this.vigV = v;
+      this.vignette.style.opacity = String(v);
+      this.vignette.classList.toggle('pulse', v > 0.6);
     }
     const d = f < 0.3;
     if (d !== this.danger) {
@@ -154,6 +164,7 @@ export class ChaseHud {
   destroy(): void {
     document.body.classList.remove('mode-chase', 'chase-card', 'chase-catching');
     this.cloud.remove();
+    this.vignette.remove();
     this.iris.remove();
     this.score.remove();
     this.gap.remove();

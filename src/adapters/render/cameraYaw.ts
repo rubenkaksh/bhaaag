@@ -56,9 +56,10 @@ export function easeSideYaw(cur: number, target: number, cfg: ZipYawCfg): number
 }
 
 /**
- * Dragon Chase rig yaw (rig convention) from the sim camera yaw. Front POV (frontPov >= 0.5): the
+ * Dragon Chase rig yaw (rig convention) from the sim camera yaw. Behind view (default, frontPov 0): r = PI - c, the
+ * same rig as classic, looking downhill along the run. Front POV (frontPov >= 0.5): the
  * camera sits ahead of the hero and looks back at the dragon (r = -c, look direction opposite to
- * the hero's travel). Otherwise the behind view (r = PI - c). The sim yaw is unchanged either way,
+ * the hero's travel). The sim yaw is unchanged either way,
  * so stick-up stays "hero travel direction" (towards the camera in the front view).
  */
 export function chaseRigYaw(simCamYaw: number, frontPov: number): number {
