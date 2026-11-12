@@ -4,7 +4,7 @@
 // Control map (docs/zipline-plan.md 4.7 where it differs from the task
 // statement, differences listed there too):
 //   Move     WASD + arrow keys          (plan lists WASD only)
-//   Look     none: the camera is a fixed front view (no player view control)
+//   Look     L toggles LOOK (game.ts); while on, a mouse drag feeds lookDx/lookDy and never hooks or brakes
 //   Aim      hold right mouse (also raises BTN_REEL, per the task statement)
 //   Hook     E or left mouse
 //   Jump     Space
@@ -66,9 +66,24 @@ export class DesktopInput {
   // Button edges (up -> down) since the last sample, cleared by sample().
   private pressedPending = 0;
 
+  // LOOK mode (set by the game): mouse drags feed lookDx/lookDy (client px, read and cleared by the game)
+  // and no mouse button reaches the sim.
+  lookMode = false;
+  lookDx = 0;
+  lookDy = 0;
+  private lookHeldPtr = false;
+  private lastX = 0;
+  private lastY = 0;
+
+  /** True while a mouse button is down in LOOK mode (keeps LOOK from idling out mid-drag). */
+  get lookHeld(): boolean {
+    return this.lookHeldPtr;
+  }
+
   constructor(target: HTMLElement) {
     this.target = target;
     target.addEventListener('pointerdown', this.onPointerDown);
+    target.addEventListener('pointermove', this.onPointerMove);
     target.addEventListener('pointerup', this.onPointerUp);
     target.addEventListener('pointercancel', this.onPointerUp);
     target.addEventListener('contextmenu', this.onContextMenu);
@@ -109,6 +124,7 @@ export class DesktopInput {
 
   dispose(): void {
     this.target.removeEventListener('pointerdown', this.onPointerDown);
+    this.target.removeEventListener('pointermove', this.onPointerMove);
     this.target.removeEventListener('pointerup', this.onPointerUp);
     this.target.removeEventListener('pointercancel', this.onPointerUp);
     this.target.removeEventListener('contextmenu', this.onContextMenu);
@@ -129,7 +145,26 @@ export class DesktopInput {
     return bits;
   }
 
+  private readonly onPointerMove = (e: PointerEvent): void => {
+    if (!this.lookMode || !this.lookHeldPtr) return;
+    this.lookDx += e.clientX - this.lastX;
+    this.lookDy += e.clientY - this.lastY;
+    this.lastX = e.clientX;
+    this.lastY = e.clientY;
+  };
+
   private readonly onPointerDown = (e: PointerEvent): void => {
+    if (this.lookMode) {
+      this.lookHeldPtr = true;
+      this.lastX = e.clientX;
+      this.lastY = e.clientY;
+      try {
+        this.target.setPointerCapture(e.pointerId);
+      } catch {
+        // optional
+      }
+      return;
+    }
     const before = this.mouseBits();
     this.mouseHeld |= 1 << e.button;
     // Best-effort capture so pointerup outside the target still arrives here.
@@ -142,6 +177,7 @@ export class DesktopInput {
   };
 
   private readonly onPointerUp = (e: PointerEvent): void => {
+    this.lookHeldPtr = false;
     this.mouseHeld &= ~(1 << e.button);
   };
 
@@ -177,5 +213,6 @@ export class DesktopInput {
     // Alt-tab etc.: nothing may stay held after focus leaves the window.
     this.heldKeys.clear();
     this.mouseHeld = 0;
+    this.lookHeldPtr = false;
   };
 }

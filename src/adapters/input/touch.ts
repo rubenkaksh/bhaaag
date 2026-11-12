@@ -7,7 +7,8 @@
 //   Move    floating stick in #stick-zone (left). The stick base appears
 //           wherever the thumb lands; offset from that origin, clamped to
 //           STICK_RADIUS_PX, normalised -> quantizeAxis (up = forward).
-//   Look    none: the camera is a fixed front view (no player view control).
+//   Look    LOOK button on: a drag on #look-zone accumulates lookDx/lookDy (px) for the game's look-around camera;
+//           taps and the drop swipe are suspended meanwhile. LOOK off: no view control.
 //   Aim     short tap on #look-zone (< TAP_MAX_MS, < TAP_MAX_PX) sets tapPending with tapNdcX/tapNdcY (-1..1) for
 //           the game to raycast (tap-to-aim, ADR 0001). The game clears
 //           tapPending after consuming it. hasAim stays 0 in InputFrame
@@ -74,6 +75,19 @@ export class TouchInput {
   tapPending = false;
   tapNdcX = 0;
   tapNdcY = 0;
+
+  // LOOK mode (set by the game): drags on the look zone feed lookDx/lookDy (client px, read and cleared by the game)
+  // instead of tap-to-aim / drop swipe.
+  lookMode = false;
+  lookDx = 0;
+  lookDy = 0;
+  private lookPrevX = 0;
+  private lookPrevY = 0;
+
+  /** True while a finger is down on the look zone (keeps LOOK from idling out mid-drag). */
+  get lookHeld(): boolean {
+    return this.lookId !== -1;
+  }
 
   // Active pointer per role (-1 = none).
   private stickId = -1;
@@ -200,6 +214,8 @@ export class TouchInput {
     this.pressedPending = 0;
     this.tapper.cancel();
     this.tapPending = false;
+    this.lookDx = 0;
+    this.lookDy = 0;
     this.lookMaxDevPx = 0;
     this.render();
   }
@@ -348,10 +364,19 @@ export class TouchInput {
     this.lookStartY = e.clientY;
     this.lookStartTime = e.timeStamp;
     this.lookMaxDevPx = 0;
+    this.lookPrevX = e.clientX;
+    this.lookPrevY = e.clientY;
   };
 
   private readonly onLookMove = (e: PointerEvent): void => {
     if (e.pointerId !== this.lookId) return;
+    if (this.lookMode) {
+      this.lookDx += e.clientX - this.lookPrevX;
+      this.lookDy += e.clientY - this.lookPrevY;
+      this.lookPrevX = e.clientX;
+      this.lookPrevY = e.clientY;
+      return;
+    }
     // Track deviation from the start for the tap-vs-drag decision.
     const sx = e.clientX - this.lookStartX;
     const sy = e.clientY - this.lookStartY;
@@ -363,6 +388,7 @@ export class TouchInput {
     if (e.pointerId !== this.lookId) return;
     this.roles.delete(e.pointerId);
     this.lookId = -1;
+    if (this.lookMode) return; // LOOK: a drag or tap here never aims, drops or hooks
     const dt = e.timeStamp - this.lookStartTime;
     const dy = e.clientY - this.lookStartY;
     const dev = Math.max(this.lookMaxDevPx, Math.abs(dy));

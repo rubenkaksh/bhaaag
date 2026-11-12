@@ -8,7 +8,12 @@ covers Hook, Mantle and Brake (release on the rope is DROP) with one thumb targe
 ## Touch
 
 - Left thumb: floating stick. It appears where the thumb lands, moves the hero. Swipe down on
-  the right side = Drop. There is no look-drag.
+  the right side = Drop.
+- **LOOK** button, bottom centre of the HUD (all modes): tap to toggle look-around. While on, a drag on the
+  look zone (anywhere outside the stick zone) turns the camera around the hero (yaw up to `lookYawMaxDeg`, pitch
+  `lookPitchMinDeg`..`lookPitchMaxDeg`); taps (tap-to-aim) and the Drop swipe are suspended and nothing hooks. The stick
+  and the JUMP button keep working. Tap LOOK again, or wait `lookIdleSec` (4 s) without a drag, and the camera eases back
+  to the follow view (`lookEase`). Never changes movement direction (still relative to the follow view).
 - Right thumb: ONE big button (`#btn-jump`). Its label is the context (`ActionMode`, set by
   `game.ts` each frame, drawn by `hud.setActionLabel`):
 
@@ -30,15 +35,16 @@ covers Hook, Mantle and Brake (release on the rope is DROP) with one thumb targe
 
 ## Desktop (unchanged, plus one key)
 
-WASD / arrows move (no mouse look, no pointer lock), Space jump, E or left click hook, hold R or right mouse brake,
+WASD / arrows move, **L toggles LOOK** (mouse drag then turns the camera, no hook or brake fires; no pointer lock), Space jump, E or left click hook, hold R or right mouse brake,
 Shift / Ctrl / Q drop, **F hold = climb (mantle)**, Esc menu.
 
 ## Camera and aim
 
-**There is no view control.** No look-drag, swipe-to-look, mouse look, pointer lock, right stick or
-Q/E camera turns. The camera is a fixed view from BEHIND the hero, looking downhill, that follows the hero and pans
+**The only view control is LOOK** (button or L, see above). There is no always-on look-drag, mouse look, pointer lock, right stick or
+Q/E camera turn. The camera is a fixed view from BEHIND the hero, looking downhill, that follows the hero and pans
 left and right to keep the hero centred (pitch `camera.frontPitchDeg`).
-The only change is automatic: while ziplining diagonally the yaw eases by `camera.zipYawDeg` toward the
+Automatic changes: while moving sideways the camera leans up to `camera.sideYawDeg` (35 deg, full at
+`sideYawSpeed` 2.5 m/s, `sideYawEaseBack` eases it home) so houses at the sides show; while ziplining diagonally the yaw eases by `camera.zipYawDeg` toward the
 travel side, then back to the default downhill view when the line ends (`src/adapters/render/cameraYaw.ts`, tunables in
 `content/config/tuning.json`). Movement is screen-space relative to that view.
 

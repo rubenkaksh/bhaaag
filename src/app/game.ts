@@ -39,6 +39,7 @@ import { Sfx } from '../adapters/audio/sfx';
 import { CameraRig, updateCamera } from '../adapters/render/cameraRig';
 import { chaseRigYaw, tickYawOffsets } from '../adapters/render/cameraYaw';
 import type { YawOffsets } from '../adapters/render/cameraYaw';
+import { applyLookDrag, newLookState, setLookActive, tickLook } from '../adapters/render/lookOffset';
 import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
@@ -279,7 +280,8 @@ export function startGame(
   let brakeWas = false;
   let viewport: ViewportLayout = readViewport();
   let lensShiftPx = 0;
-  const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig radians): zipline diagonal + side look (T300)
+  const look = newLookState(); // LOOK mode: free camera offset around the hero (all modes)
+const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig radians): zipline diagonal + side look (T300)
   let hintId = NO_ANCHOR; // anchor highlighted by HINT (T299); render-only, never read by the sim
   let hintT = 0;
   let tapAnchor = NO_ANCHOR; // anchor picked by tap-to-aim, sticky until fired or cleared
@@ -302,6 +304,10 @@ export function startGame(
     cur.camPitch = cfg.camera.frontPitchDeg * DEG2RAD;
     yawOff.zip = 0;
     yawOff.side = 0;
+    setLookActive(look, false);
+    look.yaw = 0;
+    look.pitch = 0;
+    hudUi.setLookActive(false);
     hintId = NO_ANCHOR;
     hintT = 0;
     tapAnchor = NO_ANCHOR;
@@ -325,8 +331,8 @@ export function startGame(
     updateCamera(
       curRig,
       feet,
-      base + yawOff.zip + yawOff.side,
-      cur.camPitch - camTilt + (front ? 0.14 : 0),
+      base + yawOff.zip + yawOff.side + look.yaw,
+      cur.camPitch - camTilt + (front ? 0.14 : 0) + look.pitch,
       speed,
       world.solids,
       camCfg,
@@ -337,10 +343,20 @@ export function startGame(
     hint: MODE_INFO[mode].hint,
     hopChip: MODE_INFO[mode].hopChip,
     onHint: isStrategy ? null : showHint,
+    onLook: toggleLook,
   });
   // The render pitch is camPitch - tilt, so a centre reticle would no longer mark the look direction.
   if (camTilt > 0) document.getElementById('hud-reticle')?.style.setProperty('display', 'none');
   const chaseHud = isChase ? new ChaseHud(root, () => restart()) : null;
+
+  /** LOOK button / L key: toggle free look-around. Off eases the camera back to the follow view. */
+  function toggleLook(): void {
+    if (phase === 'dead' && cs !== null) return;
+    setLookActive(look, !look.active);
+    input.lookDx = 0;
+    input.lookDy = 0;
+    hudUi.setLookActive(look.active);
+  }
 
   /** HINT: highlight the best takeable zipline anchor for hintSec. No sim state is touched. */
   function showHint(): void {
@@ -409,6 +425,14 @@ export function startGame(
     copyHeroState(prev, cur);
     input.sample(frame);
     frame.moveX = -frame.moveX;
+    // LOOK: drags rotate the camera only (the input adapters keep them out of the sim); idle or toggle ends it.
+    applyLookDrag(look, input.lookDx, input.lookDy, camCfg);
+    input.lookDx = 0;
+    input.lookDy = 0;
+    const wasLook = look.active;
+    tickLook(look, stepDt, input.lookHeld, camCfg);
+    if (look.active !== wasLook) hudUi.setLookActive(look.active);
+    input.lookMode = look.active;
 
     if (phase === 'pan') {
       // Drain input so nothing pressed during the flyover fires on the first play tick.
@@ -585,7 +609,7 @@ export function startGame(
   function consumeTap(): void {
     if (!(input instanceof TouchInput) || !input.tapPending) return;
     input.tapPending = false;
-    if (isLineOnly()) return;
+    if (look.active || isLineOnly()) return;
     if (cur.mode === HERO_ATTACHED) return;
     const i = pickAnchorAtNdc(
       gs.camera,
@@ -1018,6 +1042,7 @@ export function startGame(
   };
   const onHintKey = (e: KeyboardEvent): void => {
     if (e.code === 'KeyH' && !e.repeat && !isStrategy) showHint();
+    if (e.code === 'KeyL' && !e.repeat) toggleLook();
   };
   window.addEventListener('keydown', onHintKey);
   window.addEventListener('keydown', onAnyInput, true);

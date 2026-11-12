@@ -10,6 +10,7 @@ export interface ZipYawCfg {
   sideYawDeg: number;
   sideYawSpeed: number;
   sideYawEase: number;
+  sideYawEaseBack: number;
 }
 
 /**
@@ -49,9 +50,10 @@ export function sideYawTarget(vRight: number, cfg: ZipYawCfg): number {
   return k * cfg.sideYawDeg * DEG;
 }
 
-/** One fixed-tick ease of the side offset toward target (sideYawEase). */
+/** One fixed-tick ease of the side offset toward target: sideYawEase out, sideYawEaseBack (slower) back toward 0. */
 export function easeSideYaw(cur: number, target: number, cfg: ZipYawCfg): number {
-  const next = cur + (target - cur) * cfg.sideYawEase;
+  const k = Math.abs(target) < Math.abs(cur) ? cfg.sideYawEaseBack : cfg.sideYawEase;
+  const next = cur + (target - cur) * k;
   return Math.abs(target - next) < 1e-4 ? target : next;
 }
 
