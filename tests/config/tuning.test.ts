@@ -97,6 +97,7 @@ const schema = z.strictObject({
     sideYawDeg: num,
     sideYawSpeed: num,
     sideYawEase: num,
+    tiltDeg: num,
   }),
   validator: z.strictObject({
     minReleaseWindowTicks: num,

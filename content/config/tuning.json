@@ -55,7 +55,8 @@
     "zipYawEase": 0.06,
     "sideYawDeg": 14,
     "sideYawSpeed": 5,
-    "sideYawEase": 0.05
+    "sideYawEase": 0.05,
+    "tiltDeg": 20
   },
   "validator": {
     "minReleaseWindowTicks": 12,

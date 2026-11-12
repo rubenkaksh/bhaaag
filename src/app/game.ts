@@ -1,7 +1,5 @@
-import tuningJson from '../../content/config/tuning.json';
 import levelText from '../../content/levels/l1.json?raw';
-import { DEFAULT_TUNING } from '../core/config';
-import type { Tuning } from '../core/config';
+import { resolveCfg } from './tuning';
 import {
   copyHeroState,
   DEAD_FELL,
@@ -39,7 +37,8 @@ import { DesktopInput } from '../adapters/input/desktop';
 import { TouchInput, type ActionMode } from '../adapters/input/touch';
 import { Sfx } from '../adapters/audio/sfx';
 import { CameraRig, updateCamera } from '../adapters/render/cameraRig';
-import { chaseRigYaw, easeSideYaw, easeYawOffset, sideYawTarget, zipYawTarget } from '../adapters/render/cameraYaw';
+import { chaseRigYaw, tickYawOffsets } from '../adapters/render/cameraYaw';
+import type { YawOffsets } from '../adapters/render/cameraYaw';
 import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
@@ -137,22 +136,6 @@ function camYawToRig(simCamYaw: number): number {
   return Math.PI - simCamYaw;
 }
 
-function mergeTuning(): Tuning {
-  const src = tuningJson as unknown as Record<string, Record<string, number>>;
-  const out = { ...DEFAULT_TUNING } as unknown as Record<string, Record<string, number>>;
-  for (const key of Object.keys(out)) {
-    const base = out[key];
-    // Skip non-object keys (e.g. fixedHz): spreading a number yields {}
-    // and would silently wipe the default (m1-review F14).
-    if (typeof base !== 'object' || base === null) continue;
-    out[key] = { ...base, ...src[key] };
-  }
-  const fixedHz = (tuningJson as unknown as { fixedHz?: number }).fixedHz;
-  const merged = out as unknown as Tuning;
-  if (typeof fixedHz === 'number') merged.fixedHz = fixedHz;
-  return merged;
-}
-
 /** Copy a full camera pose (used for the prev/cur interpolation pair). */
 function copyRig(dst: CameraRig, src: CameraRig): void {
   dst.pos.x = src.pos.x;
@@ -179,13 +162,13 @@ export function startGame(
   mode: GameMode = 'classic',
   village?: VillageAssets,
 ): GameHandle {
-  const cfg = mergeTuning();
+  const cfg = resolveCfg(mode);
   let camCfg = cfg.camera;
   const params = new URLSearchParams(location.search);
-  // ?tilt=15|20|30: render-only camera pitch-down (deg) so more of the drop below shows. Default 20 in Cloud Village, else 0.
+  // ?tilt=15|20|30: render-only camera pitch-down (deg) so more of the drop below shows. Default is camera.tiltDeg (global).
   const tiltParam = Number(params.get('tilt'));
   const tiltDeg =
-    params.has('tilt') && Number.isFinite(tiltParam) ? tiltParam : mode === 'village' ? 20 : 0;
+    params.has('tilt') && Number.isFinite(tiltParam) ? tiltParam : cfg.camera.tiltDeg;
   const camTilt = Math.min(Math.max(tiltDeg, 0), 45) * DEG2RAD;
   const isChase = mode === 'chase';
   const isStrategy = mode === 'strategy';
@@ -296,8 +279,7 @@ export function startGame(
   let brakeWas = false;
   let viewport: ViewportLayout = readViewport();
   let lensShiftPx = 0;
-  let sideYaw = 0; // side-look yaw offset (rig radians), eased toward lateral travel
-  let zipYaw = 0; // automatic zipline camera yaw offset (rig radians), 0 = front view
+  const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig radians): zipline diagonal + side look (T300)
   let hintId = NO_ANCHOR; // anchor highlighted by HINT (T299); render-only, never read by the sim
   let hintT = 0;
   let tapAnchor = NO_ANCHOR; // anchor picked by tap-to-aim, sticky until fired or cleared
@@ -318,8 +300,8 @@ export function startGame(
     // Camera sits BEHIND the hero looking downhill (Chase frontPov 1 flips it ahead, see tickCamera).
     cur.camYaw = world.spawnYaw;
     cur.camPitch = cfg.camera.frontPitchDeg * DEG2RAD;
-    zipYaw = 0;
-    sideYaw = 0;
+    yawOff.zip = 0;
+    yawOff.side = 0;
     hintId = NO_ANCHOR;
     hintT = 0;
     tapAnchor = NO_ANCHOR;
@@ -334,31 +316,21 @@ export function startGame(
     feet.y = cur.py;
     feet.z = cur.pz;
     const speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
-    if (isChase) {
-      // Chase: frontPov 0 (default) is the behind view, same rig as classic (r = PI - c), looking
-      // downhill along the run; the dragon is then behind the camera (HUD vignette warns).
-      // frontPov 1 is the old camera ahead of the hero, tilted up the slope at the dragon.
-      const front = cfg.chase.frontPov >= 0.5;
-      updateCamera(curRig, feet, chaseRigYaw(cur.camYaw, cfg.chase.frontPov), cur.camPitch + (front ? 0.14 : 0), speed, world.solids, camCfg);
-      return;
-    }
-    const base = camYawToRig(cur.camYaw);
-    // Screen frame of the behind view: right = (cos r, sin r), away = (sin r, -cos r) in (x, z).
-    const vRight = cur.vx * Math.cos(base) + cur.vz * Math.sin(base);
-    const vFwd = cur.vx * Math.sin(base) - cur.vz * Math.cos(base);
-    zipYaw = easeYawOffset(
-      zipYaw,
-      zipYawTarget(cur.mode === HERO_ATTACHED && cur.dead === 0, vRight, vFwd, camCfg),
+    // One camera path for every mode: base rig yaw, then the shared auto yaw offsets (zip + side look).
+    // Chase frontPov 0 (default) is the behind view, same rig as classic (r = PI - c), looking
+    // downhill along the run; frontPov 1 is the old camera ahead of the hero, tilted up the slope.
+    const front = isChase && cfg.chase.frontPov >= 0.5;
+    const base = isChase ? chaseRigYaw(cur.camYaw, cfg.chase.frontPov) : camYawToRig(cur.camYaw);
+    tickYawOffsets(yawOff, base, cur.vx, cur.vz, cur.mode === HERO_ATTACHED, cur.dead !== 0, camCfg);
+    updateCamera(
+      curRig,
+      feet,
+      base + yawOff.zip + yawOff.side,
+      cur.camPitch - camTilt + (front ? 0.14 : 0),
+      speed,
+      world.solids,
       camCfg,
     );
-    // Side look (T300): lean the view toward lateral travel on foot / in the air; the rope
-    // already has its own diagonal yaw, so the side offset eases back to 0 while attached.
-    sideYaw = easeSideYaw(
-      sideYaw,
-      cur.mode === HERO_ATTACHED || cur.dead !== 0 ? 0 : sideYawTarget(vRight, camCfg),
-      camCfg,
-    );
-    updateCamera(curRig, feet, base + zipYaw + sideYaw, cur.camPitch - camTilt, speed, world.solids, camCfg);
   }
 
   const hudUi = new Hud(root, debug, () => restart(), {
