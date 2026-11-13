@@ -5,16 +5,14 @@ import {
   BufferGeometry,
   Color,
   Float32BufferAttribute,
-  LineBasicMaterial,
-  LineSegments,
   Mesh,
   MeshLambertMaterial,
 } from 'three';
 import type { Object3D } from 'three';
 import type { World } from '../../core/world';
+import { buildFixedRopes } from '../../app/ropePost';
 
 const COLOR_GOLD = '#ffc83a'; // interactive: line zones
-const COLOR_ROPE = '#fff1c1';
 const COLOR_POST = '#4a2c1c';
 const COLOR_CREAM = '#f1e9d2'; // safe: tramp top, cushion
 const COLOR_RIM = '#6b4a30';
@@ -82,7 +80,6 @@ export function buildStrategyFeatures(world: World): Object3D[] {
   const out: Object3D[] = [];
   const zones: Box[] = [];
   const posts: Box[] = [];
-  const rope: number[] = [];
   const h = POST_W / 2;
   for (let i = 0; i < world.lines.length; i++) {
     const L = world.lines[i];
@@ -95,18 +92,12 @@ export function buildStrategyFeatures(world: World): Object3D[] {
     posts.push([cx - h, z.max.y, cz - h, cx + h, sy, cz + h]);
     if (a === undefined) continue;
     posts.push([a.px - h, a.py - POST_DOWN, a.pz - h, a.px + h, a.py + 0.1, a.pz + h]);
-    rope.push(cx, sy, cz, a.px, a.py, a.pz);
   }
   if (zones.length > 0) out.push(boxesMesh(zones, COLOR_GOLD, 'lineZones', 0.35));
   if (posts.length > 0) out.push(boxesMesh(posts, COLOR_POST, 'linePosts'));
-  if (rope.length > 0) {
-    const geo = new BufferGeometry();
-    geo.setAttribute('position', new Float32BufferAttribute(rope, 3));
-    const ls = new LineSegments(geo, new LineBasicMaterial({ color: new Color(COLOR_ROPE) }));
-    ls.name = 'lineRopes';
-    ls.frustumCulled = false; // segments span tens of metres; one cheap call
-    out.push(ls);
-  }
+  // Fixed lines use the old rope look (twisted tube, sag, gold end), not a thin line.
+  const ropes = buildFixedRopes(world, HAND_Y);
+  if (ropes !== null) out.push(ropes);
   const rims: Box[] = [];
   const tops: Box[] = [];
   for (let i = 0; i < world.tramps.length; i++) {
