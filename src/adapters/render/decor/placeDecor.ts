@@ -15,7 +15,6 @@ import {
   DecorKit,
   RAIL_LEN,
   RAIL_POST_H,
-  PIECE_CAP,
   PIECE_IDS,
   ROOF_UNIT_H,
   ROOF_UNIT_W,
@@ -133,7 +132,7 @@ export function violatesLane(world: World, b: DecorBox): boolean {
 }
 
 class Builder {
-  kit = new DecorKit();
+  kit: DecorKit;
   boxes: DecorBox[] = [];
   strings: number[] = [];
   private tmp = new Color();
@@ -144,11 +143,14 @@ class Builder {
   constructor(
     readonly world: World,
     readonly rng: () => number,
-  ) {}
+    houses = 0,
+  ) {
+    this.kit = new DecorKit(houses);
+  }
 
   /** True when `n` more instances of `piece` still fit under its cap, with the budget test's 90 % margin. */
   room(piece: PieceId, n: number): boolean {
-    return this.kit.used[piece] + n <= 0.9 * PIECE_CAP[piece];
+    return this.kit.used[piece] + n <= 0.9 * this.kit.cap[piece];
   }
   U(a: number, b: number): number {
     return a + (b - a) * this.rng();
@@ -972,10 +974,10 @@ export type DecorOpts = {
 export function buildDecor(world: World, seed = 1729, opts: DecorOpts = {}): Group {
   const scenery = opts.scenery !== false;
   const houseDress = opts.houseDress !== false;
-  const B = new Builder(world, mulberry32(seed));
+  const bodies = collectBodies(world);
+  const B = new Builder(world, mulberry32(seed), bodies.length);
   const g = new Group();
   g.name = 'decor';
-  const bodies = collectBodies(world);
 
   let base: number[];
   const flat = opts.floorY;

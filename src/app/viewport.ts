@@ -1,4 +1,5 @@
 // Viewport layout: pure classification plus a DOM watcher (three-track plan D1).
+import { viewportSize } from '../adapters/ui/orientation';
 
 export type Orientation = 'landscape' | 'portrait';
 export type ViewportLayout = {
@@ -16,11 +17,8 @@ export function layoutFor(w: number, h: number, coarse: boolean): ViewportLayout
 }
 
 export function readViewport(): ViewportLayout {
-  return layoutFor(
-    window.innerWidth,
-    window.innerHeight,
-    window.matchMedia('(pointer: coarse)').matches,
-  );
+  const v = viewportSize(); // logical size: swapped when the root is CSS-rotated (orientation switch)
+  return layoutFor(v.w, v.h, window.matchMedia('(pointer: coarse)').matches);
 }
 
 /**

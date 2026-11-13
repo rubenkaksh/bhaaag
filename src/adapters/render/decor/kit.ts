@@ -86,6 +86,22 @@ export const PIECE_CAP: Record<PieceId, number> = {
   trim: 700,
 };
 
+/** Pieces that do NOT scale with the house count (the forest); every other piece does. */
+const HOUSE_PIECES_UNSCALED: PieceId[] = ['canopy', 'trunk', 'conifer'];
+/** The caps above are sized for the ten-house levels. */
+const CAP_BASE_HOUSES = 10;
+
+/** Per-piece capacities for a level with `houses` house bodies (Nagarkot Run has 100). */
+export function pieceCaps(houses: number): Record<PieceId, number> {
+  const k = Math.max(1, houses / CAP_BASE_HOUSES);
+  const out = {} as Record<PieceId, number>;
+  for (let i = 0; i < PIECE_IDS.length; i++) {
+    const id = PIECE_IDS[i];
+    out[id] = HOUSE_PIECES_UNSCALED.includes(id) ? PIECE_CAP[id] : Math.ceil(PIECE_CAP[id] * k);
+  }
+  return out;
+}
+
 /** Tiled eave unit: apex height 0.49, corner radius 0.74 (4 sides, edges axis-aligned). */
 export const ROOF_UNIT_H = 0.49;
 export const ROOF_UNIT_W = 0.74 * Math.SQRT2;
@@ -428,7 +444,10 @@ export class DecorKit {
   /** Adds refused because a piece's capacity was spent (should stay 0). */
   readonly dropped: Record<PieceId, number>;
 
-  constructor() {
+  readonly cap: Record<PieceId, number>;
+
+  constructor(houses = 0) {
+    this.cap = pieceCaps(houses);
     const geos = geometries();
     const mat = new MeshLambertMaterial({
       color: '#ffffff',
@@ -468,7 +487,7 @@ export class DecorKit {
               : id === 'roof'
                 ? matRoof
                 : mat,
-        PIECE_CAP[id],
+        this.cap[id],
       );
       m.name = 'decor_' + id;
       m.count = 0;
@@ -497,7 +516,7 @@ export class DecorKit {
     color: Color,
   ): boolean {
     const i = this.used[id];
-    if (i >= PIECE_CAP[id]) {
+    if (i >= this.cap[id]) {
       this.dropped[id]++;
       return false;
     }

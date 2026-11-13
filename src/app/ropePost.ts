@@ -87,7 +87,7 @@ function stripUv(g: BufferGeometry): BufferGeometry {
   return g;
 }
 
-function buildSpan(
+export function buildSpan(
   ax: number,
   ay: number,
   az: number,
@@ -280,4 +280,37 @@ export function buildRopePost(world: World): Group {
   };
   group.add(mesh);
   return group;
+}
+
+/**
+ * One rope mesh for every fixed zip line (lineOnly worlds): the same twisted, sagging,
+ * gold-ended span as the pre-tied rope, from the hand-height point above each launch zone to
+ * its anchor. Sag is visual only (the sim rope is the straight chord). One merged draw call;
+ * null when the world has no lines.
+ */
+export function buildFixedRopes(world: World, handY: number): Mesh | null {
+  const parts: BufferGeometry[] = [];
+  for (let i = 0; i < world.lines.length; i++) {
+    const L = world.lines[i];
+    const a = world.anchors[L.anchorId];
+    if (a === undefined) continue;
+    const z = L.zone;
+    parts.push(
+      buildSpan(
+        (z.min.x + z.max.x) / 2,
+        z.max.y + handY,
+        (z.min.z + z.max.z) / 2,
+        a.px,
+        a.py,
+        a.pz,
+      ),
+    );
+  }
+  if (parts.length === 0) return null;
+  const merged = mergeGeometries(parts, false);
+  for (const p of parts) p.dispose();
+  const mesh = new Mesh(merged, new MeshLambertMaterial({ vertexColors: true }));
+  mesh.name = 'lineRopes';
+  mesh.frustumCulled = false; // spans run tens of metres; one cheap call
+  return mesh;
 }

@@ -4,7 +4,7 @@
 // Control map (docs/zipline-plan.md 4.7 where it differs from the task
 // statement, differences listed there too):
 //   Move     WASD + arrow keys          (plan lists WASD only)
-//   Look     none: the camera is a fixed front view (no player view control)
+//   Map      hold L or M: bird's eye overview (game.ts); no effect on the sim
 //   Aim      hold right mouse (also raises BTN_REEL, per the task statement)
 //   Hook     E or left mouse
 //   Jump     Space

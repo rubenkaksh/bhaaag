@@ -1,3 +1,4 @@
+import { viewportSize } from '../ui/orientation';
 import {
   ACESFilmicToneMapping,
   DirectionalLight,
@@ -369,8 +370,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   window.addEventListener(GRAPHICS_TIER_EVENT, onTierEvent);
 
   function resize(): void {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const { w, h } = viewportSize();
     renderer.setSize(w, h, false);
     composer?.setPixelRatio(renderer.getPixelRatio());
     composer?.setSize(w, h);

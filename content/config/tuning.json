@@ -53,9 +53,17 @@
     "zipYawDeg": 45,
     "zipYawMinDiagDeg": 20,
     "zipYawEase": 0.06,
-    "sideYawDeg": 14,
-    "sideYawSpeed": 5,
-    "sideYawEase": 0.05
+    "sideYawDeg": 40,
+    "sideYawSpeed": 2.5,
+    "sideYawEase": 0.07,
+    "sideYawEaseBack": 0.035,
+    "overviewHeight": 45,
+    "overviewPullBack": 12,
+    "overviewPitchDeg": 60,
+    "overviewEase": 0.08,
+    "overviewMaxExtent": 120,
+    "overviewSpanScale": 0.35,
+    "tiltDeg": 20
   },
   "validator": {
     "minReleaseWindowTicks": 12,

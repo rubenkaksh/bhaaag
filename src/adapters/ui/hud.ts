@@ -33,6 +33,7 @@ export class Hud {
   private readonly winBest: HTMLElement;
   private readonly action: HTMLElement | null;
   private readonly hintBtn: HTMLElement;
+  private readonly mapBtn: HTMLElement;
   private actionDim = false;
   private timerText = '';
   private actionText = '';
@@ -58,7 +59,7 @@ export class Hud {
     root: HTMLElement,
     debug: boolean,
     onPlayAgain: () => void,
-    opts: { hint?: string; hopChip?: boolean; onHint?: (() => void) | null } = {},
+    opts: { hint?: string; hopChip?: boolean; onHint?: (() => void) | null; onOverview?: ((held: boolean) => void) | null } = {},
   ) {
     this.objective = el(root, 'div', 'hud-objective');
     this.objective.innerHTML =
@@ -89,6 +90,32 @@ export class Hud {
     else {
       const cb = opts.onHint;
       this.hintBtn.addEventListener('click', () => cb());
+    }
+    this.mapBtn = el(root, 'button', 'hud-mapbtn');
+    (this.mapBtn as HTMLButtonElement).type = 'button';
+    this.mapBtn.setAttribute('aria-label', "Hold for bird's eye overview (L or M)");
+    this.mapBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></g></svg><span>MAP</span>';
+    if (opts.onOverview === null || opts.onOverview === undefined) this.mapBtn.style.display = 'none';
+    else {
+      // Hold to zoom out: down starts, up / cancel / lost capture ends (a finger sliding off still releases).
+      const cb = opts.onOverview;
+      const btn = this.mapBtn;
+      btn.style.touchAction = 'none';
+      btn.addEventListener('pointerdown', (e: PointerEvent) => {
+        e.preventDefault();
+        try {
+          btn.setPointerCapture(e.pointerId);
+        } catch {
+          // capture is optional
+        }
+        cb(true);
+      });
+      const end = (): void => cb(false);
+      btn.addEventListener('pointerup', end);
+      btn.addEventListener('pointercancel', end);
+      btn.addEventListener('lostpointercapture', end);
+      btn.addEventListener('contextmenu', (e) => e.preventDefault());
     }
     this.wp = el(root, 'div', 'hud-waypoint', 'off');
     this.wp.innerHTML =
@@ -166,6 +193,11 @@ export class Hud {
   }
 
   /** 0 = hidden, 1 = neutral, 2 = valid target (gold). */
+  /** Permanently hide the reticle for this HUD (modes that never showed it). */
+  hideReticle(): void {
+    this.reticle.classList.add('gone');
+  }
+
   setReticle(state: number): void {
     if (state === this.reticleState) return;
     this.reticleState = state;
@@ -262,8 +294,22 @@ export class Hud {
     this.hintBtn.classList.toggle('on', on);
   }
 
+  /** MAP button lit while the overview is held. */
+  setOverviewActive(on: boolean): void {
+    this.mapBtn.classList.toggle('on', on);
+    this.mapBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    this.reticle.classList.toggle('overview', on); // zoomed out: the centre dot no longer marks the aim
+  }
+
+  /** MAP button enabled only while the hero is grounded or on the rope; dimmed otherwise. */
+  setOverviewEnabled(on: boolean): void {
+    (this.mapBtn as HTMLButtonElement).disabled = !on;
+    this.mapBtn.classList.toggle('dim', !on);
+  }
+
   destroy(): void {
     this.hintBtn.remove();
+    this.mapBtn.remove();
     this.objective.remove();
     this.hop.remove();
     this.alt.remove();

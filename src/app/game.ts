@@ -1,7 +1,5 @@
-import tuningJson from '../../content/config/tuning.json';
 import levelText from '../../content/levels/l1.json?raw';
-import { DEFAULT_TUNING } from '../core/config';
-import type { Tuning } from '../core/config';
+import { resolveCfg } from './tuning';
 import {
   copyHeroState,
   DEAD_FELL,
@@ -39,7 +37,17 @@ import { DesktopInput } from '../adapters/input/desktop';
 import { TouchInput, type ActionMode } from '../adapters/input/touch';
 import { Sfx } from '../adapters/audio/sfx';
 import { CameraRig, updateCamera } from '../adapters/render/cameraRig';
-import { chaseRigYaw, easeSideYaw, easeYawOffset, sideYawTarget, zipYawTarget } from '../adapters/render/cameraYaw';
+import { chaseRigYaw, tickYawOffsets } from '../adapters/render/cameraYaw';
+import type { YawOffsets } from '../adapters/render/cameraYaw';
+import {
+  blendPose,
+  newOverviewPose,
+  overviewAvailable,
+  overviewPose,
+  overviewWeight,
+  stepOverview,
+} from '../adapters/render/overviewCam';
+import type { Pt } from '../adapters/render/overviewCam';
 import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
@@ -89,6 +97,7 @@ import { framingFor } from '../adapters/render/framing';
 import { MODE_INFO, readBest, writeBest } from './modes/mode';
 import type { GameMode } from './modes/mode';
 import { readViewport, watchViewport } from './viewport';
+import { viewportSize } from '../adapters/ui/orientation';
 import type { ViewportLayout } from './viewport';
 
 const RESTART_ACCEPT_S = 0.3; // death: accept restart input after this
@@ -137,22 +146,6 @@ function camYawToRig(simCamYaw: number): number {
   return Math.PI - simCamYaw;
 }
 
-function mergeTuning(): Tuning {
-  const src = tuningJson as unknown as Record<string, Record<string, number>>;
-  const out = { ...DEFAULT_TUNING } as unknown as Record<string, Record<string, number>>;
-  for (const key of Object.keys(out)) {
-    const base = out[key];
-    // Skip non-object keys (e.g. fixedHz): spreading a number yields {}
-    // and would silently wipe the default (m1-review F14).
-    if (typeof base !== 'object' || base === null) continue;
-    out[key] = { ...base, ...src[key] };
-  }
-  const fixedHz = (tuningJson as unknown as { fixedHz?: number }).fixedHz;
-  const merged = out as unknown as Tuning;
-  if (typeof fixedHz === 'number') merged.fixedHz = fixedHz;
-  return merged;
-}
-
 /** Copy a full camera pose (used for the prev/cur interpolation pair). */
 function copyRig(dst: CameraRig, src: CameraRig): void {
   dst.pos.x = src.pos.x;
@@ -179,13 +172,13 @@ export function startGame(
   mode: GameMode = 'classic',
   village?: VillageAssets,
 ): GameHandle {
-  const cfg = mergeTuning();
+  const cfg = resolveCfg(mode);
   let camCfg = cfg.camera;
   const params = new URLSearchParams(location.search);
-  // ?tilt=15|20|30: render-only camera pitch-down (deg) so more of the drop below shows. Default 20 in Cloud Village, else 0.
+  // ?tilt=15|20|30: render-only camera pitch-down (deg) so more of the drop below shows. Default is camera.tiltDeg (global).
   const tiltParam = Number(params.get('tilt'));
   const tiltDeg =
-    params.has('tilt') && Number.isFinite(tiltParam) ? tiltParam : mode === 'village' ? 20 : 0;
+    params.has('tilt') && Number.isFinite(tiltParam) ? tiltParam : cfg.camera.tiltDeg;
   const camTilt = Math.min(Math.max(tiltDeg, 0), 45) * DEG2RAD;
   const isChase = mode === 'chase';
   const isStrategy = mode === 'strategy';
@@ -250,7 +243,7 @@ export function startGame(
   gs.scene.add(waypointView.group);
   const wpScreen = newWaypointScreen();
   const wpView = new Vector3();
-  const ropeView = new RopeView();
+  const ropeView = new RopeView(world.lineOnly === 1);
   gs.scene.add(ropeView.group);
   const previewView = new AimPreviewView();
   gs.scene.add(previewView.group);
@@ -296,8 +289,15 @@ export function startGame(
   let brakeWas = false;
   let viewport: ViewportLayout = readViewport();
   let lensShiftPx = 0;
-  let sideYaw = 0; // side-look yaw offset (rig radians), eased toward lateral travel
-  let zipYaw = 0; // automatic zipline camera yaw offset (rig radians), 0 = front view
+  // Hold-to-zoom-out bird's eye (MAP button / L or M key): k eases 0..1 per fixed tick, render-only.
+  let ovHeld = false;
+  let ovK = 0;
+  let ovLit = false;
+  let ovEnabled = true; // MAP button enabled (grounded or riding the rope)
+  const ovFollow = newOverviewPose();
+  const ovTarget = newOverviewPose();
+  const ovAhead: Pt[] = [];
+const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig radians): zipline diagonal + side look (T300)
   let hintId = NO_ANCHOR; // anchor highlighted by HINT (T299); render-only, never read by the sim
   let hintT = 0;
   let tapAnchor = NO_ANCHOR; // anchor picked by tap-to-aim, sticky until fired or cleared
@@ -318,8 +318,12 @@ export function startGame(
     // Camera sits BEHIND the hero looking downhill (Chase frontPov 1 flips it ahead, see tickCamera).
     cur.camYaw = world.spawnYaw;
     cur.camPitch = cfg.camera.frontPitchDeg * DEG2RAD;
-    zipYaw = 0;
-    sideYaw = 0;
+    yawOff.zip = 0;
+    yawOff.side = 0;
+    ovHeld = false;
+    ovK = 0;
+    ovLit = false;
+    hudUi.setOverviewActive(false);
     hintId = NO_ANCHOR;
     hintT = 0;
     tapAnchor = NO_ANCHOR;
@@ -334,41 +338,81 @@ export function startGame(
     feet.y = cur.py;
     feet.z = cur.pz;
     const speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
-    if (isChase) {
-      // Chase: frontPov 0 (default) is the behind view, same rig as classic (r = PI - c), looking
-      // downhill along the run; the dragon is then behind the camera (HUD vignette warns).
-      // frontPov 1 is the old camera ahead of the hero, tilted up the slope at the dragon.
-      const front = cfg.chase.frontPov >= 0.5;
-      updateCamera(curRig, feet, chaseRigYaw(cur.camYaw, cfg.chase.frontPov), cur.camPitch + (front ? 0.14 : 0), speed, world.solids, camCfg);
-      return;
+    // One camera path for every mode: base rig yaw, then the shared auto yaw offsets (zip + side look).
+    // Chase frontPov 0 (default) is the behind view, same rig as classic (r = PI - c), looking
+    // downhill along the run; frontPov 1 is the old camera ahead of the hero, tilted up the slope.
+    const front = isChase && cfg.chase.frontPov >= 0.5;
+    const base = isChase ? chaseRigYaw(cur.camYaw, cfg.chase.frontPov) : camYawToRig(cur.camYaw);
+    tickYawOffsets(yawOff, base, cur.vx, cur.vz, cur.mode === HERO_ATTACHED, cur.dead !== 0, camCfg);
+    updateCamera(
+      curRig,
+      feet,
+      base + yawOff.zip + yawOff.side,
+      cur.camPitch - camTilt + (front ? 0.14 : 0),
+      speed,
+      world.solids,
+      camCfg,
+    );
+    if (ovK > 0) applyOverview(base);
+  }
+
+  /** Blend the follow pose toward the bird's eye pose: hero + the path ahead (next anchors, pads, finish). */
+  function applyOverview(baseYaw: number): void {
+    const fx = Math.sin(baseYaw);
+    const fz = -Math.cos(baseYaw);
+    let n = 0;
+    const add = (x: number, y: number, z: number): void => {
+      // Only what lies ahead of the hero along the view direction (a little behind is fine).
+      if ((x - cur.px) * fx + (z - cur.pz) * fz >= -4) {
+        if (n === ovAhead.length) ovAhead.push({ x: 0, y: 0, z: 0 });
+        const p = ovAhead[n++];
+        p.x = x;
+        p.y = y;
+        p.z = z;
+      }
+    };
+    const first = cs !== null ? 0 : nextRouteIndex;
+    for (let i = first; i < world.route.length; i++) {
+      const a = world.anchors[world.route[i]];
+      if (a !== undefined) add(a.px, a.py, a.pz);
     }
-    const base = camYawToRig(cur.camYaw);
-    // Screen frame of the behind view: right = (cos r, sin r), away = (sin r, -cos r) in (x, z).
-    const vRight = cur.vx * Math.cos(base) + cur.vz * Math.sin(base);
-    const vFwd = cur.vx * Math.sin(base) - cur.vz * Math.cos(base);
-    zipYaw = easeYawOffset(
-      zipYaw,
-      zipYawTarget(cur.mode === HERO_ATTACHED && cur.dead === 0, vRight, vFwd, camCfg),
-      camCfg,
-    );
-    // Side look (T300): lean the view toward lateral travel on foot / in the air; the rope
-    // already has its own diagonal yaw, so the side offset eases back to 0 while attached.
-    sideYaw = easeSideYaw(
-      sideYaw,
-      cur.mode === HERO_ATTACHED || cur.dead !== 0 ? 0 : sideYawTarget(vRight, camCfg),
-      camCfg,
-    );
-    updateCamera(curRig, feet, base + zipYaw + sideYaw, cur.camPitch - camTilt, speed, world.solids, camCfg);
+    for (let i = 0; i < world.pads.length; i++) {
+      const b = world.pads[i];
+      add((b.min.x + b.max.x) / 2, b.max.y, (b.min.z + b.max.z) / 2);
+    }
+    if (hasGoal) add(goalCx, goalCy, goalCz);
+    ovAhead.length = n; // keep the pool small; entries are re-created on demand
+    ovFollow.px = curRig.pos.x;
+    ovFollow.py = curRig.pos.y;
+    ovFollow.pz = curRig.pos.z;
+    ovFollow.lx = curRig.lookAt.x;
+    ovFollow.ly = curRig.lookAt.y;
+    ovFollow.lz = curRig.lookAt.z;
+    overviewPose(feet, ovAhead, baseYaw, camCfg, ovTarget);
+    blendPose(ovFollow, ovTarget, overviewWeight(ovK));
+    curRig.pos.x = ovFollow.px;
+    curRig.pos.y = ovFollow.py;
+    curRig.pos.z = ovFollow.pz;
+    curRig.lookAt.x = ovFollow.lx;
+    curRig.lookAt.y = ovFollow.ly;
+    curRig.lookAt.z = ovFollow.lz;
   }
 
   const hudUi = new Hud(root, debug, () => restart(), {
     hint: MODE_INFO[mode].hint,
     hopChip: MODE_INFO[mode].hopChip,
     onHint: isStrategy ? null : showHint,
+    onOverview: setOverviewHeld,
   });
-  // The render pitch is camPitch - tilt, so a centre reticle would no longer mark the look direction.
-  if (camTilt > 0) document.getElementById('hud-reticle')?.style.setProperty('display', 'none');
+  // Cloud Village never showed the reticle (its tilted view has no aim dot); every other mode keeps
+  // it, including the gold target-found state. The HUD hides it while the overview is held.
+  if (isVillage && camTilt > 0) hudUi.hideReticle();
   const chaseHud = isChase ? new ChaseHud(root, () => restart()) : null;
+
+  /** MAP button / L / M key: hold = zoom out to the bird's eye view, release = ease back. */
+  function setOverviewHeld(held: boolean): void {
+    ovHeld = held && !(phase === 'dead' && cs !== null);
+  }
 
   /** HINT: highlight the best takeable zipline anchor for hintSec. No sim state is touched. */
   function showHint(): void {
@@ -437,6 +481,18 @@ export function startGame(
     copyHeroState(prev, cur);
     input.sample(frame);
     frame.moveX = -frame.moveX;
+    // Overview (hold MAP): only grounded on a roof or riding the rope; elsewhere it releases and eases back.
+    const ovOk = overviewAvailable(cur.mode);
+    if (ovOk !== ovEnabled) {
+      ovEnabled = ovOk;
+      hudUi.setOverviewEnabled(ovOk);
+    }
+    const ovOn = ovHeld && ovOk;
+    ovK = stepOverview(ovK, ovOn, camCfg);
+    if (ovOn !== ovLit) {
+      ovLit = ovOn;
+      hudUi.setOverviewActive(ovOn);
+    }
 
     if (phase === 'pan') {
       // Drain input so nothing pressed during the flyover fires on the first play tick.
@@ -613,7 +669,7 @@ export function startGame(
   function consumeTap(): void {
     if (!(input instanceof TouchInput) || !input.tapPending) return;
     input.tapPending = false;
-    if (isLineOnly()) return;
+    if (ovK > 0.05 || isLineOnly()) return; // zoomed out: a tap never aims
     if (cur.mode === HERO_ATTACHED) return;
     const i = pickAnchorAtNdc(
       gs.camera,
@@ -795,8 +851,7 @@ export function startGame(
     const cam = gs.camera;
     cam.updateMatrixWorld();
     wpView.set(tx, ty + 2.2, tz).applyMatrix4(cam.matrixWorldInverse);
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const { w, h } = viewportSize();
     // Keep clear of the timer pill.
     const top = waypointTopPx(w, h, viewport.orientation === 'portrait');
     projectWaypoint(
@@ -1046,8 +1101,15 @@ export function startGame(
   };
   const onHintKey = (e: KeyboardEvent): void => {
     if (e.code === 'KeyH' && !e.repeat && !isStrategy) showHint();
+    if ((e.code === 'KeyL' || e.code === 'KeyM') && !e.repeat) setOverviewHeld(true);
   };
+  const onMapKeyUp = (e: KeyboardEvent): void => {
+    if (e.code === 'KeyL' || e.code === 'KeyM') setOverviewHeld(false);
+  };
+  const onBlurRelease = (): void => setOverviewHeld(false);
   window.addEventListener('keydown', onHintKey);
+  window.addEventListener('keyup', onMapKeyUp);
+  window.addEventListener('blur', onBlurRelease);
   window.addEventListener('keydown', onAnyInput, true);
   window.addEventListener('pointerdown', onAnyInput, true);
   // pointerup (not pointerdown) is the user activation on touch browsers.
@@ -1091,6 +1153,8 @@ export function startGame(
       loop.stop();
       unwatchViewport();
       window.removeEventListener('keydown', onHintKey);
+      window.removeEventListener('keyup', onMapKeyUp);
+      window.removeEventListener('blur', onBlurRelease);
       window.removeEventListener('keydown', onAnyInput, true);
       window.removeEventListener('pointerdown', onAnyInput, true);
       window.removeEventListener('pointerup', onUnlockGesture, true);

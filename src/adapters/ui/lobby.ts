@@ -8,6 +8,8 @@ import {
 import type { GraphicsTier } from '../render/graphicsTier';
 import { GAME_MODES, MODE_INFO, loadMode, saveMode } from '../../app/modes/mode';
 import type { GameMode } from '../../app/modes/mode';
+import { ORIENT_LABEL, ORIENT_PREFS } from './orientation';
+import type { OrientationControl } from './orientation';
 
 // Lobby / start page (T273). DOM + inline SVG only: no images, no network.
 // The game is created by the caller on the first PLAY, so nothing ticks
@@ -50,6 +52,7 @@ export type LobbyHandlers = {
   onPlay: (mode: GameMode) => void;
   onMenu: () => void;
   getBestLabel: (mode: GameMode) => string;
+  orientation?: OrientationControl; // Auto / Landscape / Portrait switch (touch devices only)
 };
 
 export type Lobby = {
@@ -76,7 +79,12 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
       (t) =>
         `<button type="button" role="radio" data-tier="${t}" title="${TIER_INFO[t].desc}">${TIER_INFO[t].label}</button>`,
     ).join('') +
-    '</div><p id="lobby-gfx-desc"></p></div>' +
+    '</div><p id="lobby-gfx-desc"></p>' +
+    '<div id="lobby-orient" role="radiogroup" aria-label="Screen orientation"><span class="lbl">Screen</span>' +
+    ORIENT_PREFS.map(
+      (o) => `<button type="button" role="radio" data-orient="${o}">${ORIENT_LABEL[o]}</button>`,
+    ).join('') +
+    '</div></div>' +
     '<div class="how">' +
     '<div class="desk"><b>Move</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>' +
     '<div class="desk"><b>Hook</b> <kbd>E</kbd> or click</div>' +
@@ -115,6 +123,28 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
     });
   }
   showTier(loadGraphicsTier());
+
+  // Screen orientation: Auto follows the device; Landscape / Portrait lock it (or rotate the game with CSS
+  // where the browser cannot lock). Touch devices only; saved by the control itself.
+  const orientRow = lobby.querySelector<HTMLElement>('#lobby-orient');
+  const orientBtns = lobby.querySelectorAll<HTMLButtonElement>('#lobby-orient button');
+  const orient = h.orientation;
+  if (orientRow !== null) {
+    if (orient === undefined || !orient.supported) orientRow.style.display = 'none';
+    else {
+      const showOrient = (): void => {
+        for (const b of orientBtns) b.setAttribute('aria-checked', String(b.dataset.orient === orient.pref()));
+      };
+      for (const b of orientBtns) {
+        b.addEventListener('click', () => {
+          const o = ORIENT_PREFS.find((x) => x === b.dataset.orient);
+          if (o !== undefined) orient.setPref(o); // inside the tap: fullscreen + lock are allowed here
+        });
+      }
+      orient.onChange(showOrient);
+      showOrient();
+    }
+  }
 
   // Game mode: saved at once; PLAY / RESUME starts (or switches to) the chosen mode.
   const modeBtns = lobby.querySelectorAll<HTMLButtonElement>('#lobby-mode button');

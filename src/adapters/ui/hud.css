@@ -166,6 +166,39 @@
 #hud-hintbtn.on {
   background: rgba(255, 200, 58, 0.45);
 }
+#hud-mapbtn {
+  bottom: calc(var(--pad) + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 31;
+  pointer-events: auto;
+  cursor: pointer;
+  box-sizing: border-box;
+  height: clamp(44px, 6vh, 64px);
+  padding: 0 0.9em;
+  border: 0;
+  border-radius: 18px;
+  background: var(--panel);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font: 700 clamp(11px, 1.7vh, 15px) var(--font);
+  letter-spacing: 0.08em;
+  -webkit-tap-highlight-color: transparent;
+}
+#hud-mapbtn svg {
+  height: 1.7em;
+  width: 1.7em;
+}
+#hud-mapbtn:active,
+#hud-mapbtn.on {
+  background: rgba(255, 200, 58, 0.45);
+}
+#hud-mapbtn.dim {
+  opacity: 0.35;
+  pointer-events: none;
+}
 #hud-hint {
   top: calc(var(--pad) + clamp(32px, 5.4vh, 58px) + 8px + env(safe-area-inset-top, 0px));
   left: 50%;
@@ -205,7 +238,9 @@
   background: #ffc83a;
   box-shadow: 0 0 10px 2px rgba(255, 200, 58, 0.8);
 }
-#hud-reticle.off {
+#hud-reticle.off,
+#hud-reticle.overview,
+#hud-reticle.gone {
   display: none;
 }
 #hud-reason {
@@ -567,6 +602,10 @@
   #hud-hintbtn {
     top: calc(var(--hud-top) + env(safe-area-inset-top, 0px));
     right: calc(var(--hud-side) + var(--pill-h) + 8px + env(safe-area-inset-right, 0px));
+    height: var(--pill-h);
+  }
+  #hud-mapbtn {
+    bottom: var(--ab, calc(12px + env(safe-area-inset-bottom, 0px)));
     height: var(--pill-h);
   }
   #hud-pause {

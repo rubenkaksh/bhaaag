@@ -73,7 +73,7 @@ const HAZARD_PAST = 8; // strips run this far past the first and last row
 export const DEAD_MIN = 8; // dead-end roofs wanted in a level
 export const DEAD_MAX = 20;
 export const MIN_ESCAPES = 2; // edge-disjoint spawn -> goal routes wanted
-const UNREACHED_MAX = 2; // roofs nobody can get to (scenery) tolerated
+export const UNREACHED_MAX = 2; // roofs nobody can get to (scenery) tolerated
 const REPAIR_MAX = 80;
 const MAX_SEED_TRIES = 64;
 const GOAL_REACH = 3; // goal volume height over the last roof
@@ -104,7 +104,7 @@ export const SEGMENTS: readonly Segment[] = [
     houses: 9,
     perBand: [2, 2],
     gaps: [11, 12],
-    heights: [H_MID, H_HIGH],
+    heights: ALL_H,
     roadAfter: false,
     mix: [1, 1, 1, 1, 3],
     shift: 0,
@@ -441,6 +441,20 @@ function link(
   mix: readonly number[],
   freeze: boolean,
 ): boolean {
+  // The house keeps its seeded storey count unless no kind of link can make the step work.
+  if (linkWith(L, rng, s, q, [L.houses[q].h], mix, freeze)) return true;
+  return !freeze && linkWith(L, rng, s, q, heights, mix, freeze);
+}
+
+function linkWith(
+  L: Layout,
+  rng: Rng,
+  s: number,
+  q: number,
+  heights: readonly number[],
+  mix: readonly number[],
+  freeze: boolean,
+): boolean {
   const Q = L.houses[q];
   const P = s >= 0 ? L.houses[s] : null;
   const road = s <= -2 ? L.roads[-2 - s] : null;
@@ -511,17 +525,20 @@ function linkRoad(L: Layout, p: number, ri: number): boolean {
   return false;
 }
 
-// Side-step inside a row: the neighbour gets the same height, or one storey less (no way back).
+// Side-step inside a row: the neighbour keeps its seeded storey count if the jump works, else it
+// is set level with the first house or one storey lower (no way back).
 function lateral(L: Layout, rng: Rng, from: number, to: number, heights: readonly number[]): boolean {
   const P = L.houses[from];
   const H = L.houses[to];
-  const opts = rng() < 0.5 ? [P.h, P.h - STOREY] : [P.h - STOREY, P.h];
+  const own = H.h; // the seeded storey count first, then level with the neighbour or one lower
+  const opts = rng() < 0.5 ? [own, P.h, P.h - STOREY] : [own, P.h - STOREY, P.h];
   for (let i = 0; i < opts.length; i++) {
     if (heights.indexOf(opts[i]) < 0) continue;
     H.h = opts[i];
     const nb = buildNodes(L);
     if (moveOf(nb.nodes[nb.roofOf[from]], nb.nodes[nb.roofOf[to]], nb.nodes) === MOVE_JUMP) return true;
   }
+  H.h = own;
   return false;
 }
 
@@ -538,8 +555,8 @@ function adjFree(occ: boolean[], e: number, rng: Rng, toward: number): number {
   return pick(rng, c);
 }
 
-// Decoys take their height from a neighbour that is already placed: level with it, or one
-// storey down (a commitment: you can hop over, you cannot hop back).
+// Decoys keep their seeded 1-3 storey roll unless it is taller than the placed neighbour they
+// hang off; then they are pulled level with it, or one storey under on a trap roll.
 function attach(L: Layout, rng: Rng, ids: number[], heights: readonly number[], trap: number): void {
   const done: boolean[] = [];
   for (let i = 0; i < ids.length; i++) done.push(L.houses[ids[i]].role !== ROLE_DECOY);
@@ -556,7 +573,10 @@ function attach(L: Layout, rng: Rng, ids: number[], heights: readonly number[], 
       }
       if (nbs.length === 0) continue;
       const nbh = pick(rng, nbs).h;
-      me.h = rng() < trap && heights.indexOf(nbh - STOREY) >= 0 ? nbh - STOREY : nbh;
+      // Keep the seeded storey count when it is no taller than the neighbour (a decoy taller than
+      // the house it hangs off could not be reached); a taller one is pulled level, or a storey
+      // under on a trap roll.
+      if (me.h > nbh) me.h = rng() < trap && heights.indexOf(nbh - STOREY) >= 0 ? nbh - STOREY : nbh;
       done[i] = true;
       progress = true;
     }
@@ -946,6 +966,12 @@ export function levelValid(s: StrategyLevel): boolean {
 
 let cached: StrategyLevel | null = null;
 let cachedFor = -1;
+let cachedFallback = false;
+
+/** True when the last buildStrategy had to use the one-route fallback (tests fail on this). */
+export function strategyUsedFallback(): boolean {
+  return cachedFallback;
+}
 
 /** The level for a seed: the first seed from it (seed, seed+1, ...) that validates. */
 export function buildStrategy(seed: number = STRATEGY_SEED): StrategyLevel {
@@ -958,6 +984,7 @@ export function buildStrategy(seed: number = STRATEGY_SEED): StrategyLevel {
     if (levelValid(s)) found = s;
     else if (fallback === null && s.stats.goalReached && deadInRange(s)) fallback = s; // one route only
   }
+  cachedFallback = found === null;
   if (found === null) found = fallback;
   if (found === null) throw new Error('strategy: no valid level within ' + MAX_SEED_TRIES + ' seeds of ' + seed);
   cached = found;

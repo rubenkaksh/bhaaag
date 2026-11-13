@@ -7,7 +7,6 @@
 //   Move    floating stick in #stick-zone (left). The stick base appears
 //           wherever the thumb lands; offset from that origin, clamped to
 //           STICK_RADIUS_PX, normalised -> quantizeAxis (up = forward).
-//   Look    none: the camera is a fixed front view (no player view control).
 //   Aim     short tap on #look-zone (< TAP_MAX_MS, < TAP_MAX_PX) sets tapPending with tapNdcX/tapNdcY (-1..1) for
 //           the game to raycast (tap-to-aim, ADR 0001). The game clears
 //           tapPending after consuming it. hasAim stays 0 in InputFrame
@@ -38,6 +37,7 @@ import {
   clearInputFrame,
   quantizeAxis,
 } from '../../core/input';
+import { isRotated, toLogical } from '../ui/orientation';
 import { BRAKE_HOLD_MS, CLIMB_HOLD_MS, TapTracker } from './tapGesture';
 
 /** What a press of the one right-hand button does (set each frame by the game). */
@@ -299,16 +299,18 @@ export class TouchInput {
     this.capture(this.stickZone, e);
     // Floating base: appears where the thumb lands.
     this.stickActive = true;
-    this.stickOriginX = e.clientX;
-    this.stickOriginY = e.clientY;
+    const p0 = toLogical(e.clientX, e.clientY);
+    this.stickOriginX = p0.x;
+    this.stickOriginY = p0.y;
     this.stickX = 0;
     this.stickY = 0;
   };
 
   private readonly onStickMove = (e: PointerEvent): void => {
     if (e.pointerId !== this.stickId) return;
-    const dx = e.clientX - this.stickOriginX;
-    const dy = e.clientY - this.stickOriginY;
+    const p1 = toLogical(e.clientX, e.clientY);
+    const dx = p1.x - this.stickOriginX;
+    const dy = p1.y - this.stickOriginY;
     // Clamp to the radius, normalise; drag up = forward (+Y).
     let nx = dx / STICK_RADIUS_PX;
     let ny = -dy / STICK_RADIUS_PX;
@@ -344,8 +346,9 @@ export class TouchInput {
     this.lookId = e.pointerId;
     this.roles.set(e.pointerId, ROLE_LOOK);
     this.capture(this.lookZone, e);
-    this.lookStartX = e.clientX;
-    this.lookStartY = e.clientY;
+    const p2 = toLogical(e.clientX, e.clientY);
+    this.lookStartX = p2.x;
+    this.lookStartY = p2.y;
     this.lookStartTime = e.timeStamp;
     this.lookMaxDevPx = 0;
   };
@@ -353,8 +356,9 @@ export class TouchInput {
   private readonly onLookMove = (e: PointerEvent): void => {
     if (e.pointerId !== this.lookId) return;
     // Track deviation from the start for the tap-vs-drag decision.
-    const sx = e.clientX - this.lookStartX;
-    const sy = e.clientY - this.lookStartY;
+    const p3 = toLogical(e.clientX, e.clientY);
+    const sx = p3.x - this.lookStartX;
+    const sy = p3.y - this.lookStartY;
     const dev = Math.sqrt(sx * sx + sy * sy);
     if (dev > this.lookMaxDevPx) this.lookMaxDevPx = dev;
   };
@@ -364,7 +368,8 @@ export class TouchInput {
     this.roles.delete(e.pointerId);
     this.lookId = -1;
     const dt = e.timeStamp - this.lookStartTime;
-    const dy = e.clientY - this.lookStartY;
+    const p4 = toLogical(e.clientX, e.clientY);
+    const dy = p4.y - this.lookStartY;
     const dev = Math.max(this.lookMaxDevPx, Math.abs(dy));
 
     // Fast downward swipe = DROP edge (checked first: a swipe of SWIPE_DOWN_PX
@@ -375,11 +380,15 @@ export class TouchInput {
     }
     // Short, almost stationary tap = tap-to-aim (the game picks an anchor from tapNdc).
     if (dt < TAP_MAX_MS && dev < TAP_MAX_PX && this.lookZone !== null) {
-      const rect = this.lookZone.getBoundingClientRect();
+      // Rotated root: bounding rects are in screen space, so use the zone's own layout box instead.
+      const z = this.lookZone;
+      const rect = isRotated()
+        ? { left: z.offsetLeft, top: z.offsetTop, width: z.offsetWidth, height: z.offsetHeight }
+        : z.getBoundingClientRect();
       const w = rect.width > 0 ? rect.width : 1;
       const h = rect.height > 0 ? rect.height : 1;
-      this.tapNdcX = ((e.clientX - rect.left) / w) * 2 - 1;
-      this.tapNdcY = 1 - ((e.clientY - rect.top) / h) * 2; // +Y up
+      this.tapNdcX = ((p4.x - rect.left) / w) * 2 - 1;
+      this.tapNdcY = 1 - ((p4.y - rect.top) / h) * 2; // +Y up
       this.tapPending = true;
     }
   };

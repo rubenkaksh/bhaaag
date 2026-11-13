@@ -99,7 +99,15 @@ export type Tuning = {
     zipYawEase: number;
     sideYawDeg: number; // yaw toward the side of lateral travel at sideYawSpeed m/s sideways (T300)
     sideYawSpeed: number; // sideways speed that reaches the full offset, m/s
-    sideYawEase: number; // per fixed tick ease toward the side-look target
+    sideYawEase: number; // per fixed tick ease toward a larger side-look target
+    sideYawEaseBack: number; // per fixed tick ease back toward 0 (slower = smoother return)
+    overviewHeight: number; // hold-MAP bird's eye: camera height above the framed centre, m (before span gain)
+    overviewPullBack: number; // extra metres the overview camera sits back from the framed centre
+    overviewPitchDeg: number; // nominal overview pitch down, deg (sets the base back-off from the height)
+    overviewEase: number; // per fixed tick ease of the overview blend (0..1) in and out
+    overviewMaxExtent: number; // max horizontal reach from the hero that the overview frames, m
+    overviewSpanScale: number; // extra camera height per metre of framed span, so a long run still fits
+  tiltDeg: number; // render-only pitch-down of the view (deg), all modes; ?tilt= overrides for debugging
   };
   validator: {
     minReleaseWindowTicks: number;
@@ -257,9 +265,17 @@ export const DEFAULT_TUNING: Tuning = {
     zipYawDeg: 45,
     zipYawMinDiagDeg: 20,
     zipYawEase: 0.06,
-    sideYawDeg: 14,
-    sideYawSpeed: 5,
-    sideYawEase: 0.05,
+    sideYawDeg: 40,
+    sideYawSpeed: 2.5,
+    sideYawEase: 0.07,
+    sideYawEaseBack: 0.035,
+    overviewHeight: 45,
+    overviewPullBack: 12,
+    overviewPitchDeg: 60,
+    overviewEase: 0.08,
+    overviewMaxExtent: 120,
+    overviewSpanScale: 0.35,
+    tiltDeg: 20,
   },
   validator: {
     minReleaseWindowTicks: 12,
