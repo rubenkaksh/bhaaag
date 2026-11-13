@@ -734,7 +734,7 @@ describe('heroPose parkour (ADR 0013)', () => {
       0.6,
     );
     const rest = v[v.length - 1];
-    expect(v[0]).toBeLessThan(rest - 0.6);
+    expect(v[0]).toBeLessThan(rest - 0.2);
     for (let i = 1; i < 18; i++) expect(v[i]).toBeGreaterThanOrEqual(v[i - 1] - 1e-9);
     expect(Math.abs(v[v.length - 1] - rest)).toBeLessThan(1e-6);
   });

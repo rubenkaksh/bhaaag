@@ -1,6 +1,8 @@
 import { Group } from 'three';
 import type { HeroState } from '../../core/hero';
+import { AE_MANTLE } from './animEvents';
 import { DEAD, newHeroPoseInput } from './heroPose';
+import { MantleBlend } from './mantleBlend';
 import type { HeroPoseInput } from './heroPose';
 import { HeroRig, updateHeroRig } from './heroRig';
 
@@ -20,6 +22,11 @@ export class HeroView {
   readonly rig: HeroRig;
   readonly input: HeroPoseInput;
   private lastMs = -1;
+  private readonly mantle = new MantleBlend();
+  private drawnX = 0;
+  private drawnY = 0;
+  private drawnZ = 0;
+  private hasDrawn = false;
 
   constructor() {
     this.group = new Group();
@@ -29,11 +36,20 @@ export class HeroView {
   }
 
   update(prev: HeroState, cur: HeroState, alpha: number, dt?: number): void {
-    this.group.position.set(
-      prev.px + (cur.px - prev.px) * alpha,
-      prev.py + (cur.py - prev.py) * alpha,
-      prev.pz + (cur.pz - prev.pz) * alpha,
-    );
+    const rx = prev.px + (cur.px - prev.px) * alpha;
+    const ry = prev.py + (cur.py - prev.py) * alpha;
+    const rz = prev.pz + (cur.pz - prev.pz) * alpha;
+    const dtv = dt !== undefined ? dt : this.clockDt();
+    if (cur.dead === 1) this.mantle.cancel();
+    else if (this.hasDrawn && (this.input.events & AE_MANTLE) !== 0) {
+      this.mantle.start(this.drawnX - rx, this.drawnY - ry, this.drawnZ - rz);
+    }
+    this.mantle.step(dtv);
+    this.drawnX = rx + this.mantle.ox;
+    this.drawnY = ry + this.mantle.oy;
+    this.drawnZ = rz + this.mantle.oz;
+    this.hasDrawn = true;
+    this.group.position.set(this.drawnX, this.drawnY, this.drawnZ);
     let dy = (cur.yaw - prev.yaw) % TWO_PI;
     if (dy > Math.PI) dy -= TWO_PI;
     if (dy < -Math.PI) dy += TWO_PI;
@@ -45,7 +61,7 @@ export class HeroView {
     inp.speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
     inp.vy = cur.vy;
     inp.deadCause = cur.deadCause;
-    inp.dt = dt !== undefined ? dt : this.clockDt();
+    inp.dt = dtv;
     this.rig.yaw = yaw;
     updateHeroRig(this.rig, inp);
   }

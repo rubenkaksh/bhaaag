@@ -8,9 +8,9 @@ import { BufferGeometry, Color, Float32BufferAttribute, Mesh, MeshLambertMateria
 import type { World } from '../../core/world';
 import { HILL_HALF_X, planeY } from './terrain';
 
-export const GULLY_COLOR = '#c4472a'; // same terracotta as the danger style in levelView
+export const GULLY_COLOR = '#a8664c'; // same terracotta as the danger style in levelView
 const LIFT = 0.12; // above the drawn terrain (polygonOffset does the rest)
-export const FRINGE = 1.5; // m of terracotta around each house base
+export const FRINGE = 0.7; // m of muted clay around each house base
 
 export interface GullyPatch {
   x0: number;

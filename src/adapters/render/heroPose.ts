@@ -159,8 +159,8 @@ const EV_MANTLE = 256;
 
 // Parkour (ADR 0013): vault and slide are blended in over the base pose by weight; the mantle
 // climb-up is a timed overlay (the sim mantle is instantaneous).
-const MANTLE_END = 0.35; // s, same as climb.holdSec
-const MANTLE_DROP = 0.9; // m the hips start below their rest height
+const MANTLE_END = 0.5; // s; equals mantleBlend MANTLE_SEC (the root position eases over the same time)
+const MANTLE_DROP = 0.3; // m the hips start below their rest height (the root blend carries the rest)
 const VAULT_TAU_ON = 0.04;
 const VAULT_TAU_OFF = 0.08;
 const SLIDE_TAU_ON = 0.05;

@@ -250,8 +250,8 @@ export function renderConfigFor(tier: GraphicsTier, coarse: boolean): RenderConf
     halfExtent: tier === 'high' ? (coarse ? 40 : 48) : coarse ? 24 : 30,
     distance: 80,
     far: 180,
-    bias: -0.0004,
-    normalBias: 0.04,
+    bias: -0.001,
+    normalBias: 0.08,
     radius: tier === 'high' ? 2 : 3,
   };
   return {

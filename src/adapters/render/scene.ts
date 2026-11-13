@@ -123,7 +123,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   const hemi = new HemisphereLight(cfg.hemi.sky, cfg.hemi.ground, cfg.hemi.intensity);
   scene.add(hemi);
 
-  const camera = new PerspectiveCamera(60, 1, 0.1, 3000);
+  const camera = new PerspectiveCamera(60, 1, 0.3, 3000);
   let disposed = false;
   let level: Group | null = null;
   let worldRef: World | null = null;
