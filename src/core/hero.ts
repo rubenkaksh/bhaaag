@@ -6,7 +6,7 @@ export const HERO_AIRBORNE = 1;
 export const HERO_DEAD = 2;
 export const HERO_ATTACHED = 3; // riding the rope
 export const HERO_HANGING = 4; // clinging at a wall / rope end
-export const HERO_VAULT = 5; // vaulting an obstacle (ADR 0013; not entered yet)
+export const HERO_VAULT = 5; // vaulting an obstacle (ADR 0013)
 
 // deadCause
 export const DEAD_NONE = 0;
@@ -27,8 +27,8 @@ export const HERO_EV_PERFECT = 64; // JUMP released inside the timed window (spe
 export const HERO_EV_BOUNCE = 128; // landed on a trampoline and left the roof again
 export const HERO_EV_CUSHION = 256; // landed on a cushion (absorbed, briefly locked)
 export const HERO_EV_GRAB = 512; // caught a ledge in the air (also sets HANGING)
-export const HERO_EV_VAULT = 2048; // ADR 0013, not emitted yet
-export const HERO_EV_SLIDE = 4096; // ADR 0013, not emitted yet
+export const HERO_EV_VAULT = 2048; // auto-vault started (ADR 0013)
+export const HERO_EV_SLIDE = 4096; // landing slide started (ADR 0013)
 export const HERO_EV_MANTLE = 1024; // climbed onto the held ledge
 
 // Conventions: yaw 0 faces +z; forward = (sin yaw, cos yaw) in (x, z);
@@ -65,6 +65,18 @@ export class HeroState {
   hangWall = 0; // wall face coordinate along the normal axis (x when hangNx != 0, else z)
   climbT = 0; // seconds CLIMB has been held while hanging
   bounceAir = 0; // 1 from a trampoline bounce until the next landing or hook attach: stick steers in the air
+  // Parkour (ADR 0013, world.parkour === 1 only): auto-vault path and landing slide.
+  vaultT = 0; // seconds into the vault
+  vaultX0 = 0;
+  vaultY0 = 0;
+  vaultZ0 = 0;
+  vaultX1 = 0;
+  vaultY1 = 0;
+  vaultZ1 = 0;
+  vaultOnto = 0; // 1: ends grounded on top of the obstacle, 0: ends airborne past it
+  vaultVx = 0; // velocity handed back when the vault ends
+  vaultVz = 0;
+  slideT = 0; // seconds of landing slide left (grounded sub-state, not a mode)
 }
 
 export function newHeroState(): HeroState {
@@ -102,4 +114,15 @@ export function copyHeroState(dst: HeroState, src: HeroState): void {
   dst.hangWall = src.hangWall;
   dst.climbT = src.climbT;
   dst.bounceAir = src.bounceAir;
+  dst.vaultT = src.vaultT;
+  dst.vaultX0 = src.vaultX0;
+  dst.vaultY0 = src.vaultY0;
+  dst.vaultZ0 = src.vaultZ0;
+  dst.vaultX1 = src.vaultX1;
+  dst.vaultY1 = src.vaultY1;
+  dst.vaultZ1 = src.vaultZ1;
+  dst.vaultOnto = src.vaultOnto;
+  dst.vaultVx = src.vaultVx;
+  dst.vaultVz = src.vaultVz;
+  dst.slideT = src.slideT;
 }

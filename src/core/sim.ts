@@ -32,8 +32,11 @@ import {
   HERO_EV_MANTLE,
   HERO_EV_RELEASED,
   HERO_EV_ROLLED,
+  HERO_EV_SLIDE,
+  HERO_EV_VAULT,
   HERO_GROUNDED,
   HERO_HANGING,
+  HERO_VAULT,
   HeroState,
 } from './hero';
 import {
@@ -55,6 +58,7 @@ import {
 import { SweepHit, circleOverlapsAabbXZ, clampScalar, sweptCapsuleVsAabb } from './math/aabb';
 import type { AABB } from './math/aabb';
 import { Vec3 } from './math/vec3';
+import { VaultPlan, inCone, planVault, slideSpeed, vaultPosition } from './parkour';
 import type { World } from './world';
 
 export { copyHeroState } from './hero';
@@ -70,12 +74,21 @@ const scratchHit = new SweepHit();
 const scratchAim = new AimResult();
 const scratchVel = new Vec3(0, 0, 0);
 const scratchFeet = new Vec3(0, 0, 0);
+const scratchPlan = new VaultPlan();
+
+// Stick this tick as a world-space unit direction and a magnitude (0 while a cushion landing
+// locks the controls). Written once per step, read by the parkour rules (ADR 0013).
+let stickDx = 0;
+let stickDz = 0;
+let stickMag = 0;
 
 export const HEAD_FRAC = 0.9; // aim ray starts at this fraction of the hero height
 const LAND_TOL = 2 * SKIN; // feet this close above a surface count as touching it
 const AT_END_PROBE = 0.1; // extra reach past the rope stop when checking for a wall
 const RUNOUT_TOL = 0.05; // launch-surface match tolerance, metres
 const SLAB_TOL = 0.05; // a tramp/cushion slab counts when its top is this close to the feet
+const STICK_MIN = 0.5; // stick magnitude the automatic parkour moves need
+const AIR_LIFT = 0.002; // feet clearance above a ledge after an airborne step-up, metres
 const GRAB_PROBE = 0.08; // airborne wall probe length toward the stick, metres (ledge grab)
 
 // Index of the solid that blocked the last sweepAxis / sweepVec call (-1 when none). Written
@@ -319,6 +332,7 @@ function killHero(s: HeroState, cause: number): void {
   s.grounded = 0;
   s.perfect = 0;
   s.hasLedge = 0;
+  s.slideT = 0;
   resetHook(s.hook);
 }
 
@@ -433,6 +447,19 @@ function landHero(s: HeroState, w: World, cfg: Tuning, jumpHeld: boolean): void 
   s.runOut = 0;
   s.chainT = cfg.landing.chainWindowMs / 1000;
   s.eventBits |= HERO_EV_LANDED;
+  // Landing slide (ADR 0013): a clean flat landing at speed with the stick held forward.
+  const hsEnd = hs > cap ? cap : hs;
+  if (
+    w.parkour === 1 &&
+    groundRamp < 0 &&
+    vImpact <= cfg.landing.vyClean &&
+    hsEnd >= cfg.slide.minSpeed &&
+    stickMag >= STICK_MIN &&
+    inCone(stickDx, stickDz, s.vx / hsEnd, s.vz / hsEnd, cfg.vault.coneDeg)
+  ) {
+    s.slideT = cfg.slide.sec;
+    s.eventBits |= HERO_EV_SLIDE;
+  }
   if (s.hook.state === HOOK_ATTACHED || s.hook.state === HOOK_AT_END) resetHook(s.hook);
 }
 
@@ -484,9 +511,7 @@ function tryFire(s: HeroState, input: InputFrame, world: World, cfg: Tuning): vo
     }
     const cp = Math.cos(pitch);
     const head = s.py + cfg.hero.height * HEAD_FRAC;
-    const magnet = hasButton(input, BTN_ACTION)
-      ? cfg.aim.magnetDegTouch
-      : cfg.aim.magnetDegDesktop;
+    const magnet = hasButton(input, BTN_ACTION) ? cfg.aim.magnetDegTouch : cfg.aim.magnetDegDesktop;
     pickAnchorAssisted(
       world,
       cfg,
@@ -680,7 +705,7 @@ function tryGrab(s: HeroState, w: World, cfg: Tuning, idx: number): boolean {
   return true;
 }
 
-function hangStep(s: HeroState, input: InputFrame, cfg: Tuning, dt: number): void {
+function hangStep(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt: number): void {
   s.vx = 0;
   s.vy = 0;
   s.vz = 0;
@@ -693,12 +718,17 @@ function hangStep(s: HeroState, input: InputFrame, cfg: Tuning, dt: number): voi
     return;
   }
   if (s.hasLedge !== 1) return;
-  if (!hasButton(input, BTN_CLIMB)) {
+  // Parkour (ADR 0013): the stick held toward the wall also mantles, after a shorter hold.
+  const byStick =
+    world.parkour === 1 &&
+    stickMag >= STICK_MIN &&
+    -(stickDx * s.hangNx + stickDz * s.hangNz) >= cfg.parkour.stickDot;
+  if (!hasButton(input, BTN_CLIMB) && !byStick) {
     s.climbT = 0;
     return;
   }
   s.climbT += dt;
-  if (s.climbT < cfg.climb.holdSec) return;
+  if (s.climbT < (byStick ? cfg.parkour.autoMantleSec : cfg.climb.holdSec)) return;
   // Mantle: stand on the ledge with the whole footprint on the roof, mantleFwd past the
   // edge, measured from the wall face (the hero hangs a radius short of it).
   const push = cfg.hero.radius + cfg.climb.mantleFwd;
@@ -712,6 +742,91 @@ function hangStep(s: HeroState, input: InputFrame, cfg: Tuning, dt: number): voi
   s.climbT = 0;
   s.chainT = 0;
   s.eventBits |= HERO_EV_MANTLE;
+}
+
+// Auto-vault in progress (ADR 0013): the hero follows the stored path, no collision (the end
+// point was checked when the vault began). The kill plane and hazards still run in step().
+function vaultStep(s: HeroState, cfg: Tuning, dt: number): void {
+  s.vaultT += dt;
+  s.vx = s.vaultVx;
+  s.vz = s.vaultVz;
+  s.vy = 0;
+  if (s.vaultT < cfg.vault.sec) {
+    vaultPosition(s, cfg, s.vaultT);
+    return;
+  }
+  vaultPosition(s, cfg, cfg.vault.sec);
+  s.vaultT = 0;
+  if (s.vaultOnto === 1) {
+    s.grounded = 1;
+    s.mode = HERO_GROUNDED;
+    s.chainT = cfg.landing.chainWindowMs / 1000;
+  } else {
+    s.grounded = 0;
+    s.mode = HERO_AIRBORNE;
+  }
+}
+
+// Tries to start an auto-vault over solid idx whose side face (unit axis normal nax/naz,
+// from the wall toward the hero) blocked a grounded run at entry velocity (pvx, pvz). Returns
+// true when the vault began (hero is now HERO_VAULT).
+function tryVault(
+  s: HeroState,
+  w: World,
+  cfg: Tuning,
+  idx: number,
+  nax: number,
+  naz: number,
+  pvx: number,
+  pvz: number,
+): boolean {
+  if (idx < 0) return false;
+  const b = w.solids[idx];
+  const dTop = b.max.y - s.py;
+  if (dTop <= cfg.hero.stepUp || dTop > cfg.vault.maxH) return false;
+  if (!inCone(stickDx, stickDz, -nax, -naz, cfg.vault.coneDeg)) return false;
+  planVault(scratchPlan, b, nax, naz, s.px, s.pz, cfg);
+  const r = cfg.hero.radius;
+  const x1 = scratchPlan.x1;
+  const y1 = scratchPlan.y1;
+  const z1 = scratchPlan.z1;
+  // End capsule free: no surface in the body volume above the end feet, no wall beside it.
+  const gh = groundHeight(w, x1, z1, r, y1 + cfg.hero.height);
+  if (gh > y1 + SLAB_TOL) return false;
+  sweepVec(w, x1, y1 + 0.02, z1, cfg.hero.height - 0.02, r, -nax * 1e-3, 0, -naz * 1e-3);
+  if (scratchHit.hit) return false;
+  s.vaultX0 = s.px;
+  s.vaultY0 = s.py;
+  s.vaultZ0 = s.pz;
+  s.vaultX1 = x1;
+  s.vaultY1 = y1;
+  s.vaultZ1 = z1;
+  s.vaultOnto = scratchPlan.onto;
+  s.vaultVx = pvx * cfg.vault.keep;
+  s.vaultVz = pvz * cfg.vault.keep;
+  s.vaultT = 0;
+  s.vx = s.vaultVx;
+  s.vz = s.vaultVz;
+  s.vy = 0;
+  s.yaw = Math.atan2(-nax, -naz);
+  s.mode = HERO_VAULT;
+  s.grounded = 0;
+  s.runOut = 0;
+  s.eventBits |= HERO_EV_VAULT;
+  return true;
+}
+
+// True when a solid sits in the standing body volume above the slide capsule at the feet
+// (a standing hero would clip it): the slide must not end here.
+function headBlocked(w: World, s: HeroState, cfg: Tuning): boolean {
+  const r = cfg.hero.radius;
+  const top = s.py + cfg.hero.height;
+  for (let i = 0; i < w.solids.length; i++) {
+    const b = w.solids[i];
+    if (b.min.y >= top || b.max.y <= s.py + cfg.hero.stepUp) continue;
+    if (circleOverlapsAabbXZ(b, s.px, s.pz, r)) return true;
+  }
+  return false;
 }
 
 export function step(s: HeroState, input: InputFrame, world: World, cfg: Tuning): void {
@@ -732,7 +847,25 @@ export function step(s: HeroState, input: InputFrame, world: World, cfg: Tuning)
   if (s.camPitch < pMin) s.camPitch = pMin;
   if (s.camPitch > pMax) s.camPitch = pMax;
 
-  if (s.mode !== HERO_ATTACHED) {
+  // Stick this tick, for the parkour rules.
+  {
+    let mx = dequantizeAxis(input.moveX);
+    let my = dequantizeAxis(input.moveY);
+    const m = Math.sqrt(mx * mx + my * my);
+    stickMag = s.landLockT > 0 ? 0 : m > 1 ? 1 : m;
+    stickDx = 0;
+    stickDz = 0;
+    if (m > 0) {
+      mx /= m;
+      my /= m;
+      const sy = Math.sin(s.camYaw);
+      const cy = Math.cos(s.camYaw);
+      stickDx = my * sy + mx * cy;
+      stickDz = my * cy - mx * sy;
+    }
+  }
+
+  if (s.mode !== HERO_ATTACHED && s.mode !== HERO_VAULT) {
     tryFire(s, input, world, cfg);
     if (s.hook.state === HOOK_FLYING) {
       const hs = hookStep(s.hook, dt, world, cfg, false);
@@ -749,8 +882,10 @@ export function step(s: HeroState, input: InputFrame, world: World, cfg: Tuning)
   }
 
   if (s.mode === HERO_ATTACHED) rideStep(s, input, world, cfg, dt);
-  else if (s.mode === HERO_HANGING) hangStep(s, input, cfg, dt);
+  else if (s.mode === HERO_HANGING) hangStep(s, input, world, cfg, dt);
+  else if (s.mode === HERO_VAULT) vaultStep(s, cfg, dt);
   else moveFree(s, input, world, cfg, dt);
+  if (s.slideT > 0 && s.grounded !== 1) s.slideT = 0;
 
   if (s.dead === 0 && s.py < world.killPlaneY) killHero(s, DEAD_FELL);
   if (s.dead === 0 && world.hazards.length > 0 && hazardAt(world, s.px, s.py, s.pz) >= 0)
@@ -821,10 +956,13 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   const wantX = (my * sy + mx * cy) * cfg.hero.run;
   const wantZ = (my * cy - mx * sy) * cfg.hero.run;
 
+  const pk = world.parkour === 1;
   if (s.grounded === 1) {
-    if (!locked && wasPressed(input, BTN_JUMP)) {
+    // A slide cannot jump into a low ceiling (parkour).
+    if (!locked && wasPressed(input, BTN_JUMP) && !(s.slideT > 0 && headBlocked(world, s, cfg))) {
       s.vy = cfg.hero.jump;
       s.grounded = 0;
+      s.slideT = 0;
     } else {
       s.vy = 0;
     }
@@ -835,7 +973,19 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
 
   // Horizontal velocity.
   if (slip >= 0) {
+    s.slideT = 0;
     slideVelocity(s, cfg, wantX, wantZ, mag, dt);
+  } else if (s.grounded === 1 && s.slideT > 0) {
+    // Landing slide (ADR 0013): no steering, constant decel. The slide runs on past slide.sec
+    // while a low ceiling is overhead.
+    const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+    if (sp > 0) {
+      const k = slideSpeed(sp, cfg.slide.decel, cfg.slide.minKeep, dt) / sp;
+      s.vx *= k;
+      s.vz *= k;
+    }
+    s.slideT -= dt;
+    if (s.slideT <= 0) s.slideT = headBlocked(world, s, cfg) ? dt : 0;
   } else if (s.grounded === 1) {
     if (mag > 0) {
       const dx = wantX - s.vx;
@@ -906,26 +1056,80 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   let h = cfg.hero.height;
   if (s.grounded === 1) {
     baseY = s.py + cfg.hero.stepUp;
-    h = cfg.hero.height - cfg.hero.stepUp;
+    h = (s.slideT > 0 ? cfg.slide.height : cfg.hero.height) - cfg.hero.stepUp;
   }
   const r = cfg.hero.radius;
   const oldPx = s.px;
-  const mvx = sweepAxis(world, s.px, baseY, s.pz, h, r, 0, s.vx * dt);
-  if (scratchHit.hit) s.vx = 0;
+  // Vault entry velocity and eligibility (ADR 0013): grounded run, stick pushing into the wall.
+  const pvx = s.vx;
+  const pvz = s.vz;
+  const canVault =
+    pk &&
+    s.grounded === 1 &&
+    s.slideT <= 0 &&
+    stickMag >= STICK_MIN &&
+    pvx * pvx + pvz * pvz >= cfg.vault.minSpeed * cfg.vault.minSpeed;
+  let mvx = sweepAxis(world, s.px, baseY, s.pz, h, r, 0, s.vx * dt);
+  let hitX = scratchHit.hit;
+  let nxX = scratchHit.nx;
+  let nyX = scratchHit.ny;
+  let solidX = hitSolid;
+  // Airborne step-up (parkour): clipping a low ledge while falling lifts the feet onto it.
+  if (pk && hitX && s.grounded === 0 && s.vy <= 0 && nyX === 0 && solidX >= 0) {
+    const d = world.solids[solidX].max.y - s.py;
+    if (d > 0 && d <= cfg.parkour.airStepUp) {
+      s.py = world.solids[solidX].max.y + AIR_LIFT;
+      mvx = sweepAxis(world, s.px, s.py, s.pz, cfg.hero.height, r, 0, s.vx * dt);
+      hitX = scratchHit.hit;
+      nxX = scratchHit.nx;
+      nyX = scratchHit.ny;
+      solidX = hitSolid;
+    }
+  }
+  if (hitX) s.vx = 0;
   s.px += mvx;
   // Ramps carry no sweep geometry: reject the axis move when the ramp surface at the
   // new footprint is more than stepUp above the feet (wall rule, finding 5).
   if (rampBarrierHeightAt(world, s.px, s.pz, r) > s.py + cfg.hero.stepUp) {
     s.px = oldPx;
     s.vx = 0;
+  } else if (
+    canVault &&
+    hitX &&
+    nyX === 0 &&
+    tryVault(s, world, cfg, solidX, nxX > 0 ? 1 : -1, 0, pvx, pvz)
+  ) {
+    return;
   }
   const oldPz = s.pz;
-  const mvz = sweepAxis(world, s.px, baseY, s.pz, h, r, 2, s.vz * dt);
-  if (scratchHit.hit) s.vz = 0;
+  let mvz = sweepAxis(world, s.px, s.grounded === 1 ? baseY : s.py, s.pz, h, r, 2, s.vz * dt);
+  let hitZ = scratchHit.hit;
+  let nzZ = scratchHit.nz;
+  let nyZ = scratchHit.ny;
+  let solidZ = hitSolid;
+  if (pk && hitZ && s.grounded === 0 && s.vy <= 0 && nyZ === 0 && solidZ >= 0) {
+    const d = world.solids[solidZ].max.y - s.py;
+    if (d > 0 && d <= cfg.parkour.airStepUp) {
+      s.py = world.solids[solidZ].max.y + AIR_LIFT;
+      mvz = sweepAxis(world, s.px, s.py, s.pz, cfg.hero.height, r, 2, s.vz * dt);
+      hitZ = scratchHit.hit;
+      nzZ = scratchHit.nz;
+      nyZ = scratchHit.ny;
+      solidZ = hitSolid;
+    }
+  }
+  if (hitZ) s.vz = 0;
   s.pz += mvz;
   if (rampBarrierHeightAt(world, s.px, s.pz, r) > s.py + cfg.hero.stepUp) {
     s.pz = oldPz;
     s.vz = 0;
+  } else if (
+    canVault &&
+    hitZ &&
+    nyZ === 0 &&
+    tryVault(s, world, cfg, solidZ, 0, nzZ > 0 ? 1 : -1, pvx, pvz)
+  ) {
+    return;
   }
 
   // Ledge grab (ADR 0011, climb levels only): in the air, holding the stick toward a wall
@@ -941,7 +1145,7 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
     }
     const gl = Math.sqrt(gx * gx + gz * gz);
     if (gl > 1e-6) {
-      const k = GRAB_PROBE / gl;
+      const k = (pk ? cfg.parkour.grabProbe : GRAB_PROBE) / gl;
       sweepVec(world, s.px, s.py, s.pz, cfg.hero.height, r, gx * k, 0, gz * k);
       if (scratchHit.hit && tryGrab(s, world, cfg, hitSolid)) return;
     }
