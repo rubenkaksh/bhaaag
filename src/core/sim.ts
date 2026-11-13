@@ -767,6 +767,46 @@ function vaultStep(s: HeroState, cfg: Tuning, dt: number): void {
   }
 }
 
+// Predicts the fall after a vault that clears the obstacle (no steering, air physics at 60 Hz,
+// at most 2 s). True when the hero would land alive: on a tramp/cushion slab, or on a surface at
+// an impact the landing rule survives, before touching a hazard volume or the kill plane.
+function vaultLandsSafe(
+  w: World,
+  cfg: Tuning,
+  x1: number,
+  y1: number,
+  z1: number,
+  vx: number,
+  vz: number,
+): boolean {
+  const dt = 1 / cfg.fixedHz;
+  const r = cfg.hero.radius;
+  let x = x1;
+  let y = y1;
+  let z = z1;
+  let vy = 0;
+  for (let i = 0; i < 2 * cfg.fixedHz; i++) {
+    const oldY = y;
+    y += vy * dt - 0.5 * cfg.physics.g * dt * dt;
+    vy -= cfg.physics.g * dt;
+    x += vx * dt;
+    z += vz * dt;
+    if (w.hazards.length > 0 && hazardAt(w, x, y, z) >= 0) return false;
+    if (y < w.killPlaneY) return false;
+    const gh = groundHeight(w, x, z, r, oldY + cfg.hero.stepUp);
+    if (gh > NO_GROUND && gh >= y - LAND_TOL) {
+      if (slabAt(w.tramps, x, z, r, gh) >= 0 || slabAt(w.cushions, x, z, r, gh) >= 0) return true;
+      let impact = -vy;
+      if (groundRamp >= 0) {
+        rampFrame(w, groundRamp);
+        impact = -(vx * -slopeUx * slopeSin + vy * slopeCos + vz * -slopeUz * slopeSin);
+      }
+      return impact <= cfg.landing.vyRoll;
+    }
+  }
+  return false;
+}
+
 // Tries to start an auto-vault over solid idx whose side face (unit axis normal nax/naz,
 // from the wall toward the hero) blocked a grounded run at entry velocity (pvx, pvz). Returns
 // true when the vault began (hero is now HERO_VAULT).
@@ -795,6 +835,13 @@ function tryVault(
   if (gh > y1 + SLAB_TOL) return false;
   sweepVec(w, x1, y1 + 0.02, z1, cfg.hero.height - 0.02, r, -nax * 1e-3, 0, -naz * 1e-3);
   if (scratchHit.hit) return false;
+  // A vault that clears the obstacle ends in a fall: refuse it (the obstacle blocks like a wall)
+  // unless the landing is survivable. Computed last: it reuses the groundRamp scratch.
+  if (
+    scratchPlan.onto === 0 &&
+    !vaultLandsSafe(w, cfg, x1, y1, z1, pvx * cfg.vault.keep, pvz * cfg.vault.keep)
+  )
+    return false;
   s.vaultX0 = s.px;
   s.vaultY0 = s.py;
   s.vaultZ0 = s.pz;

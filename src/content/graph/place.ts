@@ -74,6 +74,7 @@ export function groundAt(profile: [number, number][], z: number): number {
 class Fail extends Error {}
 
 const HALF = HK.half;
+const HAZARD_BAND = 1; // m of z per hazard slab
 
 function overlapsHouse(a: HouseSpec, b: HouseSpec): boolean {
   return Math.abs(a.cx - b.cx) < 2 * HALF - 1e-6 && Math.abs(a.cz - b.cz) < 2 * HALF - 1e-6;
@@ -123,6 +124,7 @@ function newHouse(id: number, cx: number, cz: number, g: number, storeys: 1 | 2)
     takeoff: [],
     pole: false,
     tall: [],
+    runout: [],
   };
 }
 
@@ -198,6 +200,7 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
     const snapChords = chords.length;
     const snapParty = a.party.slice() as HouseSpec['party'];
     const snapTakeoff = a.takeoff.slice();
+    const snapRunout = (a.runout ?? []).slice();
     const rollback = (): void => {
       houses.delete(bid);
       patches.length = snapPatches;
@@ -206,6 +209,7 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
       chords.length = snapChords;
       a.party = snapParty;
       a.takeoff = snapTakeoff;
+      a.runout = snapRunout;
     };
     try {
       let b: HouseSpec;
@@ -263,9 +267,11 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
         pe.up = false;
         edges.push(pe);
         chords.push({ p: hand, q: an, a: a.id, b: bid });
-        // The rope run-out only clears a rim up to hero.stepUp (0.4 m): the launch face has no parapet.
+        // The launch face keeps its windows and parapet, cut by a 1.6 m run-out gap where the rope
+        // chord crosses it (review M3); the rest of the face stays closed so a runner cannot walk off.
         a.takeoff = a.takeoff.filter((f) => f !== 3);
-        a.party[3] = true;
+        const crossT = (zz - (a.cz - HALF)) / (zz - an[2]);
+        if (!a.party[3]) (a.runout ??= []).push({ face: 3, s: round6((an[0] - a.cx) * crossT) });
         return { up: false, dy: deckY(b) - deckA };
       }
       // gap edges
@@ -461,12 +467,16 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
     }
   }
 
-  // parapets: tall where the drop beyond is above 6.5 m and the side is neither takeoff nor party
+  // parapets: tall (1.2 m, never vaultable) on every side the hero could fall from into the lethal
+  // hillside: not party, takeoff, balcony, stairs or run-out faces (review M1 belt and braces; the
+  // sim also refuses a vault that ends in a lethal drop).
   for (const h of all()) {
     for (let f = 0; f < 4; f++) {
       if (h.party[f] || h.takeoff.indexOf(f as Face) >= 0 || h.balcony === f) continue;
+      if (h.stairs !== null && h.stairs.face === f) continue;
+      if ((h.runout ?? []).some((r) => r.face === f)) continue;
       const beyond = f === 3 ? gy(h.cz - 2 * HALF) : h.groundY;
-      if (deckY(h) - beyond > 6.5) h.tall.push(f as Face);
+      if (deckY(h) - beyond > 1.5) h.tall.push(f as Face);
     }
   }
 
@@ -480,15 +490,18 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
     draft.style.push(0);
   }
 
-  // hazards: depth bands down the hill, below every walkable patch
+  // hazards: 1 m bands down the hill whose top is the visible terrain (the highest point of the
+  // band), so death happens where the hero touches the drawn ground (review M2). Lower under patches.
   const hazards: { min: P3; max: P3 }[] = [];
   const zTop = Math.max(...ordered.map((h) => h.cz)) + 14;
   const zBot = Math.min(...ordered.map((h) => h.cz)) - 30;
-  for (let z = zTop; z > zBot; z -= 10) {
-    const zl = z - 10;
-    let top = gy(zl) - 1.0;
+  const bands = Math.ceil((zTop - zBot) / HAZARD_BAND);
+  for (let k = 0; k < bands; k++) {
+    const z = zTop - k * HAZARD_BAND;
+    const zl = z - HAZARD_BAND;
+    let top = Math.max(gy(z), gy(zl)) - 0.05;
     for (const p of patches) if (p.z1 > zl && p.z0 < z) top = Math.min(top, p.y - 0.5);
-    hazards.push({ min: [-90, top - 8, zl], max: [90, top, z] });
+    hazards.push({ min: [-90, round6(top - 8), round6(zl)], max: [90, round6(top), round6(z)] });
   }
 
   const lines: { zone: { min: P3; max: P3 }; anchor: number }[] = [];

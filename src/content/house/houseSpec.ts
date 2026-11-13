@@ -24,7 +24,14 @@ export interface HouseSpec {
   pole: boolean;
   /** 1.2 m (not vaultable) parapet sides. Disjoint from `takeoff`. */
   tall: Face[];
+  /**
+   * Zipline run-out gaps: the parapet on `face` (a non-party face) is cut for 1.6 m centred at
+   * tangent offset `s`, where the rope chord leaves the deck. The rest of the face stays closed.
+   */
+  runout?: { face: Face; s: number }[];
 }
+
+export const RUNOUT_GAP = 1.6;
 
 export interface PropSpec {
   kind: 'crate' | 'boxPile' | 'hay' | 'tramp';
@@ -212,6 +219,8 @@ export function validateHouse(h: HouseSpec): void {
     if (h.tall.indexOf(h.takeoff[i]) >= 0) fail('face ' + h.takeoff[i] + ' is takeoff and tall');
   }
   for (let i = 0; i < h.tall.length; i++) open(h.tall[i], 'tall parapet');
+  const ro = h.runout;
+  if (ro !== undefined) for (let i = 0; i < ro.length; i++) open(ro[i].face, 'runout');
 }
 
 // ---- parapets -------------------------------------------------------------------------------
@@ -258,6 +267,13 @@ export function parapetSegments(h: HouseSpec, f: Face): Span[] {
   if (h.balcony === f) spans = subtract(spans, [-1.7, 1.7]);
   if (h.stairs !== null && h.stairs.face === f && h.stairs.to === 'roof') {
     spans = subtract(spans, [HK.stairHighRoof - 1.2, HK.stairHighRoof + 1.2]);
+  }
+  const ro = h.runout;
+  if (ro !== undefined) {
+    for (let i = 0; i < ro.length; i++) {
+      if (ro[i].face === f)
+        spans = subtract(spans, [ro[i].s - RUNOUT_GAP / 2, ro[i].s + RUNOUT_GAP / 2]);
+    }
   }
   const out: Span[] = [];
   for (let i = 0; i < spans.length; i++) if (spans[i][1] - spans[i][0] >= 0.05) out.push(spans[i]);

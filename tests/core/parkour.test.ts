@@ -151,19 +151,48 @@ describe('auto-vault (ADR 0013 s2.1)', () => {
     expect(s.dead).toBe(0);
   });
 
-  it('a vault into a lethal drop is killed by the landing rule, not by the vault', () => {
+  it('refuses to vault into a lethal drop: the parapet blocks like a wall', () => {
     const w = world(1);
     addSolid(w, box(-4, 0, -10, 4, 12, 5.25)); // roof deck at 12, ground at 0 beyond
     addSolid(w, box(-4, 12, 5, 4, 12.45, 5.25)); // parapet
     const s = hero(0, 12, 2, 1, 6);
-    let sawVaultAlive = false;
+    let ev = 0;
     for (let i = 0; i < 200; i++) {
       step(s, stick(1), w, cfg);
-      if (s.mode === HERO_VAULT && s.dead === 0) sawVaultAlive = true;
+      ev |= s.eventBits;
     }
-    expect(sawVaultAlive).toBe(true);
-    expect(s.dead).toBe(1);
-    expect(s.deadCause).toBe(DEAD_HARD_LANDING);
+    expect(ev & HERO_EV_VAULT).toBe(0);
+    expect(s.dead).toBe(0);
+    expect(s.py).toBeCloseTo(12, 2);
+  });
+
+  it('refuses to vault a balcony rail over a hazard band', () => {
+    const w = world(1);
+    addSolid(w, box(-4, 0, -10, 4, 3, 5.25)); // deck at 3
+    addSolid(w, box(-4, 3, 5, 4, 3.9, 5.05)); // 0.9 m rail
+    w.hazards.push(box(-30, -5, 5.1, 30, 1, 30)); // gully just beyond the rail
+    const s = hero(0, 3, 2, 1, 6);
+    let ev = 0;
+    for (let i = 0; i < 150; i++) {
+      step(s, stick(1), w, cfg);
+      ev |= s.eventBits;
+    }
+    expect(ev & HERO_EV_VAULT).toBe(0);
+    expect(s.dead).toBe(0);
+  });
+
+  it('still vaults a drop onto a surface it survives', () => {
+    const w = world(1);
+    addSolid(w, box(-4, 0, -10, 4, 1.5, 5.25)); // deck at 1.5, ground at 0 beyond
+    addSolid(w, box(-4, 1.5, 5, 4, 1.95, 5.25)); // parapet
+    const s = hero(0, 1.5, 2, 1, 6);
+    let ev = 0;
+    for (let i = 0; i < 150; i++) {
+      step(s, stick(1), w, cfg);
+      ev |= s.eventBits;
+    }
+    expect(ev & HERO_EV_VAULT).toBe(HERO_EV_VAULT);
+    expect(s.dead).toBe(0);
   });
 });
 
