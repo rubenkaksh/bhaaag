@@ -31,9 +31,9 @@ Amendment 2026-11-12 (cloud village, owner decided 2026-11-12; draft `docs/brief
 Stated in `docs/lean-scope.md` ("Dropped, do NOT build") and `CLAUDE.md`:
 - Godot-portable core rules and the Godot shooter integration (dropped by lean scope).
 - Level validator / never-dead-end proof, replay traces, golden-test gates, CI deploy gates.
-- Multi-level content beyond Classic L1, the one generated Nagarkot level and the one hand-placed Cloud Village level; assist ladder, level select, GLB asset pipeline.
+- Multi-level content beyond Classic L1, the one generated Nagarkot level and the one hand-placed Cloud Village level, except graph levels per lean-scope Amendment 2026-11-13, each a lobby entry; assist ladder, level select, GLB asset pipeline.
 - Melee combat (MVP1 backlog, do not build yet).
-- Modes beyond Classic L1 and Dragon Chase. Amendment 2026-11-10b: plus the Nagarkot->Bhaktapur strategy run (one generated level); plus Cloud Village (Amendment 2026-11-12); no fifth mode, no level select, no per-level progression.
+- Modes beyond Classic L1 and Dragon Chase. Amendment 2026-11-10b: plus the Nagarkot->Bhaktapur strategy run (one generated level); plus Cloud Village (Amendment 2026-11-12); no fifth mode, no level select, except graph levels per lean-scope Amendment 2026-11-13, each a lobby entry; no per-level progression.
 - Health pips or checkpoints beyond near-instant restart (one-hit death).
 - Amendment 2026-11-10b: a sim-driven level validator stays out; only a pure-graph BFS unit test guards the generated maze. Free-aim zipline in the maze mode is out (fixed lines only); a cushion under every roof is out (cushions are rare destinations).
 Stated in `CLAUDE.md` Locked decisions and `docs/lean-scope.md` Budget: no hand-written custom shaders, no GLB hero model (procedural primitives and stock materials). Small baked textures allowed since 2026-11-09 (graphics overhaul).

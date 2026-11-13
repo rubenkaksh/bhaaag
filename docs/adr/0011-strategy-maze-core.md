@@ -113,3 +113,10 @@ tint is a renderer-track follow-up). Budget estimate: 100 houses x ~2 boxes + ro
 - Not verified by this ADR: phone frame time with 100 houses, feel of the climb hold time, whether
   2.2 m reach is too generous. Owner decisions flagged: BFS test (sec. 5), PRODUCT.md wording,
   seed re-roll policy, hazard = instant death vs. slow walk-back.
+
+## Amendment 2026-11-13 (ADR 0013)
+"Still exactly one such level" no longer holds: further levels are graph-driven (ADR 0013), each
+a new lobby entry; this ADR's generated Nagarkot Run stays frozen as shipped. New levels set
+`parkour: 1`, which adds auto-vault, airborne step-up, auto-mantle by stick and the landing slide;
+with `parkour: 0` every rule in this ADR is unchanged. Section 5's "pure-graph BFS only" applies to
+Nagarkot; graph levels are accepted by sim bots (ADR 0013 s3.6).

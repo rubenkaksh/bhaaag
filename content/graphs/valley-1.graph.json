@@ -1,0 +1,40 @@
+{
+  "format": "bhaaag-graph",
+  "version": 1,
+  "id": "valley-1",
+  "name": "Valley Run",
+  "placer": 1,
+  "seed": 20261113,
+  "nodes": [
+    { "id": 1 },
+    { "id": 2 },
+    { "id": 3 },
+    { "id": 4 },
+    { "id": 5 },
+    { "id": 6 },
+    { "id": 7, "storeys": 1 },
+    { "id": 8, "storeys": 1 },
+    { "id": 9, "storeys": 2 },
+    { "id": 10 }
+  ],
+  "edges": [
+    { "a": 1, "b": 2, "kind": "zip" },
+    { "a": 2, "b": 3, "kind": "touch" },
+    { "a": 3, "b": 4, "kind": "touch" },
+    { "a": 4, "b": 5, "kind": "zip" },
+    { "a": 5, "b": 6, "kind": "zip" },
+    { "a": 6, "b": 7, "kind": "gap", "via": "cushion" },
+    { "a": 7, "b": 8, "kind": "touch" },
+    { "a": 8, "b": 9, "kind": "gap", "via": "tramp" },
+    { "a": 9, "b": 10, "kind": "touch" }
+  ],
+  "start": 1,
+  "goal": 10,
+  "decoys": 8,
+  "profile": [
+    [0, 0],
+    [-60, -22],
+    [-100, -32],
+    [-130, -34]
+  ]
+}
