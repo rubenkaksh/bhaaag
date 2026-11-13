@@ -39,7 +39,7 @@ import { Sfx } from '../adapters/audio/sfx';
 import { CameraRig, updateCamera } from '../adapters/render/cameraRig';
 import { chaseRigYaw, tickYawOffsets } from '../adapters/render/cameraYaw';
 import type { YawOffsets } from '../adapters/render/cameraYaw';
-import { applyLookDrag, newLookState, setLookActive, tickLook } from '../adapters/render/lookOffset';
+import { applyLookDrag, lookAvailability, newLookState, setLookActive, tickLook } from '../adapters/render/lookOffset';
 import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
@@ -308,6 +308,7 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
     look.yaw = 0;
     look.pitch = 0;
     hudUi.setLookActive(false);
+    lookAuto = false;
     hintId = NO_ANCHOR;
     hintT = 0;
     tapAnchor = NO_ANCHOR;
@@ -350,9 +351,13 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
   if (isVillage && camTilt > 0) hudUi.hideReticle();
   const chaseHud = isChase ? new ChaseHud(root, () => restart()) : null;
 
+  let lookAuto = false; // on the rope look-around is on by default (lookAvailability.auto)
+  let lookEnabled = true; // LOOK button enabled (hero stable on a roof or riding the rope)
+
   /** LOOK button / L key: toggle free look-around. Off eases the camera back to the follow view. */
   function toggleLook(): void {
     if (phase === 'dead' && cs !== null) return;
+    if (!lookAvailability(cur.mode).available || lookAuto) return; // airborne/hanging: no LOOK; on the rope it is always on
     setLookActive(look, !look.active);
     input.lookDx = 0;
     input.lookDy = 0;
@@ -430,6 +435,19 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
     applyLookDrag(look, input.lookDx, input.lookDy, camCfg);
     input.lookDx = 0;
     input.lookDy = 0;
+    // LOOK rules (lookAvailability): roof = toggle, rope = on by default, airborne/hanging = off.
+    const av = lookAvailability(cur.mode);
+    if (av.available !== lookEnabled) {
+      lookEnabled = av.available;
+      hudUi.setLookEnabled(lookEnabled);
+    }
+    if (av.auto) {
+      if (!look.active) setLookActive(look, true);
+      look.idle = 0; // no idle timeout while riding
+    } else if (lookAuto || !av.available) {
+      if (look.active) setLookActive(look, false); // detached / landed / airborne: ease back
+    }
+    lookAuto = av.auto;
     const wasLook = look.active;
     tickLook(look, stepDt, input.lookHeld, camCfg);
     if (look.active !== wasLook) hudUi.setLookActive(look.active);

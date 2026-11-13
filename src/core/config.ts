@@ -97,6 +97,8 @@ export type Tuning = {
     zipYawDeg: number;
     zipYawMinDiagDeg: number;
     zipYawEase: number;
+    lookInvertX: number; // LOOK drag: 1 = drag right turns the view right (flip with 0); global
+    lookInvertY: number; // LOOK drag: 1 = drag down looks down (flip with 0); global
     sideYawDeg: number; // yaw toward the side of lateral travel at sideYawSpeed m/s sideways (T300)
     sideYawSpeed: number; // sideways speed that reaches the full offset, m/s
     sideYawEase: number; // per fixed tick ease toward a larger side-look target
@@ -265,7 +267,9 @@ export const DEFAULT_TUNING: Tuning = {
     zipYawDeg: 45,
     zipYawMinDiagDeg: 20,
     zipYawEase: 0.06,
-    sideYawDeg: 35,
+    sideYawDeg: 40,
+    lookInvertX: 1,
+    lookInvertY: 0,
     sideYawSpeed: 2.5,
     sideYawEase: 0.07,
     sideYawEaseBack: 0.035,

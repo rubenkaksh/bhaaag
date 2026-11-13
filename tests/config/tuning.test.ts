@@ -98,6 +98,8 @@ const schema = z.strictObject({
     sideYawSpeed: num,
     sideYawEase: num,
     sideYawEaseBack: num,
+    lookInvertX: num,
+    lookInvertY: num,
     lookYawMaxDeg: num,
     lookPitchMinDeg: num,
     lookPitchMaxDeg: num,

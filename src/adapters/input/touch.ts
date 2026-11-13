@@ -328,10 +328,18 @@ export class TouchInput {
     this.stickId = e.pointerId;
     this.roles.set(e.pointerId, ROLE_STICK);
     this.capture(this.stickZone, e);
-    // Floating base: appears where the thumb lands.
+    // Floating base: appears where the thumb lands. While LOOK is on it is fixed at its home
+    // (the resting ghost's centre), so the thumb can steer while the other hand looks around.
     this.stickActive = true;
     this.stickOriginX = e.clientX;
     this.stickOriginY = e.clientY;
+    if (this.lookModeOn && this.stickBase !== null) {
+      const r = this.stickBase.getBoundingClientRect();
+      if (r.width > 0) {
+        this.stickOriginX = r.left + r.width / 2;
+        this.stickOriginY = r.top + r.height / 2;
+      }
+    }
     this.stickX = 0;
     this.stickY = 0;
   };

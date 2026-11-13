@@ -195,6 +195,10 @@
 #hud-lookbtn.on {
   background: rgba(255, 200, 58, 0.45);
 }
+#hud-lookbtn.dim {
+  opacity: 0.35;
+  pointer-events: none;
+}
 #hud-hint {
   top: calc(var(--pad) + clamp(32px, 5.4vh, 58px) + 8px + env(safe-area-inset-top, 0px));
   left: 50%;

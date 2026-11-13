@@ -285,6 +285,12 @@ export class Hud {
     this.reticle.classList.toggle('look', on); // free look: the centre dot no longer marks the aim
   }
 
+  /** LOOK button enabled only while the hero is stable on a roof or riding the rope; dimmed otherwise. */
+  setLookEnabled(on: boolean): void {
+    (this.lookBtn as HTMLButtonElement).disabled = !on;
+    this.lookBtn.classList.toggle('dim', !on);
+  }
+
   destroy(): void {
     this.hintBtn.remove();
     this.lookBtn.remove();
