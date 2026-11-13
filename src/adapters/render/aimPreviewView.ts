@@ -28,8 +28,18 @@ export class AimPreviewView {
   readonly group = new Group();
   private readonly lineGeo = new BoxGeometry(1, 1, 1);
   private readonly ringGeo = new RingGeometry(RING_INNER, RING_OUTER, 24);
-  private readonly lineMat = new MeshBasicMaterial({ color: CREAM, transparent: true, opacity: 0.85, fog: false });
-  private readonly ringMat = new MeshBasicMaterial({ color: CREAM, transparent: true, opacity: 0.9, fog: false });
+  private readonly lineMat = new MeshBasicMaterial({
+    color: CREAM,
+    transparent: true,
+    opacity: 0.85,
+    fog: false,
+  });
+  private readonly ringMat = new MeshBasicMaterial({
+    color: CREAM,
+    transparent: true,
+    opacity: 0.9,
+    fog: false,
+  });
   private readonly line = new Mesh(this.lineGeo, this.lineMat);
   private readonly ring = new Mesh(this.ringGeo, this.ringMat);
   private readonly aim = new Vector3();

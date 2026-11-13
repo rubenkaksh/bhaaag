@@ -27,7 +27,12 @@ export function physicalOrientation(w: number, h: number): 'landscape' | 'portra
 }
 
 /** CSS rotation is needed when a forced orientation differs from the physical one and no lock is active. */
-export function needsRotation(pref: OrientPref, w: number, h: number, lockActive: boolean): boolean {
+export function needsRotation(
+  pref: OrientPref,
+  w: number,
+  h: number,
+  lockActive: boolean,
+): boolean {
   if (pref === 'auto' || lockActive) return false;
   return physicalOrientation(w, h) !== pref;
 }
@@ -60,7 +65,10 @@ export function remapPoint(
 }
 
 /** Inline style for the rotated root (physical size w x h). */
-export function rotatedRootStyle(w: number, h: number): { width: string; height: string; transform: string } {
+export function rotatedRootStyle(
+  w: number,
+  h: number,
+): { width: string; height: string; transform: string } {
   return { width: `${h}px`, height: `${w}px`, transform: `translateX(${w}px) rotate(90deg)` };
 }
 
@@ -75,7 +83,9 @@ export function cyclePref(p: OrientPref): OrientPref {
   return ORIENT_PREFS[(ORIENT_PREFS.indexOf(p) + 1) % ORIENT_PREFS.length];
 }
 
-export function loadOrientPref(storage: Pick<Storage, 'getItem'> | null = safeStorage()): OrientPref {
+export function loadOrientPref(
+  storage: Pick<Storage, 'getItem'> | null = safeStorage(),
+): OrientPref {
   try {
     return parseOrientPref(storage?.getItem(ORIENT_KEY));
   } catch {
@@ -83,7 +93,10 @@ export function loadOrientPref(storage: Pick<Storage, 'getItem'> | null = safeSt
   }
 }
 
-export function saveOrientPref(p: OrientPref, storage: Pick<Storage, 'setItem'> | null = safeStorage()): void {
+export function saveOrientPref(
+  p: OrientPref,
+  storage: Pick<Storage, 'setItem'> | null = safeStorage(),
+): void {
   try {
     storage?.setItem(ORIENT_KEY, p);
   } catch {
@@ -181,7 +194,15 @@ export function createOrientation(root: HTMLElement = document.body): Orientatio
     if (want === rotatedNow) return;
     rotatedNow = want;
     if (!want) {
-      for (const k of ['position', 'left', 'top', 'transformOrigin', 'width', 'height', 'transform'] as const) {
+      for (const k of [
+        'position',
+        'left',
+        'top',
+        'transformOrigin',
+        'width',
+        'height',
+        'transform',
+      ] as const) {
         root.style[k] = '';
       }
     }

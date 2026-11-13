@@ -276,7 +276,7 @@ function dressHouse(o: Out, h: HouseSpec, seed: number, shutterIdx: { n: number 
       if (len < 0.5) continue; // a 0.1 m post: solid only
       const cx = (r.x0 + r.x1) / 2;
       const cz = (r.z0 + r.z1) / 2;
-      if (o.kit.add('rail', cx, top, cz, len / RAIL_LEN, 1, 1, alongZ ? Math.PI / 2 : 0, wood)) {
+      if (o.kit.add('guard', cx, top, cz, len / RAIL_LEN, 1, 1, alongZ ? Math.PI / 2 : 0, wood)) {
         o.boxes.push({
           kind: 'rail',
           min: [r.x0, top, r.z0],

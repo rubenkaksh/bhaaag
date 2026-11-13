@@ -165,7 +165,15 @@ function ellipsoid(
 }
 
 /** Tapered cylinder from a (radius r0) to b (radius r1). */
-function limb(parts: Part[], seg: number, color: Color, a: Vector3, b: Vector3, r0: number, r1: number): void {
+function limb(
+  parts: Part[],
+  seg: number,
+  color: Color,
+  a: Vector3,
+  b: Vector3,
+  r0: number,
+  r1: number,
+): void {
   const d = new Vector3().subVectors(b, a);
   const len = d.length();
   const g = new CylinderGeometry(r1, r0, len, Math.max(5, Math.round(seg * 0.5)), 1);
@@ -177,7 +185,15 @@ function limb(parts: Part[], seg: number, color: Color, a: Vector3, b: Vector3, 
 }
 
 /** Cone with its base centre at `base`, pointing along `dir`. */
-function spike(parts: Part[], seg: number, color: Color, base: Vector3, dir: Vector3, len: number, r: number): void {
+function spike(
+  parts: Part[],
+  seg: number,
+  color: Color,
+  base: Vector3,
+  dir: Vector3,
+  len: number,
+  r: number,
+): void {
   const g = new ConeGeometry(r, len, Math.max(5, Math.round(seg * 0.5)));
   g.translate(0, len / 2, 0);
   tmpQ.setFromUnitVectors(UP, tmpV.copy(dir).normalize());
@@ -321,9 +337,21 @@ export class DragonView {
   private readonly cloudMat = new MeshLambertMaterial({ color: '#ffffff', emissive: '#4a3a26' });
   private readonly flameMat = new MeshLambertMaterial({ color: FLAME, emissive: '#a8480a' });
   // Head: fog off, it is the source of the white-out and must stay readable through it (T290).
-  private readonly headMat = new MeshLambertMaterial({ vertexColors: true, emissive: '#3a2410', fog: false });
-  private readonly maneMat = new MeshLambertMaterial({ color: FLAME, emissive: '#b8520c', fog: false });
-  private readonly eyeMat = new MeshBasicMaterial({ vertexColors: true, fog: false, toneMapped: false });
+  private readonly headMat = new MeshLambertMaterial({
+    vertexColors: true,
+    emissive: '#3a2410',
+    fog: false,
+  });
+  private readonly maneMat = new MeshLambertMaterial({
+    color: FLAME,
+    emissive: '#b8520c',
+    fog: false,
+  });
+  private readonly eyeMat = new MeshBasicMaterial({
+    vertexColors: true,
+    fog: false,
+    toneMapped: false,
+  });
   private readonly headMats: Material[] = [this.headMat, this.maneMat, this.eyeMat];
   private readonly bodyMats: Material[] = [this.bodyMat, this.cloudMat, this.flameMat];
   private readonly cloudGeo = new IcosahedronGeometry(1, 1);
@@ -459,7 +487,8 @@ export class DragonView {
       const u = sb / SPRITE_CHAIN;
       bodyEnvelope(u, this.env);
       const neck = 0.62 + 0.38 * smooth01(sb / 10);
-      const tip = sb <= SPRITE_CHAIN ? 1 : Math.pow(Math.max(0, 1 - (sb - SPRITE_CHAIN) / TAIL_TIP), 0.7);
+      const tip =
+        sb <= SPRITE_CHAIN ? 1 : Math.pow(Math.max(0, 1 - (sb - SPRITE_CHAIN) / TAIL_TIP), 0.7);
       const bulge = 1 + 0.05 * Math.cos((sb / SEG_LEN) * Math.PI * 2);
       this.ringS[i] = NECK_S + sb;
       this.ringU[i] = u;
@@ -614,7 +643,15 @@ export class DragonView {
    * gap: dragonZ - heroZ; the head looms larger and lower as it closes.
    * camZ / pin: pin the head HEAD_AHEAD in front of the camera (unused by the reversed camera).
    */
-  update(dragonZ: number, time: number, lunge: number, heroX: number, gap: number, camZ: number, pin: boolean): void {
+  update(
+    dragonZ: number,
+    time: number,
+    lunge: number,
+    heroX: number,
+    gap: number,
+    camZ: number,
+    pin: boolean,
+  ): void {
     const b = this.built;
     if (b === null) return;
     const prox = clamp01((22 - gap) / 19.5);
@@ -732,7 +769,8 @@ export class DragonView {
       const lat = SWIM_LAT * grow * (0.6 + 0.4 * Math.min(1, u)) * Math.sin(ph);
       const vert = SWIM_VERT * grow * Math.sin(ph * 0.8 + 1.3);
       this.cx[i] += this.sx[i] * lat + this.ux[i] * vert;
-      this.cy[i] += this.sy[i] * lat + this.uy[i] * vert + 2 * Math.sin(Math.min(1, u) * Math.PI * 0.5);
+      this.cy[i] +=
+        this.sy[i] * lat + this.uy[i] * vert + 2 * Math.sin(Math.min(1, u) * Math.PI * 0.5);
       this.cz[i] += this.sz[i] * lat + this.uz[i] * vert;
       bodyEnvelope(u, this.env);
       const floor = hillY(this.cz[i]) + this.env.h * 0.45; // cloud flanks stay off the grass
@@ -888,7 +926,15 @@ export class DragonView {
     b.flames.instanceMatrix.needsUpdate = true;
   }
 
-  private poseHead(b: Built, hx: number, hy: number, hz: number, time: number, prox: number, lunge: number): void {
+  private poseHead(
+    b: Built,
+    hx: number,
+    hy: number,
+    hz: number,
+    time: number,
+    prox: number,
+    lunge: number,
+  ): void {
     const head = this.head;
     head.position.set(hx, hy, hz);
     // face along the path (from the neck to the head), pitched down at the hero

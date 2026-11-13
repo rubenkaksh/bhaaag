@@ -33,7 +33,7 @@ describe('houseV2 renderer (ADR 0013 s1.4)', () => {
       'window',
       'parapet',
       'deck',
-      'rail',
+      'guard',
       'cornice',
       'stair',
       'crate',
@@ -115,9 +115,28 @@ describe('houseV2 renderer (ADR 0013 s1.4)', () => {
     expect(st.refused).toBe(0);
     expect(st.houses).toBe(20);
     // the 90 % margin the v1 budget test uses
-    const caps = { window: 500, shutter: 120, parapet: 120, deck: 56, rail: 340, cornice: 100 };
+    const caps = { window: 500, shutter: 120, parapet: 120, deck: 56, guard: 340, cornice: 100 };
     const c = counts(g);
     for (const [id, cap] of Object.entries(caps))
       expect(c[id] ?? 0, id).toBeLessThanOrEqual(0.9 * cap);
+  });
+});
+
+describe('Low tier hidden pieces (review M4)', () => {
+  it('v1 Low output is unchanged: v1 rails stay hidden, v2 balcony rails (guard) stay visible', () => {
+    expect(LOW_HIDDEN_DECOR).toEqual([
+      'decor_rail',
+      'decor_canopy',
+      'decor_bracket',
+      'decor_pot',
+      'decor_planter',
+      'decor_shutter',
+      'decor_flag',
+      'decor_trim',
+      'decor_strings',
+      'decor_birds',
+    ]);
+    expect(LOW_HIDDEN_DECOR).not.toContain('decor_guard');
+    expect(counts(demo).guard ?? 0).toBeGreaterThan(0);
   });
 });

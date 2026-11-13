@@ -186,8 +186,9 @@ export const PIXEL_RATIO_CAP: Record<GraphicsTier, readonly [number, number]> = 
 
 /** Lane half-width (m) for shadow casters and detail: decor beyond it never casts. */
 export const CASTER_REACH = 12;
-/** Low drops these pieces (rails stay: balcony rails are the fall guard, T313): every instanced mesh is a draw call and none carries the lane. */
+/** Low drops these pieces: every instanced mesh is a draw call and none carries the lane. v1 rails are hidden as before; the v2 balcony rails are the separate `guard` piece, which stays (fall guard, T313). */
 export const LOW_HIDDEN_DECOR: readonly string[] = [
+  'decor_rail',
   'decor_canopy',
   'decor_bracket',
   'decor_pot',

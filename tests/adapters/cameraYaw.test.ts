@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { chaseRigYaw, easeSideYaw, easeYawOffset, sideYawTarget, zipYawTarget } from '../../src/adapters/render/cameraYaw';
+import {
+  chaseRigYaw,
+  easeSideYaw,
+  easeYawOffset,
+  sideYawTarget,
+  zipYawTarget,
+} from '../../src/adapters/render/cameraYaw';
 
-const cfg = { zipYawDeg: 45, zipYawMinDiagDeg: 20, zipYawEase: 0.1,
+const cfg = {
+  zipYawDeg: 45,
+  zipYawMinDiagDeg: 20,
+  zipYawEase: 0.1,
   sideYawDeg: 14,
   sideYawSpeed: 5,
   sideYawEase: 0.1,

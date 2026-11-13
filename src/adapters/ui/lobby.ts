@@ -133,7 +133,8 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
     if (orient === undefined || !orient.supported) orientRow.style.display = 'none';
     else {
       const showOrient = (): void => {
-        for (const b of orientBtns) b.setAttribute('aria-checked', String(b.dataset.orient === orient.pref()));
+        for (const b of orientBtns)
+          b.setAttribute('aria-checked', String(b.dataset.orient === orient.pref()));
       };
       for (const b of orientBtns) {
         b.addEventListener('click', () => {

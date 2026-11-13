@@ -83,7 +83,10 @@ export const WAYPOINT_HIDE_M = 3;
  * nothing is below. Plain for-loop, no allocation.
  */
 export function padHeightBelow(
-  solids: readonly { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } }[],
+  solids: readonly {
+    min: { x: number; y: number; z: number };
+    max: { x: number; y: number; z: number };
+  }[],
   x: number,
   y: number,
   z: number,
