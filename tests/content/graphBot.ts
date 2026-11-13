@@ -129,7 +129,14 @@ class Bot {
     );
   }
   /** Steer in the air toward a point, optionally holding JUMP, until grounded or budget. */
-  fly(tx: number, tz: number, holdJump: boolean, budget: number, stopOn: () => boolean, drive = false): void {
+  fly(
+    tx: number,
+    tz: number,
+    holdJump: boolean,
+    budget: number,
+    stopOn: () => boolean,
+    drive = false,
+  ): void {
     for (let i = 0; i < budget && this.s.dead === 0; i++) {
       if (stopOn()) return;
       const f = new InputFrame();
@@ -193,7 +200,8 @@ function runEdge(bot: Bot, e: PlacedEdge, a: HouseSpec, b: HouseSpec): string {
   }
   if (e.kind === 'zip') {
     const z = e.zone as [number, number, number];
-    if (!bot.walk(z[0] + jx * 0.3, z[2] + jz * 0.3, 0.5, 0.7, EDGE_TICKS / 2)) return fail('zip walk');
+    if (!bot.walk(z[0] + jx * 0.3, z[2] + jz * 0.3, 0.5, 0.7, EDGE_TICKS / 2))
+      return fail('zip walk');
     bot.idle(bot.late + bot.tj);
     let n = 0;
     for (let i = 0; i < EDGE_TICKS && s.dead === 0; i++) {
@@ -232,7 +240,14 @@ function runEdge(bot: Bot, e: PlacedEdge, a: HouseSpec, b: HouseSpec): string {
   if (!airborne) return fail('gap never left roof');
   if (isTramp) {
     bot.fly(prop[0] + jx, prop[2] + jz, true, 240, () => bounced() || s.grounded === 1);
-    bot.fly(b.cx + jx, b.cz + jz, false, 400, () => s.mode === HERO_HANGING || s.grounded === 1, true);
+    bot.fly(
+      b.cx + jx,
+      b.cz + jz,
+      false,
+      400,
+      () => s.mode === HERO_HANGING || s.grounded === 1,
+      true,
+    );
     for (let i = 0; i < EDGE_TICKS && s.dead === 0; i++) {
       if (done()) return '';
       const f = new InputFrame();
@@ -308,7 +323,11 @@ export function playRoute(g: GraphLevel, p: PlacedLevel, style: Style['name'], v
     if (bot.ticks > TOTAL_TICKS) return { ok: false, events: bot.events, cause: 'over 120 s' };
   }
   const cause = leap(bot, p, houseOf(p, g.goal));
-  return { ok: cause === '' && bot.ticks <= TOTAL_TICKS, events: bot.events, cause: cause || (bot.ticks > TOTAL_TICKS ? 'over 120 s' : '') };
+  return {
+    ok: cause === '' && bot.ticks <= TOTAL_TICKS,
+    events: bot.events,
+    cause: cause || (bot.ticks > TOTAL_TICKS ? 'over 120 s' : ''),
+  };
 }
 
 /** Precise bot spawned on a (grounded, deck centre) completes one edge on b. */

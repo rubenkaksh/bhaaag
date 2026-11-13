@@ -1,13 +1,7 @@
 // Strategy maze feature meshes (ADR 0011 sec. 6): line zones, rope lines + posts, tramps and
 // cushions, one merged draw call each. Stock materials, no textures. Only used when
 // world.lineOnly === 1; hazards are not drawn.
-import {
-  BufferGeometry,
-  Color,
-  Float32BufferAttribute,
-  Mesh,
-  MeshLambertMaterial,
-} from 'three';
+import { BufferGeometry, Color, Float32BufferAttribute, Mesh, MeshLambertMaterial } from 'three';
 import type { Object3D } from 'three';
 import type { World } from '../../core/world';
 import { buildFixedRopes } from '../../app/ropePost';
@@ -76,7 +70,7 @@ export function minSolidZ(world: World): number {
 }
 
 /** Merged feature meshes: zones, posts, rope lines, tramps (rim + top), cushions. */
-export function buildStrategyFeatures(world: World): Object3D[] {
+export function buildStrategyFeatures(world: World, skipProps = false): Object3D[] {
   const out: Object3D[] = [];
   const zones: Box[] = [];
   const posts: Box[] = [];
@@ -100,10 +94,19 @@ export function buildStrategyFeatures(world: World): Object3D[] {
   if (ropes !== null) out.push(ropes);
   const rims: Box[] = [];
   const tops: Box[] = [];
+  // Graph levels draw tramps and cushions as house-kit props (houseV2), not as slabs.
+  if (skipProps) return out;
   for (let i = 0; i < world.tramps.length; i++) {
     const t = world.tramps[i];
     const y = t.max.y + RIM_LIFT;
-    rims.push([t.min.x - RIM_PAD, t.min.y, t.min.z - RIM_PAD, t.max.x + RIM_PAD, y, t.max.z + RIM_PAD]);
+    rims.push([
+      t.min.x - RIM_PAD,
+      t.min.y,
+      t.min.z - RIM_PAD,
+      t.max.x + RIM_PAD,
+      y,
+      t.max.z + RIM_PAD,
+    ]);
     tops.push([t.min.x, y, t.min.z, t.max.x, y + TRAMP_LIFT, t.max.z]);
   }
   if (rims.length > 0) {

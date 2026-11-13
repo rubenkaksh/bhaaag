@@ -21,8 +21,12 @@ function memStore(init: Record<string, string> = {}) {
 }
 
 describe('game modes', () => {
-  it('lists classic, chase, strategy and village', () => {
-    expect(GAME_MODES).toEqual(['classic', 'chase', 'strategy', 'village']);
+  it('lists classic, chase, strategy, village and one entry per graph level', () => {
+    expect(GAME_MODES).toEqual(['classic', 'chase', 'strategy', 'village', 'g:valley-1']);
+    expect(MODE_INFO['g:valley-1'].label).toBe('Valley Run');
+    expect(BEST_KEYS['g:valley-1']).toBe('bhagdori.best.g.valley-1');
+    expect(parseMode('g:valley-1')).toBe('g:valley-1');
+    expect(parseMode('g:nope')).toBeNull();
     expect(BEST_KEYS.village).toBe('bhagdori.best.village');
     expect(BEST_KEYS.strategy).toBe('bhagdori.best.strategy');
     expect(BEST_KEYS.classic).toBe('bhagdori.best.l1');

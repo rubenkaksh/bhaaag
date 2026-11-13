@@ -144,7 +144,8 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
   };
   const all = (): HouseSpec[] => Array.from(houses.values());
   const freeOf = (h: HouseSpec, ignore: number): boolean => {
-    for (const o of all()) if (o.id !== ignore && o.id !== h.id && overlapsHouse(h, o)) return false;
+    for (const o of all())
+      if (o.id !== ignore && o.id !== h.id && overlapsHouse(h, o)) return false;
     for (const p of patches) if (rectHitsHouse(p, h, -0.01)) return false;
     return true;
   };
@@ -252,7 +253,8 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
         const drop = hand[1] - an[1];
         const slope = (Math.atan2(drop, hd) * 180) / Math.PI;
         const len = Math.hypot(hd, drop);
-        if (slope < 13 || slope > 35 || len > 32) throw new Fail('rope slope/len ' + slope + ' ' + len);
+        if (slope < 13 || slope > 35 || len > 32)
+          throw new Fail('rope slope/len ' + slope + ' ' + len);
         if (!freeOf(b, a.id)) throw new Fail('zip overlap');
         pe.takeoff = [a.cx, deckA, zz];
         pe.zone = [a.cx, deckA, zz];
@@ -328,7 +330,11 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
         }
         a.takeoff.push(3);
         pe.takeoff = [a.cx, deckA, a.cz - 3.5];
-        pe.prop = [a.cx, patch.y + (via === 'boxes' ? HK.boxPileTop : HK.hayTop), a.cz - HALF - 1.6];
+        pe.prop = [
+          a.cx,
+          patch.y + (via === 'boxes' ? HK.boxPileTop : HK.hayTop),
+          a.cz - HALF - 1.6,
+        ];
         pe.stairsFoot = [b.cx - 3, patch.y, bz + HALF + 0.5];
         pe.landing = [b.cx, deckY(b), b.cz];
         pe.up = dy > 0.3;
@@ -391,7 +397,8 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
   goalH.takeoff = goalH.takeoff.filter((f) => f !== 3);
   goalH.takeoff.push(3);
   if (goalH.party[3]) throw new Fail('goal downhill face is party');
-  for (const h of all()) if (h.id !== goalH.id && rectHitsHouse(gp, h, -0.01)) throw new Fail('goal patch hit');
+  for (const h of all())
+    if (h.id !== goalH.id && rectHitsHouse(gp, h, -0.01)) throw new Fail('goal patch hit');
   for (const p of patches) if (rectsHit(gp, p)) throw new Fail('goal patch overlap');
   patches.push(gp);
   props.push({ kind: 'hay', x: hayPos[0], z: hayPos[2], groundY: gp.y, yaw: 0 });
@@ -422,7 +429,8 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
       const min: P3 = [d.cx - HALF - 0.3, d.groundY - 2, d.cz - HALF - 0.3];
       const max: P3 = [d.cx + HALF + 0.3, deckY(d) + 1.5, d.cz + HALF + 0.3];
       for (const dy of [0, -1, -2]) {
-        if (segHitsBox([c.p[0], c.p[1] + dy, c.p[2]], [c.q[0], c.q[1] + dy, c.q[2]], min, max)) blocked = true;
+        if (segHitsBox([c.p[0], c.p[1] + dy, c.p[2]], [c.q[0], c.q[1] + dy, c.q[2]], min, max))
+          blocked = true;
       }
     }
     if (blocked) continue;
@@ -439,7 +447,13 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
   // balconies: random on free uphill faces of 2-storey houses that nothing uses
   for (const h of all()) {
     if (h.storeys === 2 && h.balcony === -1 && h.id >= 100 && !h.party[2] && rng() < 0.5) {
-      const r: Patch = { x0: h.cx - 1.5, x1: h.cx + 1.5, z0: h.cz + HALF, z1: h.cz + HALF + 1.2, y: 0 };
+      const r: Patch = {
+        x0: h.cx - 1.5,
+        x1: h.cx + 1.5,
+        z0: h.cz + HALF,
+        z1: h.cz + HALF + 1.2,
+        y: 0,
+      };
       let ok = true;
       for (const o of all()) if (o.id !== h.id && rectHitsHouse(r, o, 0.2)) ok = false;
       for (const p of patches) if (rectsHit(r, p)) ok = false;
@@ -483,7 +497,10 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
       const bh = houses.get(pe.b) as HouseSpec;
       const zc = pe.zone;
       lines.push({
-        zone: { min: [zc[0] - 1.5, zc[1], zc[2] - 1.5], max: [zc[0] + 1.5, zc[1] + 0.05, zc[2] + 1.5] },
+        zone: {
+          min: [zc[0] - 1.5, zc[1], zc[2] - 1.5],
+          max: [zc[0] + 1.5, zc[1] + 0.05, zc[2] + 1.5],
+        },
         anchor: draft.poleAnchorIds[bh.id],
       });
     }

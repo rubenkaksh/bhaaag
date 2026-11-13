@@ -36,7 +36,10 @@ for (const entry of GRAPH_LEVELS) {
       const r = playRoute(g, placed, 'precise', 0);
       expect(r.events & MOVE_BITS.HERO_EV_VAULT, 'vault').toBeTruthy();
       expect(r.events & MOVE_BITS.HERO_EV_MANTLE, 'mantle').toBeTruthy();
-      expect(r.events & (MOVE_BITS.HERO_EV_SLIDE | MOVE_BITS.HERO_EV_ROLLED), 'roll/slide').toBeTruthy();
+      expect(
+        r.events & (MOVE_BITS.HERO_EV_SLIDE | MOVE_BITS.HERO_EV_ROLLED),
+        'roll/slide',
+      ).toBeTruthy();
     });
   });
 }

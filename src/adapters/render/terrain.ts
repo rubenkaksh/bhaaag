@@ -60,8 +60,30 @@ function smooth(a: number, b: number, v: number): number {
   return t * t * (3 - 2 * t);
 }
 
+// Graph levels (ADR 0013): the hill follows the level's own (z, groundY) profile instead of the
+// 20 degree plane. null = stock plane. Extended past both ends along the end segments.
+let profileNow: [number, number][] | null = null;
+
+/** Sets (or clears with null) the ground profile of a graph level; z must be decreasing. */
+export function setTerrainProfile(profile: [number, number][] | null): void {
+  profileNow = profile;
+}
+
+function profileY(p: [number, number][], z: number): number {
+  const n = p.length;
+  if (z >= p[0][0]) return p[0][1] + ((z - p[0][0]) * (p[1][1] - p[0][1])) / (p[1][0] - p[0][0]);
+  for (let i = 1; i < n; i++) {
+    if (z >= p[i][0]) {
+      const t = (z - p[i - 1][0]) / (p[i][0] - p[i - 1][0]);
+      return p[i - 1][1] + t * (p[i][1] - p[i - 1][1]);
+    }
+  }
+  return p[n - 1][1];
+}
+
 /** The planar hill the hero walks on (the collider ramp), extended in both directions. */
 export function planeY(z: number): number {
+  if (profileNow !== null) return profileY(profileNow, z);
   return GRADE * z + GROUND_Y0;
 }
 
