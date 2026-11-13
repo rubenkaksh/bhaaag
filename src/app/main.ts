@@ -47,6 +47,10 @@ const lobby = createLobby(document.body, {
       .then(({ village }) => {
         if (game === null) game = startGame(canvas, document.body, mode, village);
       })
+      .catch(() => {
+        // Chunk fetch failed (offline): bring the lobby back instead of a black screen.
+        lobby.show();
+      })
       .finally(() => {
         starting = false;
       });
