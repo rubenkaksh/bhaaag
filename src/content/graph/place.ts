@@ -1,7 +1,7 @@
 // Graph level placer v1 (ADR 0013 section 3.3). Pure TS: graph file + seed -> houses, props, patches,
 // lines and the level JSON. Frozen once a level ships (`placer: 1`); see tests/content/graphFreeze.test.ts.
 import { emitHouse, emitProp, newDraft } from '../house/houseKit';
-import { HK, deckY, poleAnchor, round6 } from '../house/houseSpec';
+import { HK, RUNOUT_GAP, deckY, poleAnchor, round6 } from '../house/houseSpec';
 import type { Face, HouseSpec, PropSpec } from '../house/houseSpec';
 import type { LevelJson } from '../load';
 import type { GraphEdge, GraphLevel } from './format';
@@ -270,8 +270,27 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
         // The launch face keeps its windows and parapet, cut by a 1.6 m run-out gap where the rope
         // chord crosses it (review M3); the rest of the face stays closed so a runner cannot walk off.
         a.takeoff = a.takeoff.filter((f) => f !== 3);
-        const crossT = (zz - (a.cz - HALF)) / (zz - an[2]);
-        if (!a.party[3]) (a.runout ??= []).push({ face: 3, s: round6((an[0] - a.cx) * crossT) });
+        // The launch zone is 3 x 3 m, so the chord crosses the face anywhere between its four
+        // corner starts; the gap spans all of them (a hero hooking off-centre must not meet the
+        // parapet, which is taller than the hero's step-up).
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (const sx of [-1.5, 1.5]) {
+          for (const sz of [-1.5, 1.5]) {
+            const z0 = zz + sz;
+            const x0 = a.cx + sx;
+            const t = (z0 - (a.cz - HALF)) / (z0 - an[2]);
+            const xc = x0 + (an[0] - x0) * t - a.cx;
+            lo = Math.min(lo, xc);
+            hi = Math.max(hi, xc);
+          }
+        }
+        if (!a.party[3])
+          (a.runout ??= []).push({
+            face: 3,
+            s: round6((lo + hi) / 2),
+            w: round6(hi - lo + RUNOUT_GAP),
+          });
         return { up: false, dy: deckY(b) - deckA };
       }
       // gap edges
@@ -542,7 +561,7 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
   const minY = Math.min(...hazards.map((h) => h.min[1]));
   const level: LevelJson = {
     version: 1,
-    spawn: [sp.cx, round6(deckY(sp)), sp.cz],
+    spawn: [round6(sp.cx - 2.8), round6(deckY(sp)), sp.cz],
     spawnYaw: Math.PI,
     killPlaneY: round6(minY - 20),
     solids: draft.solids,

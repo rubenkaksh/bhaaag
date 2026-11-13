@@ -28,7 +28,7 @@ export interface HouseSpec {
    * Zipline run-out gaps: the parapet on `face` (a non-party face) is cut for 1.6 m centred at
    * tangent offset `s`, where the rope chord leaves the deck. The rest of the face stays closed.
    */
-  runout?: { face: Face; s: number }[];
+  runout?: { face: Face; s: number; w?: number }[];
 }
 
 export const RUNOUT_GAP = 1.6;
@@ -272,7 +272,10 @@ export function parapetSegments(h: HouseSpec, f: Face): Span[] {
   if (ro !== undefined) {
     for (let i = 0; i < ro.length; i++) {
       if (ro[i].face === f)
-        spans = subtract(spans, [ro[i].s - RUNOUT_GAP / 2, ro[i].s + RUNOUT_GAP / 2]);
+        {
+        const half = (ro[i].w ?? RUNOUT_GAP) / 2;
+        spans = subtract(spans, [ro[i].s - half, ro[i].s + half]);
+      }
     }
   }
   const out: Span[] = [];

@@ -16,7 +16,9 @@ function fnv1a(text: string): string {
 const FROZEN: Record<string, string> = {
   // Re-recorded 2026-11-13 for review fixes M1-M3 (run-out gaps, tall parapets, 1 m hazard bands, awnings):
   // valley-1 had not shipped yet. From now on this hash is frozen.
-  'valley-1': '05e18639',
+  // Re-recorded 2026-11-13 (owner report, hero stuck on the roof parapet on diagonal ziplines): run-out gap now spans the whole
+  // launch zone, spawn moved 2.8 m left of it. A shipped-level edit by explicit owner-reported bug; future changes are new levels.
+  'valley-1': '2bd8c4e1',
 };
 
 describe('graph level freeze', () => {
