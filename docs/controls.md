@@ -60,3 +60,15 @@ fixed and aim is bypassed. Movement and tap gestures are as in the table above.
 Feel on a real device: the 180 ms brake delay, the 220 ms double-tap window, thumb reach of the
 button. Strategy mode is not wired into `game.ts` yet, so only the context logic (not a screenshot)
 covers it.
+
+## Screen orientation switch (touch devices)
+
+Menu panel, row **Screen**: Auto / Landscape / Portrait (saved in `localStorage` key `bhaaag.orientation`). Auto follows the
+device (default, no rotate overlay). Forced modes live in `src/adapters/ui/orientation.ts`:
+
+- First choice: fullscreen + `screen.orientation.lock()` (Android Chrome), retried inside the PLAY tap for a saved choice.
+- Fallback (iOS Safari, or lock refused): the game root (`body`) is rotated 90 degrees with CSS. The renderer, HUD layout and the touch adapter
+  read the swapped logical size (`viewportSize()`) and remapped pointer coordinates (`toLogical()`); `@media (orientation: ...)` rules are
+  swapped at runtime so the portrait/landscape HUD layouts follow the logical orientation.
+- Limits of the fallback: the browser UI and safe-area insets (`env(safe-area-inset-*)`) and `vh`/`vw` units still describe the physical
+  screen, so notch/home-indicator padding and some clamp() sizes can be off; the address bar is not hidden; not available on desktop.

@@ -97,6 +97,7 @@ import { framingFor } from '../adapters/render/framing';
 import { MODE_INFO, readBest, writeBest } from './modes/mode';
 import type { GameMode } from './modes/mode';
 import { readViewport, watchViewport } from './viewport';
+import { viewportSize } from '../adapters/ui/orientation';
 import type { ViewportLayout } from './viewport';
 
 const RESTART_ACCEPT_S = 0.3; // death: accept restart input after this
@@ -850,8 +851,7 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
     const cam = gs.camera;
     cam.updateMatrixWorld();
     wpView.set(tx, ty + 2.2, tz).applyMatrix4(cam.matrixWorldInverse);
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const { w, h } = viewportSize();
     // Keep clear of the timer pill.
     const top = waypointTopPx(w, h, viewport.orientation === 'portrait');
     projectWaypoint(

@@ -162,6 +162,7 @@
 }
 /* Graphics tier choice (graphics-spec "Implemented tiers"): a small pill row under the best time. */
 #lobby-gfx,
+#lobby-orient,
 #lobby-mode {
   display: flex;
   align-items: center;
@@ -171,7 +172,8 @@
   background: rgba(40, 14, 30, 0.62);
   font-size: clamp(10px, 2.4vh, 22px);
 }
-#lobby-gfx .lbl {
+#lobby-gfx .lbl,
+#lobby-orient .lbl {
   padding: 0 0.3em;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -183,6 +185,7 @@
   justify-content: center;
 }
 #lobby-gfx button,
+#lobby-orient button,
 #lobby-mode button {
   padding: 0.25em 0.9em;
   font:
@@ -196,12 +199,14 @@
   cursor: pointer;
 }
 #lobby-gfx button[aria-checked='true'],
+#lobby-orient button[aria-checked='true'],
 #lobby-mode button[aria-checked='true'] {
   color: #3a2410;
   background: #ffd35a;
   border-color: #ffd35a;
 }
 #lobby-gfx button:focus-visible,
+#lobby-orient button:focus-visible,
 #lobby-mode button:focus-visible {
   outline: 2px solid #fff6e4;
   outline-offset: 2px;
@@ -247,14 +252,16 @@
     gap: 2vh;
   }
   #lobby-mode,
-  #lobby-gfx {
+  #lobby-gfx,
+#lobby-orient {
     flex-wrap: wrap;
     justify-content: center;
     font-size: clamp(13px, 3.8vw, 18px);
     gap: 0.4em;
   }
   #lobby-mode button,
-  #lobby-gfx button {
+  #lobby-gfx button,
+#lobby-orient button {
     min-height: 44px;
     min-width: 44px;
     padding: 0.2em 1em;

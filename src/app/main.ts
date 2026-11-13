@@ -2,14 +2,15 @@ import { startGame } from './game';
 import { bestLabel, readBest } from './modes/mode';
 import type { GameHandle } from './game';
 import { createLobby } from '../adapters/ui/lobby';
+import { createOrientation } from '../adapters/ui/orientation';
 
 const canvas = document.getElementById('game');
 if (!(canvas instanceof HTMLCanvasElement)) {
   throw new Error('canvas#game not found');
 }
 
-// Touch devices: ask for fullscreen where the browser allows it. Orientation is not locked:
-// portrait and landscape are both playable.
+// Touch devices: ask for fullscreen where the browser allows it. Orientation follows the device unless
+// the player forces Landscape / Portrait in the menu (orientation.ts).
 function requestImmersive(): void {
   if (!window.matchMedia('(pointer: coarse)').matches) return;
   try {
@@ -23,11 +24,14 @@ function requestImmersive(): void {
 // GameLoop pauses on document.hidden; game.ts wires the viewport watcher.
 let game: GameHandle | null = null;
 let starting = false;
+const orientation = createOrientation(document.body);
 const lobby = createLobby(document.body, {
+  orientation,
   getBestLabel: (mode) => bestLabel(mode, readBest(mode)),
   onPlay: (mode) => {
     lobby.hide();
     requestImmersive();
+    if (orientation.pref() !== 'auto') orientation.setPref(orientation.pref()); // retry the lock inside this tap
     if (game !== null && game.mode !== mode) {
       game.destroy();
       game = null;
