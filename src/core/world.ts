@@ -90,6 +90,7 @@ export class World {
   // Strategy maze features (ADR 0011). Empty lists and lineOnly 0 = classic behaviour.
   lineOnly: number; // 1: the hook fires only from a ZipLine zone (no free aim)
   climb: number; // 1: airborne wall contact grabs a ledge in reach; CLIMB mantles
+  parkour: number; // 1: auto-vault, airborne step-up, auto-mantle, landing slide (ADR 0013)
   lines: ZipLine[];
   tramps: AABB[]; // thin slabs on roof tops: landing bounces (never lethal)
   cushions: AABB[]; // thin slabs on roof tops: landing is absorbed (never lethal)
@@ -109,6 +110,7 @@ export class World {
     this.style = [];
     this.lineOnly = 0;
     this.climb = 0;
+    this.parkour = 0;
     this.lines = [];
     this.tramps = [];
     this.cushions = [];

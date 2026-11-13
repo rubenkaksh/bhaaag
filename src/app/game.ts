@@ -14,6 +14,9 @@ import {
   HERO_EV_HOOKED,
   HERO_EV_LANDED,
   HERO_EV_PERFECT,
+  HERO_EV_MANTLE,
+  HERO_EV_VAULT,
+  HERO_EV_SLIDE,
   HERO_EV_RELEASED,
   newHeroState,
 } from '../core/hero';
@@ -87,6 +90,9 @@ import {
   AE_JUMP,
   AE_LAND,
   AE_PERFECT,
+  AE_MANTLE,
+  AE_VAULT,
+  AE_SLIDE,
   AE_RELEASE,
   landAmp,
 } from '../adapters/render/animEvents';
@@ -94,7 +100,9 @@ import { CameraFx } from '../adapters/render/cameraFx';
 import { DustPuff } from '../adapters/render/dustPuff';
 import { GameLoop } from './loop';
 import { framingFor } from '../adapters/render/framing';
-import { MODE_INFO, readBest, writeBest } from './modes/mode';
+import { MODE_INFO, graphIdOf, isGraphMode, readBest, writeBest } from './modes/mode';
+import { loadGraph } from '../content/graph/registry';
+import { placeGraph } from '../content/graph/place';
 import type { GameMode } from './modes/mode';
 import { readViewport, watchViewport } from './viewport';
 import { viewportSize } from '../adapters/ui/orientation';
@@ -177,12 +185,13 @@ export function startGame(
   const params = new URLSearchParams(location.search);
   // ?tilt=15|20|30: render-only camera pitch-down (deg) so more of the drop below shows. Default is camera.tiltDeg (global).
   const tiltParam = Number(params.get('tilt'));
-  const tiltDeg =
-    params.has('tilt') && Number.isFinite(tiltParam) ? tiltParam : cfg.camera.tiltDeg;
+  const tiltDeg = params.has('tilt') && Number.isFinite(tiltParam) ? tiltParam : cfg.camera.tiltDeg;
   const camTilt = Math.min(Math.max(tiltDeg, 0), 45) * DEG2RAD;
   const isChase = mode === 'chase';
   const isStrategy = mode === 'strategy';
   const isVillage = mode === 'village';
+  const isGraph = isGraphMode(mode);
+  const placed = isGraph ? placeGraph(loadGraph(graphIdOf(mode))) : null;
   if (isVillage && village === undefined) throw new Error('village assets not loaded');
   const seedParam = params.get('seed');
   const fixedSeed = seedParam !== null && Number.isFinite(Number(seedParam));
@@ -195,16 +204,28 @@ export function startGame(
   let world =
     cs !== null
       ? cs.rw.world
-      : isStrategy
-        ? loadWorldFromObject(
-            generateStrategyLevel(fixedSeed ? Number(seedParam) | 0 : STRATEGY_SEED),
-          )
-        : loadWorldFromJson(village !== undefined && isVillage ? village.villageText : levelText);
+      : placed !== null
+        ? loadWorldFromObject(placed.level)
+        : isStrategy
+          ? loadWorldFromObject(
+              generateStrategyLevel(fixedSeed ? Number(seedParam) | 0 : STRATEGY_SEED),
+            )
+          : loadWorldFromJson(village !== undefined && isVillage ? village.villageText : levelText);
   const gs = createGameScene(canvas);
   const level: Group | null =
     cs === null
       ? gs.buildWorld(world, {
-          houseDress: true,
+          houseDress: placed === null,
+          graph:
+            placed === null
+              ? undefined
+              : {
+                  houses: placed.houses,
+                  props: placed.props,
+                  profile: placed.profile,
+                  seed: placed.seed,
+                  patches: placed.patches,
+                },
           floorY: village !== undefined && isVillage ? village.VILLAGE_CLOUD_TOP_Y : undefined,
         })
       : null;
@@ -297,7 +318,7 @@ export function startGame(
   const ovFollow = newOverviewPose();
   const ovTarget = newOverviewPose();
   const ovAhead: Pt[] = [];
-const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig radians): zipline diagonal + side look (T300)
+  const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig radians): zipline diagonal + side look (T300)
   let hintId = NO_ANCHOR; // anchor highlighted by HINT (T299); render-only, never read by the sim
   let hintT = 0;
   let tapAnchor = NO_ANCHOR; // anchor picked by tap-to-aim, sticky until fired or cleared
@@ -343,7 +364,15 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
     // downhill along the run; frontPov 1 is the old camera ahead of the hero, tilted up the slope.
     const front = isChase && cfg.chase.frontPov >= 0.5;
     const base = isChase ? chaseRigYaw(cur.camYaw, cfg.chase.frontPov) : camYawToRig(cur.camYaw);
-    tickYawOffsets(yawOff, base, cur.vx, cur.vz, cur.mode === HERO_ATTACHED, cur.dead !== 0, camCfg);
+    tickYawOffsets(
+      yawOff,
+      base,
+      cur.vx,
+      cur.vz,
+      cur.mode === HERO_ATTACHED,
+      cur.dead !== 0,
+      camCfg,
+    );
     updateCamera(
       curRig,
       feet,
@@ -401,7 +430,7 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
   const hudUi = new Hud(root, debug, () => restart(), {
     hint: MODE_INFO[mode].hint,
     hopChip: MODE_INFO[mode].hopChip,
-    onHint: isStrategy ? null : showHint,
+    onHint: isStrategy || isGraph ? null : showHint,
     onOverview: setOverviewHeld,
   });
   // Cloud Village never showed the reticle (its tilted view has no aim dot); every other mode keeps
@@ -506,7 +535,11 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
       deadT += stepDt;
       if (cs !== null) {
         // Chase: the card owns the restart (RETRY / MENU); R also retries. No auto-restart.
-        if (!overShown && !catchHold && deadT >= (cur.deadCause === DEAD_CAUGHT ? CHASE_OVER_DELAY_S : 0.4)) {
+        if (
+          !overShown &&
+          !catchHold &&
+          deadT >= (cur.deadCause === DEAD_CAUGHT ? CHASE_OVER_DELAY_S : 0.4)
+        ) {
           showChaseOver();
         }
         if (overShown && (frame.pressed & BTN_RESTART) !== 0) {
@@ -569,6 +602,9 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
         hudUi.pulseTimer();
       }
       if ((ev & HERO_EV_CLING) !== 0) animEv |= AE_CLING;
+      if ((ev & HERO_EV_MANTLE) !== 0) animEv |= AE_MANTLE;
+      if ((ev & HERO_EV_VAULT) !== 0) animEv |= AE_VAULT;
+      if ((ev & HERO_EV_SLIDE) !== 0) animEv |= AE_SLIDE;
       if ((ev & HERO_EV_DIED) !== 0) animEv |= AE_DIE;
       if (prev.mode !== HERO_ATTACHED && cur.mode === HERO_ATTACHED) animEv |= AE_ATTACH;
       if (
@@ -896,7 +932,15 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
     ground.snap(heroView.group.position.z);
     const d = c.dragon;
     // Reversed chase camera: the real dragon is already in front of the rig, no pinning.
-    dragonView.update(d.z, nowSec, phase === 'dead' && cur.deadCause === DEAD_CAUGHT ? 1 : 0, cur.px, d.gap, gs.camera.position.z, false);
+    dragonView.update(
+      d.z,
+      nowSec,
+      phase === 'dead' && cur.deadCause === DEAD_CAUGHT ? 1 : 0,
+      cur.px,
+      d.gap,
+      gs.camera.position.z,
+      false,
+    );
     const k = phase === 'pan' ? 0 : cloudCoverFor(d.gap, cfg);
     cloudK = k;
     applyCloud(cloudK);
@@ -922,6 +966,7 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
     const hv = heroView.input;
     hv.brake = cur.mode === HERO_ATTACHED && (frame.buttons & BTN_REEL) !== 0;
     hv.rolling = cur.rollT > 0;
+    hv.sliding = cur.slideT > 0;
     hv.events = animEv;
     hv.ropeLen = cur.hook.len;
     hv.impact = animImpact;
@@ -1100,7 +1145,7 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
     if (phase === 'pan') panSkip = true;
   };
   const onHintKey = (e: KeyboardEvent): void => {
-    if (e.code === 'KeyH' && !e.repeat && !isStrategy) showHint();
+    if (e.code === 'KeyH' && !e.repeat && !isStrategy && !isGraph) showHint();
     if ((e.code === 'KeyL' || e.code === 'KeyM') && !e.repeat) setOverviewHeld(true);
   };
   const onMapKeyUp = (e: KeyboardEvent): void => {

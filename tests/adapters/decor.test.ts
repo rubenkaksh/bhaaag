@@ -222,6 +222,18 @@ describe('hillside decor (one hill, ten houses)', () => {
     expect(counts.canopy + counts.conifer).toBeGreaterThan(300);
   });
 
+  it('D7b: v1 levels draw none of the house kit v2 pieces (ADR 0013)', () => {
+    let v2 = 0;
+    decor.traverse((o) => {
+      if (o instanceof InstancedMesh && (o.name === 'decor_stair' || o.name === 'decor_crate')) {
+        v2 += o.count;
+      }
+    });
+    expect(v2).toBe(0);
+    expect(PIECE_CAP.stair).toBeGreaterThanOrEqual(16);
+    expect(PIECE_CAP.crate).toBeGreaterThanOrEqual(6);
+  });
+
   it('D7: nothing dropped', () => {
     expect(stats.dropped).toBe(0);
   });

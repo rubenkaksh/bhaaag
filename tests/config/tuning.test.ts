@@ -146,6 +146,17 @@ const schema = z.strictObject({
     vyMax: num,
     mantleFwd: num,
   }),
+  vault: z.strictObject({
+    minSpeed: num,
+    maxH: num,
+    maxDepth: num,
+    sec: num,
+    keep: num,
+    coneDeg: num,
+    clearH: num,
+  }),
+  slide: z.strictObject({ minSpeed: num, sec: num, height: num, decel: num, minKeep: num }),
+  parkour: z.strictObject({ airStepUp: num, grabProbe: num, autoMantleSec: num, stickDot: num }),
 });
 
 describe('tuning.json', () => {

@@ -3,12 +3,27 @@
 // level above a cloud sea, amendment 2026-11-12; timed like Classic).
 // Pure helpers plus localStorage persistence; every storage access is guarded (private mode).
 
-export type GameMode = 'classic' | 'chase' | 'strategy' | 'village';
-export const GAME_MODES: readonly GameMode[] = ['classic', 'chase', 'strategy', 'village'];
+import { GRAPH_LEVELS } from '../../content/graph/registry';
+
+export type GameMode = 'classic' | 'chase' | 'strategy' | 'village' | `g:${string}`;
+const BASE_MODES = ['classic', 'chase', 'strategy', 'village'] as const;
+/** The four fixed modes, then one `g:<id>` entry per registered graph level (ADR 0013 section 3.5). */
+export const GAME_MODES: readonly GameMode[] = [
+  ...BASE_MODES,
+  ...GRAPH_LEVELS.map((g): GameMode => `g:${g.id}`),
+];
+export function isGraphMode(m: GameMode): boolean {
+  return m.startsWith('g:');
+}
+export function graphIdOf(m: GameMode): string {
+  return m.slice(2);
+}
 export const MODE_KEY = 'zt.mode';
 const AIM_HINT = 'Aim at a glowing anchor and hook';
 /** Per-mode UI text and flags: label, in-play hint, and whether the HOP chip is shown. */
-export const MODE_INFO: Record<GameMode, { label: string; hint: string; hopChip: boolean }> = {
+type ModeInfo = { label: string; hint: string; hopChip: boolean };
+const GRAPH_HINT = 'Run, vault, grab: find the way down';
+export const MODE_INFO: Record<GameMode, ModeInfo> = {
   classic: { label: 'Classic', hint: AIM_HINT, hopChip: true },
   chase: { label: 'Dragon Chase', hint: AIM_HINT, hopChip: true },
   strategy: { label: 'Nagarkot Run', hint: 'Stand on a gold pad and press Hook', hopChip: false },
@@ -20,6 +35,10 @@ export const BEST_KEYS: Record<GameMode, string> = {
   strategy: 'bhagdori.best.strategy',
   village: 'bhagdori.best.village',
 };
+for (const g of GRAPH_LEVELS) {
+  MODE_INFO[`g:${g.id}`] = { label: g.label, hint: GRAPH_HINT, hopChip: false };
+  BEST_KEYS[`g:${g.id}`] = `bhagdori.best.g.${g.id}`;
+}
 
 export type ModeStore = Pick<Storage, 'getItem' | 'setItem'>;
 
@@ -32,11 +51,16 @@ function defaultStore(): ModeStore | undefined {
 }
 
 export function parseMode(v: unknown): GameMode | null {
-  return v === 'classic' || v === 'chase' || v === 'strategy' || v === 'village' ? v : null;
+  return typeof v === 'string' && (GAME_MODES as readonly string[]).includes(v)
+    ? (v as GameMode)
+    : null;
 }
 
 /** ?mode= override beats the saved mode, which beats 'classic'. */
-export function loadMode(store: ModeStore | undefined = defaultStore(), override?: unknown): GameMode {
+export function loadMode(
+  store: ModeStore | undefined = defaultStore(),
+  override?: unknown,
+): GameMode {
   const o = parseMode(override);
   if (o !== null) return o;
   try {

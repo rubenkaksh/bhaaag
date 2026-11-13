@@ -50,3 +50,12 @@ meshes; phone frame time is unverified until measured on a device.
 
 ## Amendment 2026-11-12 (cloud village, owner decided; recorded, not relitigated)
 Lifted from "Dropped" item 4 and the modes limit: a fourth mode, Cloud Village (`village`), ONE hand-placed level of ~8-10 Newari houses above a cloud sea, free-aim zipline like Classic, same core sim. Still out: level select, a second new level, GLB, shaders, collectibles, new collision types, floating islands. New textures: 0 KB by default, owner approval above 300 KiB. Details: `docs/briefs/T297-amendment-draft.md`.
+
+## Amendment 2026-11-13 (graph levels; owner decided; recorded, not relitigated)
+Lifted from "Dropped" item 4 and the modes limit: new levels may be added, each as its own lobby
+entry, built from a graph file (`content/graphs/*.graph.json`) plus a fixed seed with house kit v2
+and the parkour moves (ADR 0013). A new iteration is a new level; shipped levels are frozen
+(placer version + hash test). Classic L1, Dragon Chase, Nagarkot Run and Cloud Village are frozen
+and unchanged. Each graph level is accepted by a sim bot-guard unit test (ADR 0013 s3.6); the
+validator and deploy gates stay dropped. Still out: a level-select screen beyond the lobby mode
+row, GLB, custom shaders, wall-run, new touch buttons. Bundle budget unchanged.

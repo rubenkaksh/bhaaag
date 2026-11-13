@@ -40,7 +40,10 @@ export type PieceId =
   | 'bracket'
   | 'planter'
   | 'conifer'
-  | 'trim';
+  | 'trim'
+  | 'stair'
+  | 'crate'
+  | 'guard';
 
 export const PIECE_IDS: PieceId[] = [
   'body',
@@ -62,6 +65,9 @@ export const PIECE_IDS: PieceId[] = [
   'planter',
   'conifer',
   'trim',
+  'stair',
+  'crate',
+  'guard',
 ];
 
 export const PIECE_CAP: Record<PieceId, number> = {
@@ -84,6 +90,9 @@ export const PIECE_CAP: Record<PieceId, number> = {
   planter: 20,
   conifer: 700,
   trim: 700,
+  stair: 160, // house kit v2 (ADR 0013): 16 treads per flight
+  crate: 60, // crates, box piles, hay, tramp frames
+  guard: 40, // house kit v2 balcony rails (same geometry as the v1 rail; not hidden on Low)
 };
 
 /** Pieces that do NOT scale with the house count (the forest); every other piece does. */
@@ -400,6 +409,31 @@ function coniferUnit(): BufferGeometry {
   return merge(parts);
 }
 
+/** Stair tread block (unit box, scaled to tread width, height and run): stone, darker foot. */
+function stairUnit(): BufferGeometry {
+  const g = boxPart(1, 1, 1, 0, 0.5, 0);
+  paint(g, (y) => {
+    const c = 0.7 + 0.3 * y;
+    return [c, c, c];
+  });
+  return g;
+}
+
+/** Wooden crate (unit cube): lighter body with four proud corner posts. Hay and tramp frames reuse it scaled. */
+function crateUnit(): BufferGeometry {
+  const body = boxPart(0.94, 0.94, 0.94, 0, 0.5, 0);
+  paintGrad(body, 0, 1);
+  const parts: BufferGeometry[] = [body];
+  for (let sx = -1; sx <= 1; sx += 2) {
+    for (let sz = -1; sz <= 1; sz += 2) {
+      const post = boxPart(0.08, 1, 0.08, sx * 0.46, 0.5, sz * 0.46);
+      paintConst(post, 0.6);
+      parts.push(post);
+    }
+  }
+  return merge(parts);
+}
+
 function geometries(): Record<PieceId, BufferGeometry> {
   const trunk = new CylinderGeometry(0.15, 0.2, 1, 5, 1, true);
   trunk.translate(0, 0.5, 0);
@@ -410,6 +444,7 @@ function geometries(): Record<PieceId, BufferGeometry> {
     window: windowUnit(),
     roof: roofUnit(),
     rail: railUnit(),
+    guard: railUnit(),
     deck: unitBox(),
     tank: tankUnit(),
     parapet: unitBox(),
@@ -424,6 +459,8 @@ function geometries(): Record<PieceId, BufferGeometry> {
     planter: planterUnit(),
     conifer: coniferUnit(),
     trim: unitBox(),
+    stair: stairUnit(),
+    crate: crateUnit(),
   };
 }
 
@@ -433,6 +470,8 @@ function triCount(g: BufferGeometry): number {
 
 const tmpM = new Matrix4();
 const tmpQ = new Quaternion();
+const tmpQ2 = new Quaternion();
+const RIGHT = new Vector3(1, 0, 0);
 const tmpP = new Vector3();
 const tmpS = new Vector3();
 const UP = new Vector3(0, 1, 0);
@@ -503,7 +542,7 @@ export class DecorKit {
     this.dropped = dropped;
   }
 
-  /** Places one instance. (cx, cy, cz) is the piece origin (bottom-centre for boxes, centre for canopy/flag). */
+  /** Places one instance. (cx, cy, cz) is the piece origin (bottom-centre for boxes, centre for canopy/flag). `pitch` tilts it about its own x axis. */
   add(
     id: PieceId,
     cx: number,
@@ -514,6 +553,7 @@ export class DecorKit {
     sz: number,
     rotY: number,
     color: Color,
+    pitch = 0,
   ): boolean {
     const i = this.used[id];
     if (i >= this.cap[id]) {
@@ -522,6 +562,8 @@ export class DecorKit {
     }
     tmpP.set(cx, cy, cz);
     tmpQ.setFromAxisAngle(UP, rotY);
+    // pitch: tilt about the piece's own x axis (awnings); positive lowers the +z end.
+    if (pitch !== 0) tmpQ.multiply(tmpQ2.setFromAxisAngle(RIGHT, pitch));
     tmpS.set(sx, sy, sz);
     tmpM.compose(tmpP, tmpQ, tmpS);
     const m = this.meshes[id];

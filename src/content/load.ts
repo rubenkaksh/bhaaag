@@ -22,12 +22,15 @@ const boxSchema = z
   })
   .refine(boxMinLeMax, { message: 'min must be <= max on every axis' });
 
+const flag = z.number().int().min(0).max(1);
+
 const rampSchema = z
   .object({
     min: vec3Tuple,
     max: vec3Tuple,
     slopeAxis: z.number().int().min(0).max(3),
     rise: z.number(),
+    slip: flag.optional(),
   })
   .refine(boxMinLeMax, { message: 'min must be <= max on every axis' })
   .refine((ramp) => ramp.rise > 0, { message: 'rise must be > 0' });
@@ -56,8 +59,6 @@ const lineSchema = z.object({
   anchor: z.number().int().min(0),
 });
 
-const flag = z.number().int().min(0).max(1);
-
 // Level extras (M4): all optional so the M1 testworld.json fixture keeps loading.
 // Strategy maze fields (ADR 0011) are optional too; absent = classic rules.
 const worldSchema = z
@@ -76,15 +77,15 @@ const worldSchema = z
     style: z.array(z.number().int()).optional(),
     lineOnly: flag.optional(),
     climb: flag.optional(),
+    parkour: flag.optional(),
     lines: z.array(lineSchema).optional(),
     tramps: z.array(boxSchema).optional(),
     cushions: z.array(boxSchema).optional(),
     hazards: z.array(boxSchema).optional(),
   })
-  .refine(
-    (w) => w.lines === undefined || w.lines.every((l) => l.anchor < w.anchors.length),
-    { message: 'lines: anchor id out of range' },
-  );
+  .refine((w) => w.lines === undefined || w.lines.every((l) => l.anchor < w.anchors.length), {
+    message: 'lines: anchor id out of range',
+  });
 
 export type LevelJson = z.input<typeof worldSchema>;
 
@@ -133,7 +134,8 @@ export function loadWorldFromObject(obj: unknown): World {
   for (let i = 0; i < data.ramps.length; i++) {
     const ramp = data.ramps[i];
     const box = new AABB(toVec3(ramp.min), toVec3(ramp.max));
-    addRamp(w, box, ramp.slopeAxis, ramp.rise);
+    const rampId = addRamp(w, box, ramp.slopeAxis, ramp.rise);
+    if (ramp.slip !== undefined) w.ramps[rampId].slip = ramp.slip;
   }
   if (data.roofs !== undefined) {
     for (let i = 0; i < data.roofs.length; i++) {
@@ -166,6 +168,7 @@ export function loadWorldFromObject(obj: unknown): World {
   }
   if (data.lineOnly !== undefined) w.lineOnly = data.lineOnly;
   if (data.climb !== undefined) w.climb = data.climb;
+  if (data.parkour !== undefined) w.parkour = data.parkour;
   if (data.lines !== undefined) {
     for (let i = 0; i < data.lines.length; i++) {
       const l = data.lines[i];

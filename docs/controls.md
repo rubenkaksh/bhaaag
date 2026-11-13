@@ -55,6 +55,15 @@ Aim needs no look control. By default the hook aims at the glowing next route an
 anchor to aim at it (nearest within `aim.tapRadiusNdc`). In line-only strategy levels ziplines are
 fixed and aim is bypassed. Movement and tap gestures are as in the table above.
 
+## Parkour moves (graph levels, `world.parkour === 1`; ADR 0013)
+
+No new buttons. **Vault** is automatic: run (at least `vault.minSpeed` 2.5 m/s) with the stick pushed into a
+parapet, rail or crate 0.4 to 1.1 m high and the hero hops over it (thin) or onto it (deep); standing still or
+without the stick does nothing. **Mantle** also fires by stick: while hanging from a ledge, hold the stick toward
+the wall for 0.25 s (`parkour.autoMantleSec`); the CLIMB hold (button, F) still works. **Slide** is a landing
+move: a clean flat landing at 7 m/s or more with the stick held forward slides for 0.6 s under low bars
+and awning lips (JUMP still jumps out of it); there is no slide on demand. Old levels (`parkour 0`) are unchanged.
+
 ## Not verified
 
 Feel on a real device: the 180 ms brake delay, the 220 ms double-tap window, thumb reach of the

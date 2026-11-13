@@ -10,6 +10,7 @@ export const AIRBORNE = 1;
 export const DEAD = 2;
 export const ATTACHED = 3;
 export const CLINGING = 4; // equals core HERO_HANGING (wall / rope-end cling)
+export const VAULTING = 5; // equals core HERO_VAULT (ADR 0013)
 
 export interface HeroPoseInput {
   state: number;
@@ -27,6 +28,7 @@ export interface HeroPoseInput {
   deadCause: number; // core deadCause (1 fell, 2 wall, 3 hard landing, 4 hazard)
   win: number; // 1 = level complete
   hookFlying: number; // 1 = hook in flight
+  sliding: boolean; // landing slide in progress (core slideT > 0)
 }
 
 export function newHeroPoseInput(): HeroPoseInput {
@@ -46,6 +48,7 @@ export function newHeroPoseInput(): HeroPoseInput {
     deadCause: 0,
     win: 0,
     hookFlying: 0,
+    sliding: false,
   };
 }
 
@@ -152,6 +155,16 @@ const EV_RELEASE = 4;
 const EV_ATTACH = 16;
 const EV_CLING = 32;
 const EV_DIE = 64;
+const EV_MANTLE = 256;
+
+// Parkour (ADR 0013): vault and slide are blended in over the base pose by weight; the mantle
+// climb-up is a timed overlay (the sim mantle is instantaneous).
+const MANTLE_END = 0.35; // s, same as climb.holdSec
+const MANTLE_DROP = 0.9; // m the hips start below their rest height
+const VAULT_TAU_ON = 0.04;
+const VAULT_TAU_OFF = 0.08;
+const SLIDE_TAU_ON = 0.05;
+const SLIDE_TAU_OFF = 0.1;
 
 // Static pose rows (channels not listed are 0).
 function row(values: number[][]): Float64Array {
@@ -432,6 +445,9 @@ export class HeroPoseState {
   tCling = -1;
   tDie = -1;
   tWin = -1;
+  tMantle = -1;
+  vaultW = 0; // 0..1 blend of the vault pose over the base pose
+  slideW = 0; // 0..1 blend of the slide pose
   landA = 0; // landing amplitude of the running LAND overlay
   landRoll = 0; // 1 if the landing was a roll
   attachS = 1;
@@ -453,6 +469,7 @@ export function selectPose(st: HeroPoseState, inp: HeroPoseInput): number {
   if (inp.win === 1) return POSE_WIN;
   if (inp.state === ATTACHED) return inp.brake ? POSE_BRAKE : POSE_HANG;
   if (inp.state === CLINGING) return POSE_CLING;
+  if (inp.state === VAULTING) return POSE_AIR;
   if (inp.rolling) return POSE_ROLL;
   if (inp.state === AIRBORNE) return POSE_AIR;
   const wasRun = st.active === POSE_RUN;
@@ -655,6 +672,9 @@ function resetPose(st: HeroPoseState, target: number, speed: number, yaw: number
   st.tCling = -1;
   st.tDie = -1;
   st.tWin = -1;
+  st.tMantle = -1;
+  st.vaultW = 0;
+  st.slideW = 0;
   st.initialized = 1;
 }
 
@@ -691,6 +711,7 @@ function startOverlays(st: HeroPoseState, inp: HeroPoseInput): void {
   }
   if ((ev & EV_RELEASE) !== 0) st.tRelease = 0;
   if ((ev & EV_CLING) !== 0) st.tCling = 0;
+  if ((ev & EV_MANTLE) !== 0) st.tMantle = 0;
   if ((ev & EV_DIE) !== 0) {
     st.dieCause = inp.deadCause;
     st.tDie = 0;
@@ -835,6 +856,62 @@ function stepHem(
 
 // Advance the pose by one render frame. yaw is the hero's facing (rad),
 // used only to bring the rope direction into the hero's frame.
+// Vault tuck and slide lean: target values the channels are pulled toward by a weight; plus the
+// mantle climb-up (hips rise from below the ledge while the hands push).
+function lerpCh(ch: Float64Array, c: number, target: number, w: number): void {
+  ch[c] += (target - ch[c]) * w;
+}
+
+function applyParkour(st: HeroPoseState, inp: HeroPoseInput, dt: number): void {
+  const ch = st.channels;
+  if (dt > 0) {
+    const vg = inp.state === VAULTING ? 1 : 0;
+    st.vaultW += (vg - st.vaultW) * (1 - Math.exp(-dt / (vg === 1 ? VAULT_TAU_ON : VAULT_TAU_OFF)));
+    const sg = inp.sliding && inp.state === GROUNDED ? 1 : 0;
+    st.slideW += (sg - st.slideW) * (1 - Math.exp(-dt / (sg === 1 ? SLIDE_TAU_ON : SLIDE_TAU_OFF)));
+  }
+  const v = st.vaultW;
+  if (v > 0.001) {
+    lerpCh(ch, CH_BODY_PITCH, 0.3, v);
+    lerpCh(ch, CH_SPINE_PITCH, 0.45, v);
+    lerpCh(ch, CH_HIPS_Y, -0.12, v);
+    lerpCh(ch, CH_HIP_FLEX_L, 1.4, v); // lead knee driven up and over
+    lerpCh(ch, CH_KNEE_L, 1.5, v);
+    lerpCh(ch, CH_HIP_FLEX_R, -0.45, v); // trail leg tucked behind
+    lerpCh(ch, CH_KNEE_R, 1.0, v);
+    lerpCh(ch, CH_SHOULDER_FLEX_L, 1.2, v); // one hand plants on the obstacle
+    lerpCh(ch, CH_SHOULDER_FLEX_R, -0.6, v);
+    lerpCh(ch, CH_ELBOW_L, 0.3, v);
+  }
+  const sl = st.slideW;
+  if (sl > 0.001) {
+    lerpCh(ch, CH_BODY_PITCH, -0.85, sl); // leaning back, feet first
+    lerpCh(ch, CH_HIPS_Y, -0.55, sl);
+    lerpCh(ch, CH_SPINE_PITCH, -0.2, sl);
+    lerpCh(ch, CH_HIP_FLEX_L, 1.4, sl);
+    lerpCh(ch, CH_HIP_FLEX_R, 1.2, sl);
+    lerpCh(ch, CH_KNEE_L, 0.3, sl);
+    lerpCh(ch, CH_KNEE_R, 0.5, sl);
+    lerpCh(ch, CH_SHOULDER_FLEX_L, -0.7, sl);
+    lerpCh(ch, CH_SHOULDER_FLEX_R, -0.7, sl);
+    lerpCh(ch, CH_ELBOW_L, 0.2, sl);
+    lerpCh(ch, CH_ELBOW_R, 0.2, sl);
+  }
+  if (st.tMantle >= 0) {
+    const u = st.tMantle / MANTLE_END;
+    const k = 1 - u * u * (3 - 2 * u); // 1 at the hang point, 0 once standing
+    ch[CH_HIPS_Y] -= MANTLE_DROP * k;
+    ch[CH_SPINE_PITCH] += 0.5 * k;
+    ch[CH_SHOULDER_FLEX_L] += 1.0 * k;
+    ch[CH_SHOULDER_FLEX_R] += 1.0 * k;
+    ch[CH_HIP_FLEX_L] += 0.9 * k;
+    ch[CH_HIP_FLEX_R] += 0.6 * k;
+    ch[CH_KNEE_L] += 0.8 * k;
+    ch[CH_KNEE_R] += 0.5 * k;
+    st.tMantle = st.tMantle + dt > MANTLE_END ? -1 : st.tMantle + dt;
+  }
+}
+
 export function stepHeroPose(st: HeroPoseState, inp: HeroPoseInput, yaw: number): void {
   const dt = inp.dt > 0 ? Math.min(inp.dt, MAX_DT) : 0;
   const speed = inp.speed > 0 ? inp.speed : 0;
@@ -896,6 +973,8 @@ export function stepHeroPose(st: HeroPoseState, inp: HeroPoseInput, yaw: number)
   }
 
   applyOverlays(st, dt);
+
+  applyParkour(st, inp, dt);
 
   // Reach: continuous grab-for-the-rope while the hook flies.
   if (dt > 0) {

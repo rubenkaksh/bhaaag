@@ -17,6 +17,9 @@ A mode may override only what is listed in `MODE_OVERRIDES` (same file) and in t
 | `camera.smooth`, `armRelease`, `fovSpeed` (damping) | see config | `updateCamera`, all modes |
 | `hero.airSteer / airSteerCap` | 14 / 6 | `core/sim.ts`, mode-blind |
 | `tramp.airSteer / airSteerCap` | 12 / 6 | `core/sim.ts`, mode-blind |
+| `vault.*` (minSpeed 2.5, maxH 1.1, maxDepth 0.7, sec 0.28, keep 0.9, coneDeg 45, clearH 0.1) (ADR 0013) | see config | `core/sim.ts`, global; acts only through `World.parkour` |
+| `slide.*` (minSpeed 7, sec 0.6, height 1.0, decel 4, minKeep 2) (ADR 0013) | see config | `core/sim.ts`, global; acts only through `World.parkour` |
+| `parkour.*` (airStepUp 0.5, grabProbe 0.3, autoMantleSec 0.25, stickDot 0.7) (ADR 0013) | see config | `core/sim.ts`, global; acts only through `World.parkour` |
 | `aim.hintSec`, HINT pick | 4 | `app/hint.ts`, all modes except strategy (see below) |
 | JUMP ignored on the rope, auto-exit, interpolation | n/a | `core/sim.ts` and the render loop, mode-blind |
 | `chase.*` | see config | read only by chase code; other modes never read it |

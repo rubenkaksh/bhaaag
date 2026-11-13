@@ -26,3 +26,10 @@ hazy ridges, two forest ridges), reference `docs/reference/himalaya-valley-photo
 
 ## Rope post
 Tie post stands 2.6 m west of the spawn roof so the 20 degree span clears the roof corner by 0.5 m.
+
+## Graph levels (ADR 0013 section 3)
+Lobby entry "Valley Run" (`?mode=g:valley-1`, best time key `bhagdori.best.g.valley-1`). The level is a
+graph file (`content/graphs/*.graph.json`: nodes are houses, edges are touch, zip, jump, tramp or
+cushion hops) placed down a profile-shaped hillside by `src/content/graph/place.ts`. Zip source roofs
+have no downhill parapet (it blocks the rope run-out). Frozen by `tests/content/graphFreeze.test.ts`;
+bot-guarded by `tests/content/graphLevelBot.test.ts`. Drawing: `docs/level-graph-valley-1.md`.

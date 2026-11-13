@@ -18,8 +18,12 @@ import { RIDGE_Z } from '../../core/world';
 import type { World } from '../../core/world';
 import { ROPE_TIE, buildRopePost } from '../../app/ropePost';
 import { buildDecor, groundAt } from './decor/placeDecor';
+import { buildGully } from './gully';
+import type { GullyPatch } from './gully';
 import { buildStrategyFeatures, minSolidZ } from './strategyView';
-import { setTerrainExtent } from './terrain';
+import { buildHouseDecor } from './decor/houseV2';
+import type { HouseSpec, PropSpec } from '../../content/house/houseSpec';
+import { setTerrainExtent, setTerrainProfile } from './terrain';
 import { tileNormal, tileTexture } from './tileTexture';
 
 // Palette: desaturated warm world, three-colour language on top (gold interactive,
@@ -230,12 +234,22 @@ export type BuildLevelOpts = {
   houseDress?: boolean;
   /** Cloud Village: no hillside or forest; houses are dressed down to this flat floor height (the cloud top). */
   floorY?: number;
+  /** Graph level (ADR 0013): its houses and props are drawn by the house kit, ground follows its profile. */
+  graph?: {
+    houses: HouseSpec[];
+    props: PropSpec[];
+    profile: [number, number][];
+    seed: number;
+    /** Walkable ground patches: cut out of the drawn gully. */
+    patches?: GullyPatch[];
+  };
 };
 
 /** Level geometry: one merged mesh per colour (styles, pads, goal, pitched roofs) plus anchor spheres. */
 export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group {
   const scenery = opts.scenery !== false && opts.floorY === undefined;
   const strategy = world.lineOnly === 1;
+  setTerrainProfile(opts.graph === undefined ? null : opts.graph.profile);
   if (scenery) setTerrainExtent(strategy ? minSolidZ(world) : null);
   const g = new Group();
   g.name = 'level';
@@ -284,8 +298,13 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
   g.add(
     buildDecor(world, undefined, { scenery, houseDress: opts.houseDress, floorY: opts.floorY }),
   );
+  if (opts.graph !== undefined) {
+    g.add(buildHouseDecor(opts.graph.houses, opts.graph.props, opts.graph.seed));
+    const gully = buildGully(world, opts.graph.patches ?? []);
+    if (gully !== null) g.add(gully);
+  }
   if (strategy) {
-    const feats = buildStrategyFeatures(world);
+    const feats = buildStrategyFeatures(world, opts.graph !== undefined);
     for (let i = 0; i < feats.length; i++) g.add(feats[i]);
   }
   // Cloud Village (floorY) has no pre-tied rope or post: the ziplines are the anchors themselves.
@@ -382,8 +401,7 @@ export function updateLevelView(
     const c = group.children[i];
     if (c.name === 'anchorRings') c.userData.target = target;
     if (c.userData.anchorId === undefined) continue;
-    const k =
-      c.userData.anchorId === target ? 1 + (hinted ? 0.9 : 0.35) * Math.sin(nowSec * 6) : 1;
+    const k = c.userData.anchorId === target ? 1 + (hinted ? 0.9 : 0.35) * Math.sin(nowSec * 6) : 1;
     c.scale.setScalar(k);
   }
 }

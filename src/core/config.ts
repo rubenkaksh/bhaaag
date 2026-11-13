@@ -107,7 +107,7 @@ export type Tuning = {
     overviewEase: number; // per fixed tick ease of the overview blend (0..1) in and out
     overviewMaxExtent: number; // max horizontal reach from the hero that the overview frames, m
     overviewSpanScale: number; // extra camera height per metre of framed span, so a long run still fits
-  tiltDeg: number; // render-only pitch-down of the view (deg), all modes; ?tilt= overrides for debugging
+    tiltDeg: number; // render-only pitch-down of the view (deg), all modes; ?tilt= overrides for debugging
   };
   validator: {
     minReleaseWindowTicks: number;
@@ -163,6 +163,29 @@ export type Tuning = {
     holdSec: number; // CLIMB held this long while hanging mantles
     vyMax: number; // |vy| above this is too fast to grab
     mantleFwd: number; // extra inward push past the radius when standing up
+  };
+  // Parkour (ADR 0013); global, act only when World.parkour is 1.
+  vault: {
+    minSpeed: number; // horizontal speed needed to auto-vault, m/s
+    maxH: number; // tallest vaultable top above the feet, m
+    maxDepth: number; // deepest obstacle that can be vaulted, m
+    sec: number; // vault duration, s
+    keep: number; // fraction of speed kept through the vault
+    coneDeg: number; // heading/stick cone toward the obstacle, degrees
+    clearH: number; // clearance above the obstacle top, m
+  };
+  slide: {
+    minSpeed: number; // landing speed that starts a slide, m/s
+    sec: number; // slide duration, s
+    height: number; // hero height while sliding, m
+    decel: number; // slide deceleration, m/s^2
+    minKeep: number; // speed floor kept while sliding, m/s
+  };
+  parkour: {
+    airStepUp: number; // airborne step-up onto a ledge this high, m
+    grabProbe: number; // ledge grab probe distance, m
+    autoMantleSec: number; // stick held this long while hanging mantles, s
+    stickDot: number; // stick/heading dot needed for the auto moves
   };
 };
 
@@ -329,4 +352,15 @@ export const DEFAULT_TUNING: Tuning = {
     vyMax: 8,
     mantleFwd: 0.3,
   },
+  vault: {
+    minSpeed: 2.5,
+    maxH: 1.1,
+    maxDepth: 0.7,
+    sec: 0.28,
+    keep: 0.9,
+    coneDeg: 45,
+    clearH: 0.1,
+  },
+  slide: { minSpeed: 7, sec: 0.6, height: 1.0, decel: 4, minKeep: 2 },
+  parkour: { airStepUp: 0.5, grabProbe: 0.3, autoMantleSec: 0.25, stickDot: 0.7 },
 };
