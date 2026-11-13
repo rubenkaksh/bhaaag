@@ -51,6 +51,11 @@ PRODUCT.md lists multi-level content as a non-goal, and the lean scope allows on
 This tool therefore ships no levels: builder levels are dev artifacts the owner plays locally. Shipping
 one would need a PRODUCT.md amendment (owner's call).
 
+**Update 2026-11-13 (owner):** builder levels WILL ship, owned by the product owner. The PRODUCT.md
+non-goal on multi-level content must be amended by the owner before the first one is released. The
+play hand-off is still DEV-only; a production loader for shipped builder levels is not built yet.
+Altitude stays z-derived plus lift; per-level best times are not needed.
+
 ## Not covered
 
 Roads, terrain-following house placement beyond the plane, sim-verified stairs/boxes, momentum carry,
