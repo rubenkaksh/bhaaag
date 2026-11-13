@@ -103,7 +103,11 @@ export class RopeView {
   private readonly tubePosAttr: BufferAttribute;
   private readonly tubeNrmAttr: BufferAttribute;
 
-  constructor() {
+  /**
+   * fixedLine: lineOnly worlds. The rope is the fixed line mesh (buildFixedRopes), so this view
+   * draws only the trolley at the hand while attached: no tube, fallback line, halo or trail.
+   */
+  constructor(private readonly fixedLine = false) {
     // 1 px fallback line, so the rope never vanishes at distance (ADR 0005 D6).
     this.center = new Float32Array((SEG + 1) * 3);
     this.trailCenter = new Float32Array((TRAIL_SEG + 1) * 3);
@@ -220,6 +224,18 @@ export class RopeView {
       this.sagCur = SAG_FLYING;
       this.vibAmp = 0;
       ROPE_TIE.live = false;
+      return;
+    }
+    if (this.fixedLine) {
+      this.group.visible = hook.state === HOOK_ATTACHED;
+      this.tube.visible = false;
+      this.line.visible = false;
+      this.halo.visible = false;
+      ROPE_TIE.live = false;
+      if (hook.state !== HOOK_ATTACHED) return;
+      this.handle.position.set(handX, handY + 0.05, handZ);
+      this.handle.lookAt(hook.ax, hook.ay, hook.az);
+      this.wheel.rotation.x = -hook.s / WHEEL_R;
       return;
     }
     this.group.visible = true;

@@ -234,7 +234,7 @@ export function startGame(
   gs.scene.add(waypointView.group);
   const wpScreen = newWaypointScreen();
   const wpView = new Vector3();
-  const ropeView = new RopeView();
+  const ropeView = new RopeView(world.lineOnly === 1);
   gs.scene.add(ropeView.group);
   const previewView = new AimPreviewView();
   gs.scene.add(previewView.group);
