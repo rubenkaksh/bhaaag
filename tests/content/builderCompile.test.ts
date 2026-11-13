@@ -6,7 +6,10 @@ import { emptyLevel } from '../../src/content/builder/format';
 import type { BuilderLevel } from '../../src/content/builder/format';
 import { sampleLevel } from '../../src/content/builder/sample';
 
-function two(gapZ: number, via: 'jump' | 'cushion' | 'tramp' | 'boxes' | 'stairs' = 'jump'): BuilderLevel {
+function two(
+  gapZ: number,
+  via: 'jump' | 'cushion' | 'tramp' | 'boxes' | 'stairs' = 'jump',
+): BuilderLevel {
   let l = emptyLevel('t', 'T');
   l = addHouse(l, 0, 0);
   l = addHouse(l, 0, -(8 + gapZ));

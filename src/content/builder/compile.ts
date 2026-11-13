@@ -25,7 +25,6 @@ import type { BuilderEdge, BuilderHouse, BuilderLevel } from './format';
 import { HOUSE_HALF, STOREY_HEIGHT, TOUCH_EPS } from './format';
 import { overlaps } from './model';
 
-
 // Geometry shared with the generator's emitter (kept numerically identical, gen.ts is frozen).
 const ZONE_OFF = 2; // zip zone centre, left of the house centre
 const PAD_OFF = 2; // tramp pad centre, right of the house centre
@@ -142,16 +141,32 @@ function stepsCheck(a: MazeNode, b: MazeNode, via: 'boxes' | 'stairs'): string |
   if (rel === null) return 'houses do not face each other (need lateral overlap)';
   if (rel.gap <= TOUCH_EPS) return 'houses already touch: no ' + via + ' needed';
   const dy = Math.abs(b.y - a.y);
-  if (dy > STEP_DY_MAX) return 'height difference ' + dy.toFixed(1) + ' m is over ' + STEP_DY_MAX + ' m';
-  if (rel.gap > STEP_GAP_MAX) return 'gap ' + rel.gap.toFixed(1) + ' m is over ' + STEP_GAP_MAX + ' m';
+  if (dy > STEP_DY_MAX)
+    return 'height difference ' + dy.toFixed(1) + ' m is over ' + STEP_DY_MAX + ' m';
+  if (rel.gap > STEP_GAP_MAX)
+    return 'gap ' + rel.gap.toFixed(1) + ' m is over ' + STEP_GAP_MAX + ' m';
   const need = stepCount(via, dy) * STEP_TREAD[via];
-  if (rel.gap < need) return 'gap ' + rel.gap.toFixed(1) + ' m is too short for ' + stepCount(via, dy) + ' ' + via + ' (need ' + need.toFixed(1) + ' m)';
+  if (rel.gap < need)
+    return (
+      'gap ' +
+      rel.gap.toFixed(1) +
+      ' m is too short for ' +
+      stepCount(via, dy) +
+      ' ' +
+      via +
+      ' (need ' +
+      need.toFixed(1) +
+      ' m)'
+    );
   return null;
 }
 
 function gapNote(a: MazeNode, b: MazeNode, why: string): string {
   const rel = relation(a, b);
-  const gap = rel === null ? 'no shared lane' : 'gap ' + rel.gap.toFixed(1) + ' m, drop ' + (a.y - b.y).toFixed(1) + ' m';
+  const gap =
+    rel === null
+      ? 'no shared lane'
+      : 'gap ' + rel.gap.toFixed(1) + ' m, drop ' + (a.y - b.y).toFixed(1) + ' m';
   return why + ' (' + gap + ')';
 }
 
@@ -161,7 +176,9 @@ function checkEdge(e: BuilderEdge, ns: NodeSet): EdgeCheck {
   const rel = relation(a, b);
   const res = (ok: boolean, note: string): EdgeCheck => ({ edgeId: e.id, ok, note });
   if (e.kind === 'zip') {
-    return zipOk(a, b, ns.nodes) ? res(true, 'zipline ok') : res(false, gapNote(a, b, 'rope limits, slope or clearance fail'));
+    return zipOk(a, b, ns.nodes)
+      ? res(true, 'zipline ok')
+      : res(false, gapNote(a, b, 'rope limits, slope or clearance fail'));
   }
   const via = e.via ?? 'jump';
   if (via === 'boxes' || via === 'stairs') {
@@ -177,7 +194,10 @@ function checkEdge(e: BuilderEdge, ns: NodeSet): EdgeCheck {
   if (jumpOk(a, b, rel)) return res(true, via === 'cushion' ? 'cushion landing ok' : 'jump ok');
   if (grabOk(a, b, rel)) return res(true, 'ledge grab ok');
   if (tightOk(a, b, rel)) return res(true, 'tight lip landing (sim allows it)');
-  return res(false, gapNote(a, b, via === 'cushion' ? 'cushion landing out of reach' : 'jump out of reach'));
+  return res(
+    false,
+    gapNote(a, b, via === 'cushion' ? 'cushion landing out of reach' : 'jump out of reach'),
+  );
 }
 
 function reach(n: number, edges: MazeEdge[], from: number): boolean[] {
@@ -210,7 +230,8 @@ export function validate(l: BuilderLevel): Report {
   };
   for (let i = 0; i < l.houses.length; i++) {
     for (let j = i + 1; j < l.houses.length; j++) {
-      if (overlaps(l.houses[i], l.houses[j])) r.errors.push('houses ' + l.houses[i].id + ' and ' + l.houses[j].id + ' overlap');
+      if (overlaps(l.houses[i], l.houses[j]))
+        r.errors.push('houses ' + l.houses[i].id + ' and ' + l.houses[j].id + ' overlap');
     }
   }
   if (l.houses.length < 2) r.errors.push('need at least 2 houses');
@@ -243,15 +264,20 @@ export function validate(l: BuilderLevel): Report {
       const rel = relation(roofs[i], roofs[j]);
       if (rel === null || rel.gap > TOUCH_EPS) continue;
       r.touching.push([l.houses[i].id, l.houses[j].id]);
-      for (const [p, q] of [[roofs[i], roofs[j]], [roofs[j], roofs[i]]]) {
+      for (const [p, q] of [
+        [roofs[i], roofs[j]],
+        [roofs[j], roofs[i]],
+      ]) {
         if (moveOf(p, q, ns.nodes) >= 0) declared.push({ from: p.id, to: q.id, move: 0 });
       }
     }
   }
-  for (const n of ns.nodes) if (n.kind === NODE_BALCONY) declared.push({ from: n.id, to: n.up, move: MOVE_CLIMB });
+  for (const n of ns.nodes)
+    if (n.kind === NODE_BALCONY) declared.push({ from: n.id, to: n.up, move: MOVE_CLIMB });
   // Derived: every move the model allows (shortcuts and dead ends show up here), plus valid steps.
   const derived = buildEdges(ns.nodes);
-  for (const d of declared) if (!derived.some((x) => x.from === d.from && x.to === d.to)) derivedExtra.push(d);
+  for (const d of declared)
+    if (!derived.some((x) => x.from === d.from && x.to === d.to)) derivedExtra.push(d);
   const start = ns.roofOf.get(l.start) as number;
   const goal = ns.roofOf.get(l.goal) as number;
   const n = ns.nodes.length;
@@ -262,10 +288,15 @@ export function validate(l: BuilderLevel): Report {
   r.escapePaths = stats.escapePaths;
   const houseOf = (nodeId: number): number => ns.nodes[nodeId].house;
   r.deadEnds = stats.deadEnds.filter((i) => ns.nodes[i].kind === NODE_ROOF).map(houseOf);
-  r.unreached = ns.nodes.filter((nd) => nd.kind === NODE_ROOF && !stats.reach[nd.id]).map((nd) => nd.house);
-  if (!r.declaredReach) r.errors.push('no drawn path from start to goal (check edges and touching houses)');
-  if (r.declaredReach && !r.derivedReach) r.warnings.push('drawn path exists but the model finds none: re-check edges');
-  if (r.unreached.length > 0) r.warnings.push(r.unreached.length + ' house(s) cannot be reached from the start');
+  r.unreached = ns.nodes
+    .filter((nd) => nd.kind === NODE_ROOF && !stats.reach[nd.id])
+    .map((nd) => nd.house);
+  if (!r.declaredReach)
+    r.errors.push('no drawn path from start to goal (check edges and touching houses)');
+  if (r.declaredReach && !r.derivedReach)
+    r.warnings.push('drawn path exists but the model finds none: re-check edges');
+  if (r.unreached.length > 0)
+    r.warnings.push(r.unreached.length + ' house(s) cannot be reached from the start');
   r.ok = r.errors.length === 0;
   return r;
 }
@@ -279,7 +310,9 @@ function bx(x0: number, y0: number, z0: number, x1: number, y1: number, z1: numb
 /** Compile to the ordinary level JSON the sim loads. Throws on errors that make no level (see validate). */
 export function compileLevel(l: BuilderLevel): LevelJson {
   const rep = validate(l);
-  const blocking = rep.errors.filter((m) => /overlap|no start|no goal|same house|at least 2/.test(m));
+  const blocking = rep.errors.filter((m) =>
+    /overlap|no start|no goal|same house|at least 2/.test(m),
+  );
   if (blocking.length > 0) throw new Error('cannot compile: ' + blocking.join('; '));
   const ns = buildNodeSet(l);
   const solids: Box[] = [];
@@ -318,7 +351,10 @@ export function compileLevel(l: BuilderLevel): LevelJson {
     if (a.zipTo >= 0) {
       const b = ns.nodes[a.zipTo];
       const zc = zoneCentre(a);
-      lines.push({ zone: bx(zc[0] - PAD_HALF, y, z0, zc[0] + PAD_HALF, y + ZONE_THICK, z0 + PAD_DEPTH), anchor: anchors.length });
+      lines.push({
+        zone: bx(zc[0] - PAD_HALF, y, z0, zc[0] + PAD_HALF, y + ZONE_THICK, z0 + PAD_DEPTH),
+        anchor: anchors.length,
+      });
       anchors.push({ pos: anchorPos(a, b) });
     }
   }
@@ -338,7 +374,9 @@ export function compileLevel(l: BuilderLevel): LevelJson {
   const zEnd = zMin - HAZARD_PAST;
   for (let z = zMax + HAZARD_PAST; z > zEnd; z -= HAZARD_STRIP) {
     const top = planeY(z) + HAZARD_LIP;
-    hazards.push(bx(xMin - HAZARD_MARGIN, top - HAZARD_DEPTH, z - HAZARD_STRIP, xMax + HAZARD_MARGIN, top, z));
+    hazards.push(
+      bx(xMin - HAZARD_MARGIN, top - HAZARD_DEPTH, z - HAZARD_STRIP, xMax + HAZARD_MARGIN, top, z),
+    );
   }
   const s = l.houses.find((h) => h.id === l.start) as BuilderHouse;
   const gl = l.houses.find((h) => h.id === l.goal) as BuilderHouse;
@@ -365,7 +403,13 @@ export function compileLevel(l: BuilderLevel): LevelJson {
 
 // Steps fill the gap between two houses: treads of equal length, each one rise higher, starting at
 // the lower roof. Width is the shared lane, at most STEP_WIDTH, centred.
-function emitSteps(ns: NodeSet, e: BuilderEdge, via: 'boxes' | 'stairs', solids: Box[], style: number[]): void {
+function emitSteps(
+  ns: NodeSet,
+  e: BuilderEdge,
+  via: 'boxes' | 'stairs',
+  solids: Box[],
+  style: number[],
+): void {
   const a = ns.nodes[ns.roofOf.get(e.a) as number];
   const b = ns.nodes[ns.roofOf.get(e.b) as number];
   const rel = relation(a, b);
@@ -391,7 +435,9 @@ function emitSteps(ns: NodeSet, e: BuilderEdge, via: 'boxes' | 'stairs', solids:
     const lo1 = Math.min(p0, p1);
     const hi1 = Math.max(p0, p1);
     solids.push(
-      alongZ ? bx(mid - half, top - FOOT, lo1, mid + half, top, hi1) : bx(lo1, top - FOOT, mid - half, hi1, top, mid + half),
+      alongZ
+        ? bx(mid - half, top - FOOT, lo1, mid + half, top, hi1)
+        : bx(lo1, top - FOOT, mid - half, hi1, top, mid + half),
     );
     style.push(1);
   }

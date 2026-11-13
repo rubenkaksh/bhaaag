@@ -56,7 +56,8 @@ const levelSchema = z
       }
     }
     for (const id of [l.start, l.goal]) {
-      if (id !== -1 && !ids.has(id)) ctx.addIssue({ code: 'custom', message: 'start/goal: unknown house ' + id });
+      if (id !== -1 && !ids.has(id))
+        ctx.addIssue({ code: 'custom', message: 'start/goal: unknown house ' + id });
     }
   });
 
@@ -65,7 +66,16 @@ export type BuilderEdge = z.infer<typeof edgeSchema>;
 export type BuilderLevel = z.infer<typeof levelSchema>;
 
 export function emptyLevel(id: string, name: string): BuilderLevel {
-  return { format: BUILDER_FORMAT, version: BUILDER_VERSION, id, name, houses: [], edges: [], start: -1, goal: -1 };
+  return {
+    format: BUILDER_FORMAT,
+    version: BUILDER_VERSION,
+    id,
+    name,
+    houses: [],
+    edges: [],
+    start: -1,
+    goal: -1,
+  };
 }
 
 export function parseBuilderLevel(text: string): BuilderLevel {
@@ -73,11 +83,16 @@ export function parseBuilderLevel(text: string): BuilderLevel {
   try {
     obj = JSON.parse(text);
   } catch (err) {
-    throw new Error('invalid JSON: ' + (err instanceof Error ? err.message : String(err)), { cause: err });
+    throw new Error('invalid JSON: ' + (err instanceof Error ? err.message : String(err)), {
+      cause: err,
+    });
   }
   const r = levelSchema.safeParse(obj);
   if (!r.success) {
-    throw new Error('invalid builder level: ' + r.error.issues.map((i) => i.path.join('.') + ': ' + i.message).join('; '));
+    throw new Error(
+      'invalid builder level: ' +
+        r.error.issues.map((i) => i.path.join('.') + ': ' + i.message).join('; '),
+    );
   }
   return r.data;
 }

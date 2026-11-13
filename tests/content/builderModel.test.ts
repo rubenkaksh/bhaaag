@@ -27,7 +27,9 @@ describe('format', () => {
 
   it('rejects bad JSON, wrong format, bad refs and gap edges without via', () => {
     expect(() => parseBuilderLevel('{')).toThrow(/invalid JSON/);
-    expect(() => parseBuilderLevel(JSON.stringify({ ...sampleLevel(), format: 'x' }))).toThrow(/invalid builder level/);
+    expect(() => parseBuilderLevel(JSON.stringify({ ...sampleLevel(), format: 'x' }))).toThrow(
+      /invalid builder level/,
+    );
     const bad = sampleLevel();
     bad.edges.push({ id: 50, a: 0, b: 77, kind: 'zip' });
     expect(() => parseBuilderLevel(JSON.stringify(bad))).toThrow(/bad house reference/);

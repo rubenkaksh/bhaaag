@@ -21,7 +21,11 @@ export function addHouse(l: BuilderLevel, x: number, z: number, storeys: 1 | 2 =
   return { ...l, houses: [...l.houses, h], start };
 }
 
-export function updateHouse(l: BuilderLevel, id: number, patch: Partial<Omit<BuilderHouse, 'id'>>): BuilderLevel {
+export function updateHouse(
+  l: BuilderLevel,
+  id: number,
+  patch: Partial<Omit<BuilderHouse, 'id'>>,
+): BuilderLevel {
   return { ...l, houses: l.houses.map((h) => (h.id === id ? { ...h, ...patch } : h)) };
 }
 
@@ -40,10 +44,21 @@ export function removeHouse(l: BuilderLevel, id: number): BuilderLevel {
 }
 
 /** Add an edge a -> b. One edge per ordered pair and one zip per source house: the new one wins. */
-export function addEdge(l: BuilderLevel, a: number, b: number, kind: 'zip' | 'gap', via?: GapVia): BuilderLevel {
+export function addEdge(
+  l: BuilderLevel,
+  a: number,
+  b: number,
+  kind: 'zip' | 'gap',
+  via?: GapVia,
+): BuilderLevel {
   if (a === b || houseById(l, a) === undefined || houseById(l, b) === undefined) return l;
-  const kept = l.edges.filter((e) => !(e.a === a && e.b === b) && !(kind === 'zip' && e.kind === 'zip' && e.a === a));
-  const edge: BuilderEdge = kind === 'zip' ? { id: nextId(l.edges), a, b, kind } : { id: nextId(l.edges), a, b, kind, via: via ?? 'jump' };
+  const kept = l.edges.filter(
+    (e) => !(e.a === a && e.b === b) && !(kind === 'zip' && e.kind === 'zip' && e.a === a),
+  );
+  const edge: BuilderEdge =
+    kind === 'zip'
+      ? { id: nextId(l.edges), a, b, kind }
+      : { id: nextId(l.edges), a, b, kind, via: via ?? 'jump' };
   return { ...l, edges: [...kept, edge] };
 }
 
@@ -81,9 +96,23 @@ function snapAxis(v: number, others: number[]): number {
 }
 
 /** Snap a dragged house to the 1 m grid, then to neighbours' touching or aligned lines. */
-export function snapPosition(l: BuilderLevel, id: number, x: number, z: number): { x: number; z: number } {
+export function snapPosition(
+  l: BuilderLevel,
+  id: number,
+  x: number,
+  z: number,
+): { x: number; z: number } {
   const others = l.houses.filter((h) => h.id !== id);
-  return { x: snapAxis(x, others.map((h) => h.x)), z: snapAxis(z, others.map((h) => h.z)) };
+  return {
+    x: snapAxis(
+      x,
+      others.map((h) => h.x),
+    ),
+    z: snapAxis(
+      z,
+      others.map((h) => h.z),
+    ),
+  };
 }
 
 /** Does moving house `id` to (x, z) overlap another house? The UI refuses such a drop. */
