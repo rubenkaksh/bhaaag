@@ -18,6 +18,8 @@ import { RIDGE_Z } from '../../core/world';
 import type { World } from '../../core/world';
 import { ROPE_TIE, buildRopePost } from '../../app/ropePost';
 import { buildDecor, groundAt } from './decor/placeDecor';
+import { buildGully } from './gully';
+import type { GullyPatch } from './gully';
 import { buildStrategyFeatures, minSolidZ } from './strategyView';
 import { buildHouseDecor } from './decor/houseV2';
 import type { HouseSpec, PropSpec } from '../../content/house/houseSpec';
@@ -233,7 +235,14 @@ export type BuildLevelOpts = {
   /** Cloud Village: no hillside or forest; houses are dressed down to this flat floor height (the cloud top). */
   floorY?: number;
   /** Graph level (ADR 0013): its houses and props are drawn by the house kit, ground follows its profile. */
-  graph?: { houses: HouseSpec[]; props: PropSpec[]; profile: [number, number][]; seed: number };
+  graph?: {
+    houses: HouseSpec[];
+    props: PropSpec[];
+    profile: [number, number][];
+    seed: number;
+    /** Walkable ground patches: cut out of the drawn gully. */
+    patches?: GullyPatch[];
+  };
 };
 
 /** Level geometry: one merged mesh per colour (styles, pads, goal, pitched roofs) plus anchor spheres. */
@@ -291,6 +300,8 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
   );
   if (opts.graph !== undefined) {
     g.add(buildHouseDecor(opts.graph.houses, opts.graph.props, opts.graph.seed));
+    const gully = buildGully(world, opts.graph.patches ?? []);
+    if (gully !== null) g.add(gully);
   }
   if (strategy) {
     const feats = buildStrategyFeatures(world, opts.graph !== undefined);

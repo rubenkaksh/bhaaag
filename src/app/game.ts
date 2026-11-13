@@ -224,6 +224,7 @@ export function startGame(
                   props: placed.props,
                   profile: placed.profile,
                   seed: placed.seed,
+                  patches: placed.patches,
                 },
           floorY: village !== undefined && isVillage ? village.VILLAGE_CLOUD_TOP_Y : undefined,
         })
