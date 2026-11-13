@@ -1,4 +1,4 @@
-// Builder level file (ADR 0013): what the level builder saves and loads. Pure data + zod, no DOM.
+// Builder level file (ADR 0014): what the level builder saves and loads. Pure data + zod, no DOM.
 import { z } from 'zod';
 
 export const BUILDER_FORMAT = 'bhaaag-level-builder';

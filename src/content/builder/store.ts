@@ -1,4 +1,4 @@
-// Hand-off between the builder page and the game (ADR 0013): the builder drops the compiled level
+// Hand-off between the builder page and the game (ADR 0014): the builder drops the compiled level
 // in localStorage and opens ?mode=strategy&level=builder. Dev builds only; guarded for blocked storage.
 // Imports nothing from the builder so game.ts pulls in no builder code (dead-code-eliminated in prod).
 import type { LevelJson } from '../load';

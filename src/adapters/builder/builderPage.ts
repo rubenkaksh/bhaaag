@@ -1,4 +1,4 @@
-// Level builder page (ADR 0013), dev only: ?builder. Top-down 2D canvas + a side panel, vanilla DOM.
+// Level builder page (ADR 0014), dev only: ?builder. Top-down 2D canvas + a side panel, vanilla DOM.
 // All rules live in src/content/builder (pure, tested); this file only draws and routes input.
 import { compileLevel, roofHeight, validate } from '../../content/builder/compile';
 import type { Report } from '../../content/builder/compile';

@@ -1,4 +1,4 @@
-// Builder level -> MazeNodes -> validation report and ordinary LevelJson (ADR 0013).
+// Builder level -> MazeNodes -> validation report and ordinary LevelJson (ADR 0014).
 // Edge legality comes from the strategy graph model (graph.ts, tuning-driven); nothing here edits it.
 import type { LevelJson } from '../load';
 import { planeY } from '../strategy/gen';
