@@ -14,7 +14,12 @@ import { DEFAULT_TUNING } from '../../src/core/config';
 import { HeroState } from '../../src/core/hero';
 import { AIM_OK, aimReason } from '../../src/core/hook';
 import { aabbContainsPoint } from '../../src/core/math/aabb';
-import { PREVIEW_LETHAL, PREVIEW_NONE, PreviewResult, previewShot } from '../../src/core/preview';
+import {
+  PREVIEW_LETHAL,
+  PREVIEW_NONE,
+  PreviewResult,
+  previewShot,
+} from '../../src/core/preview';
 import { HEAD_FRAC } from '../../src/core/sim';
 
 const WALK_MAX = 8; // metres: furthest walk toward the anchor allowed to unblock the hook
@@ -28,14 +33,7 @@ const text = readFileSync(new URL('../../content/levels/l1.json', import.meta.ur
 const w = loadWorldFromJson(text);
 
 /** First height above the anchor where the waypoint beam is in clear sight of the eye, or -1. */
-function lowestVisibleBeam(
-  ex: number,
-  ey: number,
-  ez: number,
-  ax: number,
-  ay: number,
-  az: number,
-): number {
+function lowestVisibleBeam(ex: number, ey: number, ez: number, ax: number, ay: number, az: number): number {
   for (let up = 0; up <= BEAM_MAX; up += BEAM_STEP) {
     const dy = ay + up - ey;
     const len = Math.sqrt((ax - ex) ** 2 + dy ** 2 + (az - ez) ** 2);
@@ -174,13 +172,7 @@ function runChain(): HopResult[] {
         endZ: z,
       });
       console.log(
-        'hop ' +
-          i +
-          ': walk ' +
-          walk +
-          ' m, outcome not run (never hookable within ' +
-          WALK_MAX +
-          ' m)',
+        'hop ' + i + ': walk ' + walk + ' m, outcome not run (never hookable within ' + WALK_MAX + ' m)',
       );
       continue;
     }
@@ -212,9 +204,7 @@ function runChain(): HopResult[] {
       endY: out.y,
       endZ: out.z,
     });
-    console.log(
-      'hop ' + i + ': beam ' + beamUp + ' m, walk ' + walk + ' m, outcome ' + out.outcome,
-    );
+    console.log('hop ' + i + ': beam ' + beamUp + ' m, walk ' + walk + ' m, outcome ' + out.outcome);
     x = out.x;
     y = out.y;
     z = out.z;
@@ -233,17 +223,11 @@ describe('l1 route visibility and hookability', () => {
       expect(r.reached, at + ': not reached - the chain stopped at an earlier hop').toBe(true);
       expect(
         r.seen,
-        at +
-          ': no clear sight line from the camera to the beam within ' +
-          BEAM_MAX +
-          ' m of the anchor',
+        at + ': no clear sight line from the camera to the beam within ' + BEAM_MAX + ' m of the anchor',
       ).toBe(true);
       expect(
         r.walk,
-        at +
-          ': metres walked toward the anchor before AIM_OK (0..' +
-          WALK_MAX +
-          '), -1 = never hookable',
+        at + ': metres walked toward the anchor before AIM_OK (0..' + WALK_MAX + '), -1 = never hookable',
       ).toBeGreaterThanOrEqual(0);
       const shot =
         ', walked to (' +
@@ -263,13 +247,7 @@ describe('l1 route visibility and hookability', () => {
       ).not.toBe(PREVIEW_NONE);
       expect(
         r.outcome,
-        at +
-          ': preview outcome ' +
-          r.outcome +
-          ' (LETHAL=' +
-          PREVIEW_LETHAL +
-          ') not allowed' +
-          shot,
+        at + ': preview outcome ' + r.outcome + ' (LETHAL=' + PREVIEW_LETHAL + ') not allowed' + shot,
       ).not.toBe(PREVIEW_LETHAL);
     });
   }

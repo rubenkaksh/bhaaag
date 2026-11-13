@@ -26,6 +26,10 @@ Amendment 2026-11-12 (cloud village, owner decided 2026-11-12; draft `docs/brief
 - Success addition: a first-time player opens `?mode=village` (or picks it in the mode switch) and finishes it in under 2 minutes per run, retrying instantly after a death; the cloud sea and houses read as one place without a tutorial.
 - Budget: JS bundle limit unchanged (under ~600 KB gzipped, initial chunk <= 215 KB gz). New texture files: 0 KB by default; new textures over 300 KiB total need owner approval first.
 
+Amendment 2026-11-13 (graph levels, `docs/lean-scope.md` Amendment 2026-11-13; success line added after the parkour-levels review S7):
+- Purpose addition: hand-graphed parkour levels (Valley Run first) are lobby entries played with the parkour moves (auto-vault, mantle, slide) plus the same zipline and one-hit death.
+- Success addition (PROPOSED, owner to confirm): a first-time player finishes Valley Run in under 2 minutes within a few restarts, and never dies without an input mistake (no death from an auto-move, an undrawn hazard or an open edge at spawn).
+
 ## Non-goals
 
 Stated in `docs/lean-scope.md` ("Dropped, do NOT build") and `CLAUDE.md`:

@@ -33,11 +33,7 @@ describe('framingFor', () => {
   });
 
   it('horizontal fov stays between 45 and 55 degrees on phones', () => {
-    for (const [w, h] of [
-      [390, 844],
-      [430, 932],
-      [360, 800],
-    ] as const) {
+    for (const [w, h] of [[390, 844], [430, 932], [360, 800]] as const) {
       const r = f(w, h);
       const hf = hfovDeg(r.camera.fov, w / h);
       expect(hf).toBeGreaterThan(45);

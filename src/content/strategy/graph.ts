@@ -272,8 +272,7 @@ export function moveOf(a: MazeNode, b: MazeNode, nodes: MazeNode[]): number {
     if (grabOk(a, b, rel)) return MOVE_GRAB;
   }
   if (zipOk(a, b, nodes)) return MOVE_ZIP;
-  if (rel !== null && !(a.kind === NODE_BALCONY && rel.downhill) && tightOk(a, b, rel))
-    return MOVE_TIGHT;
+  if (rel !== null && !(a.kind === NODE_BALCONY && rel.downhill) && tightOk(a, b, rel)) return MOVE_TIGHT;
   return -1;
 }
 

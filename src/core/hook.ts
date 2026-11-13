@@ -156,7 +156,12 @@ function chordBlocked(
   const trim = BLOCK_MARGIN < len * 0.25 ? BLOCK_MARGIN : len * 0.25;
   if (len - trim * 2 <= 0) return false;
   set(scratchP0, handX + dirX * trim, handY + dirY * trim, handZ + dirZ * trim);
-  set(scratchP1, ax - dirX * trim, ay - dirY * trim, az - dirZ * trim);
+  set(
+    scratchP1,
+    ax - dirX * trim,
+    ay - dirY * trim,
+    az - dirZ * trim,
+  );
   const solids = world.solids;
   for (let i = 0; i < solids.length; i++) {
     segmentVsAabb(scratchP0, scratchP1, solids[i], scratchHit);
@@ -235,9 +240,7 @@ export function pickAnchor(
     if (len < rope.minLen || len > maxLen) continue;
     const slopeSin = -cy / len; // positive = downhill
     if (slopeSin < minSlopeSin || slopeSin > maxSlopeSin) continue;
-    if (
-      chordBlocked(world, handX, handY, handZ, a.px, a.py, a.pz, len, cx / len, cy / len, cz / len)
-    )
+    if (chordBlocked(world, handX, handY, handZ, a.px, a.py, a.pz, len, cx / len, cy / len, cz / len))
       continue;
     bestCos = cosA;
     bestId = a.id;
@@ -285,43 +288,11 @@ export function pickAnchorAssisted(
   }
   let found = false;
   if (aim.routeAssistDeg > magnetDeg) {
-    pickAnchor(
-      world,
-      cfg,
-      handX,
-      handY,
-      handZ,
-      camX,
-      camY,
-      camZ,
-      dirX,
-      dirY,
-      dirZ,
-      maxLen,
-      aim.routeAssistDeg,
-      out,
-      scratchRouteEarly,
-    );
+    pickAnchor(world, cfg, handX, handY, handZ, camX, camY, camZ, dirX, dirY, dirZ, maxLen, aim.routeAssistDeg, out, scratchRouteEarly);
     found = out.anchorId !== NO_ANCHOR;
   }
   if (aim.routeAssistLateDeg > magnetDeg) {
-    pickAnchor(
-      world,
-      cfg,
-      handX,
-      handY,
-      handZ,
-      camX,
-      camY,
-      camZ,
-      dirX,
-      dirY,
-      dirZ,
-      maxLen,
-      aim.routeAssistLateDeg,
-      scratchLatePick,
-      scratchRouteLate,
-    );
+    pickAnchor(world, cfg, handX, handY, handZ, camX, camY, camZ, dirX, dirY, dirZ, maxLen, aim.routeAssistLateDeg, scratchLatePick, scratchRouteLate);
     if (scratchLatePick.anchorId !== NO_ANCHOR) {
       if (!found || scratchLatePick.angleDeg < out.angleDeg) {
         out.anchorId = scratchLatePick.anchorId;
@@ -332,22 +303,7 @@ export function pickAnchorAssisted(
     }
   }
   if (found) return;
-  pickAnchor(
-    world,
-    cfg,
-    handX,
-    handY,
-    handZ,
-    camX,
-    camY,
-    camZ,
-    dirX,
-    dirY,
-    dirZ,
-    maxLen,
-    magnetDeg,
-    out,
-  );
+  pickAnchor(world, cfg, handX, handY, handZ, camX, camY, camZ, dirX, dirY, dirZ, maxLen, magnetDeg, out);
 }
 
 export const AIM_OK = 0;
@@ -417,9 +373,7 @@ export function aimReason(
   const routeEarlyCos =
     cfg.aim.routeAssistDeg > magnetDeg ? Math.cos(cfg.aim.routeAssistDeg * DEG2RAD) : cosLimit;
   const routeLateCos =
-    cfg.aim.routeAssistLateDeg > magnetDeg
-      ? Math.cos(cfg.aim.routeAssistLateDeg * DEG2RAD)
-      : cosLimit;
+    cfg.aim.routeAssistLateDeg > magnetDeg ? Math.cos(cfg.aim.routeAssistLateDeg * DEG2RAD) : cosLimit;
   const earlyHops = cfg.aim.routeAssistEarlyHops;
   const route = world.route;
 
@@ -464,21 +418,7 @@ export function aimReason(
   if (slopeSin <= 0) return AIM_UPHILL;
   if (slopeSin < minSlopeSin) return AIM_TOO_FLAT;
   if (slopeSin > maxSlopeSin) return AIM_TOO_STEEP;
-  if (
-    chordBlocked(
-      world,
-      handX,
-      handY,
-      handZ,
-      best.px,
-      best.py,
-      best.pz,
-      len,
-      cx / len,
-      cy / len,
-      cz / len,
-    )
-  )
+  if (chordBlocked(world, handX, handY, handZ, best.px, best.py, best.pz, len, cx / len, cy / len, cz / len))
     return AIM_BLOCKED;
   return AIM_OK;
 }
@@ -544,7 +484,13 @@ export function hookFire(
  * resulting state. world is unused today and reserved for the §4.2 run-out / blocked-end
  * checks; callers keep passing it so this signature does not churn.
  */
-export function hookStep(h: Hook, dt: number, world: World, cfg: Tuning, brake: boolean): number {
+export function hookStep(
+  h: Hook,
+  dt: number,
+  world: World,
+  cfg: Tuning,
+  brake: boolean,
+): number {
   if (h.state === HOOK_FLYING) {
     h.flyT -= dt;
     if (h.flyT <= 0) {

@@ -140,14 +140,7 @@ export class ChaseHud {
     }
   }
 
-  showOver(
-    score: number,
-    metres: number,
-    hops: number,
-    best: number,
-    isBest: boolean,
-    why: string,
-  ): void {
+  showOver(score: number, metres: number, hops: number, best: number, isBest: boolean, why: string): void {
     (this.overBody.querySelector('h1') as HTMLElement).textContent = why;
     (this.overBody.querySelector('.big') as HTMLElement).textContent = String(Math.floor(score));
     (this.overBody.querySelector('.detail') as HTMLElement).textContent =

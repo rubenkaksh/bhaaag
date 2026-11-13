@@ -14,9 +14,9 @@ function fnv1a(text: string): string {
 
 /** One hash per shipped level id. A new placer or kit version is a new code path, never an edit here. */
 const FROZEN: Record<string, string> = {
-  // Re-recorded 2026-11-13 for review fixes M1-M3 (run-out gaps, tall parapets, 1 m hazard bands):
+  // Re-recorded 2026-11-13 for review fixes M1-M3 (run-out gaps, tall parapets, 1 m hazard bands, awnings):
   // valley-1 had not shipped yet. From now on this hash is frozen.
-  'valley-1': 'aa9b32e0',
+  'valley-1': '05e18639',
 };
 
 describe('graph level freeze', () => {

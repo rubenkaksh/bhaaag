@@ -243,7 +243,15 @@ export function buildRopePost(world: World): Group {
     );
   }
   parts.push(
-    colouredBox(px - 0.3, bottom - 0.4, pz - 0.3, roof.min.x, bottom, pz + 0.3, CORBEL_COLOR),
+    colouredBox(
+      px - 0.3,
+      bottom - 0.4,
+      pz - 0.3,
+      roof.min.x,
+      bottom,
+      pz + 0.3,
+      CORBEL_COLOR,
+    ),
   );
 
   const tx = px + 0.2;

@@ -1,14 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_TUNING } from '../../src/core/config';
-import {
-  PARK_Y,
-  anchorBase,
-  buildChaseWorld,
-  padBase,
-  slotOf,
-  solidBase,
-} from '../../src/core/chase/chaseWorld';
+import { PARK_Y, anchorBase, buildChaseWorld, padBase, slotOf, solidBase } from '../../src/core/chase/chaseWorld';
 import { FIXED_ROWS, SLOT_SOLIDS, STYLE_HIDDEN } from '../../src/core/chase/rows';
 
 type L1 = {
@@ -18,9 +11,7 @@ type L1 = {
   pads: { min: number[]; max: number[] }[];
   roofs: { min: number[]; max: number[]; ridge: number }[];
 };
-const l1 = JSON.parse(
-  readFileSync(new URL('../../content/levels/l1.json', import.meta.url), 'utf8'),
-) as L1;
+const l1 = JSON.parse(readFileSync(new URL('../../content/levels/l1.json', import.meta.url), 'utf8')) as L1;
 
 const key = (st: number, a: ArrayLike<number>): string =>
   `${st}|` + Array.from(a, (v) => (Math.round(v * 1000) / 1000 + 0).toFixed(3)).join(',');
@@ -43,8 +34,7 @@ describe('chase rows vs l1.json', () => {
         }
         for (let i = 0; i < 3; i++) {
           const b = w.pads[padBase(s) + i];
-          if (b.min.y > PARK_Y + 1)
-            pads.push(key(0, [b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]));
+          if (b.min.y > PARK_Y + 1) pads.push(key(0, [b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]));
         }
         for (let i = 0; i < 2; i++) {
           const a = w.anchors[anchorBase(s) + i];
@@ -67,4 +57,5 @@ describe('chase rows vs l1.json', () => {
       );
     }
   });
+
 });

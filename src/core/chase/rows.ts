@@ -98,13 +98,7 @@ export function difficultyFor(dragonSpeed: number, cfg: Tuning): number {
  * Row r for a given difficulty d in [0,1]. Deterministic in (seed, r, d). Gaps stay within
  * gapBase + [0, gapSpanLo + (gapSpanHi - gapSpanLo) d]: 17 m at most, which the bots cross.
  */
-export function rowSpecInto(
-  seed: number,
-  r: number,
-  out: RowSpec,
-  d = 0,
-  k: ChaseTuning = DEFAULT_TUNING.chase,
-): void {
+export function rowSpecInto(seed: number, r: number, out: RowSpec, d = 0, k: ChaseTuning = DEFAULT_TUNING.chase): void {
   if (r < FIXED_ROWS) {
     out.n = 2;
     out.gap = 13;
@@ -122,17 +116,11 @@ export function rowSpecInto(
   const nx = laneX(seed, r + 1);
   out.drift = nx > out.cx ? 1 : nx < out.cx ? -1 : 0;
   out.decoy = 0;
-  if (hash01(seed, r, 4) < k.decoyBase + k.decoyGain * d)
-    out.decoy = hash01(seed, r, 5) < 0.5 ? -1 : 1;
+  if (hash01(seed, r, 4) < k.decoyBase + k.decoyGain * d) out.decoy = hash01(seed, r, 5) < 0.5 ? -1 : 1;
   out.pitched = out.decoy !== 0 && hash01(seed, r, 6) < 0.5 ? 1 : 0;
 }
 
-export function rowSpec(
-  seed: number,
-  r: number,
-  d = 0,
-  k: ChaseTuning = DEFAULT_TUNING.chase,
-): RowSpec {
+export function rowSpec(seed: number, r: number, d = 0, k: ChaseTuning = DEFAULT_TUNING.chase): RowSpec {
   const s = new RowSpec();
   rowSpecInto(seed, r, s, d, k);
   return s;
@@ -159,16 +147,7 @@ export class RowBoxes {
   centreZ = new Float64Array(MAX_HOUSES);
 }
 
-function put(
-  a: Float64Array,
-  i: number,
-  x0: number,
-  y0: number,
-  z0: number,
-  x1: number,
-  y1: number,
-  z1: number,
-): void {
+function put(a: Float64Array, i: number, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): void {
   const o = i * 6;
   a[o] = x0;
   a[o + 1] = y0;

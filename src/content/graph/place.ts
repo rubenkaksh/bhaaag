@@ -467,6 +467,25 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
     }
   }
 
+  // awnings (review S4): a shop awning over the ground floor of the downhill face of decoy houses,
+  // where nothing else stands (no house, patch, stairs, balcony, takeoff or run-out gap on that face).
+  // Deterministic, no rng draw, so adding them does not reshuffle the seeded layout.
+  for (const h of all()) {
+    if (h.id < 100 || h.party[3] || h.balcony === 3 || h.takeoff.indexOf(3) >= 0) continue;
+    if (h.stairs !== null && h.stairs.face === 3) continue;
+    const foot: Patch = {
+      x0: h.cx - HK.awningW / 2 - 0.5,
+      x1: h.cx + HK.awningW / 2 + 0.5,
+      z0: h.cz - HALF - HK.awningD - 0.5,
+      z1: h.cz - HALF,
+      y: 0,
+    };
+    let ok = true;
+    for (const o of all()) if (o.id !== h.id && rectHitsHouse(foot, o, 0)) ok = false;
+    for (const p of patches) if (rectsHit(foot, p)) ok = false;
+    if (ok) h.awnings.push(3);
+  }
+
   // parapets: tall (1.2 m, never vaultable) on every side the hero could fall from into the lethal
   // hillside: not party, takeoff, balcony, stairs or run-out faces (review M1 belt and braces; the
   // sim also refuses a vault that ends in a lethal drop).

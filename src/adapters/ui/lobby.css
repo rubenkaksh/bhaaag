@@ -253,7 +253,7 @@
   }
   #lobby-mode,
   #lobby-gfx,
-  #lobby-orient {
+#lobby-orient {
     flex-wrap: wrap;
     justify-content: center;
     font-size: clamp(13px, 3.8vw, 18px);
@@ -261,7 +261,7 @@
   }
   #lobby-mode button,
   #lobby-gfx button,
-  #lobby-orient button {
+#lobby-orient button {
     min-height: 44px;
     min-width: 44px;
     padding: 0.2em 1em;

@@ -22,12 +22,7 @@ body.mode-chase #hud-objective {
   z-index: 15;
   opacity: 0;
   background:
-    radial-gradient(
-      ellipse at 50% 55%,
-      rgba(236, 234, 240, 0.92) 0%,
-      rgba(214, 216, 226, 0.88) 45%,
-      rgba(176, 182, 198, 0.82) 100%
-    ),
+    radial-gradient(ellipse at 50% 55%, rgba(236, 234, 240, 0.92) 0%, rgba(214, 216, 226, 0.88) 45%, rgba(176, 182, 198, 0.82) 100%),
     linear-gradient(rgba(220, 222, 232, 0.4), rgba(220, 222, 232, 0.4));
   transition: opacity 0.12s linear;
 }
@@ -44,12 +39,8 @@ body.mode-chase #hud-objective {
   animation: chase-danger-pulse 0.7s ease-in-out infinite alternate;
 }
 @keyframes chase-danger-pulse {
-  from {
-    filter: brightness(0.85);
-  }
-  to {
-    filter: brightness(1.3);
-  }
+  from { filter: brightness(0.85); }
+  to { filter: brightness(1.3); }
 }
 body.chase-catching #chase-danger,
 body.chase-card #chase-danger {
@@ -122,12 +113,8 @@ body.chase-card #chase-danger {
   letter-spacing: 0.12em;
 }
 @keyframes chase-pulse {
-  from {
-    opacity: 0.65;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0.65; }
+  to { opacity: 1; }
 }
 #chase-over {
   inset: 0;
@@ -139,29 +126,17 @@ body.chase-card #chase-danger {
   gap: 8px;
   pointer-events: auto;
   /* Portrait / near-square: the dragon's face docks at the top, the card fills the lower half. */
-  background: linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 38%,
-    rgba(36, 38, 52, 0.55) 50%
-  );
+  background: linear-gradient(to bottom, transparent 0, transparent 38%, rgba(36, 38, 52, 0.55) 50%);
   justify-content: flex-start;
   text-align: center;
-  padding: calc(46vh + env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px)
-    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  padding: calc(46vh + env(safe-area-inset-top, 0px)) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
 }
 @media (min-aspect-ratio: 6/5) {
   /* Landscape: the face docks on the left, the card sits in the right 54%. */
   #chase-over {
-    background: linear-gradient(
-      to right,
-      transparent 0,
-      transparent 40%,
-      rgba(36, 38, 52, 0.55) 52%
-    );
+    background: linear-gradient(to right, transparent 0, transparent 40%, rgba(36, 38, 52, 0.55) 52%);
     justify-content: center;
-    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
-      env(safe-area-inset-bottom, 0px) 46%;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) 46%;
   }
 }
 /* Card up: hide the play-only HUD (pause stays). */

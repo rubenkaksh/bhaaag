@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_TUNING as cfg } from '../../src/core/config';
-import {
-  PARK_Y,
-  buildChaseWorld,
-  recycleOldest,
-  refreshRoute,
-  slotOf,
-  solidBase,
-} from '../../src/core/chase/chaseWorld';
+import { PARK_Y, buildChaseWorld, recycleOldest, refreshRoute, slotOf, solidBase } from '../../src/core/chase/chaseWorld';
 import { SLOT_SOLIDS } from '../../src/core/chase/rows';
 
 function snapshot(seed: number, recycles: number): string {
@@ -55,8 +48,7 @@ describe('chase world', () => {
     let parked = 0;
     for (let r = cw.oldest; r <= cw.newest; r++) {
       const s = slotOf(cw, r);
-      for (let i = 0; i < SLOT_SOLIDS; i++)
-        if (cw.world.solids[solidBase(s) + i].min.y <= PARK_Y + 1) parked++;
+      for (let i = 0; i < SLOT_SOLIDS; i++) if (cw.world.solids[solidBase(s) + i].min.y <= PARK_Y + 1) parked++;
     }
     expect(parked).toBeGreaterThan(0);
   });

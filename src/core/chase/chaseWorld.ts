@@ -76,15 +76,7 @@ export function rampBase(slot: number): number {
   return 1 + slot * 2; // ramp 0 is the hill
 }
 
-function setBox(
-  b: AABB,
-  x0: number,
-  y0: number,
-  z0: number,
-  x1: number,
-  y1: number,
-  z1: number,
-): void {
+function setBox(b: AABB, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): void {
   b.min.x = x0;
   b.min.y = y0;
   b.min.z = z0;
@@ -116,15 +108,7 @@ export function writeRow(cw: ChaseWorld, row: number, zTop: number): void {
     const b = w.solids[sb + i];
     if (o.solidUsed[i] === 1) {
       const j = i * 6;
-      setBox(
-        b,
-        o.solid[j],
-        o.solid[j + 1],
-        o.solid[j + 2],
-        o.solid[j + 3],
-        o.solid[j + 4],
-        o.solid[j + 5],
-      );
+      setBox(b, o.solid[j], o.solid[j + 1], o.solid[j + 2], o.solid[j + 3], o.solid[j + 4], o.solid[j + 5]);
     } else {
       parkBox(b);
     }
@@ -214,23 +198,12 @@ export function buildChaseWorld(seed: number, cfg: Tuning): ChaseWorld {
   w.killPlaneY = -1e9;
   // Fixed part: the hill ramp, a back wall and the side walls behind row 0.
   const zLow = hillY(HILL_Z_MIN);
-  addRamp(
-    w,
-    box(-HILL_HALF_X, zLow, HILL_Z_MIN, HILL_HALF_X, zLow, HILL_Z_MAX),
-    2,
-    hillY(HILL_Z_MAX) - zLow,
-  );
+  addRamp(w, box(-HILL_HALF_X, zLow, HILL_Z_MIN, HILL_HALF_X, zLow, HILL_Z_MAX), 2, hillY(HILL_Z_MAX) - zLow);
   const wallTop = 80;
   const wallBot = hillY(0) - 40;
   addSolid(w, box(-HILL_HALF_X, wallBot, HILL_Z_MAX, HILL_HALF_X, wallTop, HILL_Z_MAX + WALL_T));
-  addSolid(
-    w,
-    box(-HILL_HALF_X - WALL_T, wallBot, ROW0_ZTOP, -HILL_HALF_X, wallTop, HILL_Z_MAX + WALL_T),
-  );
-  addSolid(
-    w,
-    box(HILL_HALF_X, wallBot, ROW0_ZTOP, HILL_HALF_X + WALL_T, wallTop, HILL_Z_MAX + WALL_T),
-  );
+  addSolid(w, box(-HILL_HALF_X - WALL_T, wallBot, ROW0_ZTOP, -HILL_HALF_X, wallTop, HILL_Z_MAX + WALL_T));
+  addSolid(w, box(HILL_HALF_X, wallBot, ROW0_ZTOP, HILL_HALF_X + WALL_T, wallTop, HILL_Z_MAX + WALL_T));
   for (let i = 0; i < FIXED_SOLIDS; i++) w.style.push(STYLE_HIDDEN);
   // Slots: placeholder entries (rewritten right below).
   for (let s = 0; s < slots; s++) {
@@ -285,9 +258,7 @@ export function buildRowsWorld(cw: ChaseWorld, out: World): number {
       const b = w.solids[sb + i];
       const st = w.style[sb + i];
       if (b.min.y <= PARK_Y + 1 || st === STYLE_HIDDEN) continue;
-      out.solids.push(
-        box(b.min.x, b.min.y - dy, b.min.z - dz, b.max.x, b.max.y - dy, b.max.z - dz),
-      );
+      out.solids.push(box(b.min.x, b.min.y - dy, b.min.z - dz, b.max.x, b.max.y - dy, b.max.z - dz));
       out.style.push(st);
     }
     const pb = padBase(slot);
@@ -299,11 +270,7 @@ export function buildRowsWorld(cw: ChaseWorld, out: World): number {
     const rf = w.roofs[slot];
     if (rf.aabb.min.y > PARK_Y + 1) {
       const a = rf.aabb;
-      addRoof(
-        out,
-        box(a.min.x, a.min.y - dy, a.min.z - dz, a.max.x, a.max.y - dy, a.max.z - dz),
-        RIDGE_Z,
-      );
+      addRoof(out, box(a.min.x, a.min.y - dy, a.min.z - dz, a.max.x, a.max.y - dy, a.max.z - dz), RIDGE_Z);
     }
     const ab = anchorBase(slot);
     for (let i = 0; i < SLOT_ANCHORS; i++) {

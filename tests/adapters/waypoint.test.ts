@@ -65,9 +65,7 @@ describe('waypoint shiftY and waypointTopPx', () => {
     expect(s.y).toBeLessThanOrEqual(H - 28 + 1e-9);
   });
   it('landscape top reproduces the original formula', () => {
-    expect(waypointTopPx(844, 390, false)).toBeCloseTo(
-      Math.max(10, 390 * 0.028) + Math.max(32, 390 * 0.054) + 8,
-    );
+    expect(waypointTopPx(844, 390, false)).toBeCloseTo(Math.max(10, 390 * 0.028) + Math.max(32, 390 * 0.054) + 8);
   });
   it('portrait top clears the pill and the two HUD rows', () => {
     const t = waypointTopPx(390, 844, true);

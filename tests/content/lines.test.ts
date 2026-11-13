@@ -20,8 +20,7 @@ const EDGE_FIRE_DIST = 3; // casual: metres before the roof edge
 const STAND_WAIT_TICKS = HZ; // standing: 1 s at rest before firing
 const EXPERT_RELEASE_FRAC = 0.9; // expert: rope fraction at which JUMP is pressed (inside the window)
 
-type Line =
-  'standing' | 'casual' | 'chain' | 'expert' | 'standing-instant' | 'casual-idle' | 'expert-late';
+type Line = 'standing' | 'casual' | 'chain' | 'expert' | 'standing-instant' | 'casual-idle' | 'expert-late';
 
 type Hop = { hop: number; hopT: number; ride: number; top: number };
 type Result = {
@@ -44,15 +43,7 @@ function play(line: Line): Result {
   s.camYaw = w.spawnYaw;
   s.camPitch = 0;
   s.grounded = 1;
-  const res: Result = {
-    line,
-    finished: false,
-    dead: false,
-    cause: '',
-    total: 0,
-    hops: [],
-    minStop: Infinity,
-  };
+  const res: Result = { line, finished: false, dead: false, cause: '', total: 0, hops: [], minStop: Infinity };
   let ticks = 0;
 
   const aimAt = (tx: number, ty: number, tz: number): void => {
@@ -98,11 +89,7 @@ function play(line: Line): Result {
         let want: boolean;
         if (!settled) {
           want = false;
-        } else if (
-          (line === 'standing' || line === 'standing-instant') &&
-          hop > 0 &&
-          s.pz > roof.max.z
-        ) {
+        } else if ((line === 'standing' || line === 'standing-instant') && hop > 0 && s.pz > roof.max.z) {
           // The first house of a row cannot be crossed on momentum alone: keep walking until the
           // hero stands on the row's last roof, then let go and stop there.
           f.moveY = AXIS_MAX;
@@ -124,29 +111,16 @@ function play(line: Line): Result {
           f.buttons = BTN_HOOK;
           nextPress = ticks + 15;
         }
-      } else if (
-        s.hook.state === HOOK_IDLE &&
-        (line === 'casual' || ((line === 'chain' || line === 'expert') && hop === 0))
-      ) {
+      } else if (s.hook.state === HOOK_IDLE && (line === 'casual' || ((line === 'chain' || line === 'expert') && hop === 0))) {
         f.moveY = AXIS_MAX; // keep running while an airborne hook is still being re-armed
       }
       // A perfect release overruns the roof with no input; the rope can still save it in the air.
-      if (
-        line === 'expert-late' &&
-        hop > 0 &&
-        s.mode !== HERO_GROUNDED &&
-        s.hook.state === HOOK_IDLE &&
-        ticks >= nextPress
-      ) {
+      if (line === 'expert-late' && hop > 0 && s.mode !== HERO_GROUNDED && s.hook.state === HOOK_IDLE && ticks >= nextPress) {
         f.pressed = BTN_HOOK;
         f.buttons = BTN_HOOK;
         nextPress = ticks + 15;
       }
-      if (
-        (line === 'expert' || line === 'expert-late') &&
-        s.mode === HERO_ATTACHED &&
-        s.hook.state === HOOK_ATTACHED
-      ) {
+      if ((line === 'expert' || line === 'expert-late') && s.mode === HERO_ATTACHED && s.hook.state === HOOK_ATTACHED) {
         const frac = s.hook.s / (s.hook.len - cfg.rope.trolleyStop);
         if (frac >= EXPERT_RELEASE_FRAC) f.pressed |= BTN_JUMP;
       }
@@ -168,12 +142,7 @@ function play(line: Line): Result {
       }
     }
     if (!landed) return fail(`hop${hop + 1}@${s.pz.toFixed(0)},${s.py.toFixed(0)}`);
-    res.hops.push({
-      hop: hop + 1,
-      hopT: (ticks - landedTick) / HZ,
-      ride: (ticks - fireTick) / HZ,
-      top,
-    });
+    res.hops.push({ hop: hop + 1, hopT: (ticks - landedTick) / HZ, ride: (ticks - fireTick) / HZ, top });
     landedTick = ticks;
   }
 
@@ -196,15 +165,7 @@ function play(line: Line): Result {
   return res;
 }
 
-const LINES: Line[] = [
-  'standing',
-  'standing-instant',
-  'casual',
-  'chain',
-  'expert',
-  'casual-idle',
-  'expert-late',
-];
+const LINES: Line[] = ['standing', 'standing-instant', 'casual', 'chain', 'expert', 'casual-idle', 'expert-late'];
 const results: Record<string, Result> = {};
 for (const l of LINES) results[l] = play(l);
 

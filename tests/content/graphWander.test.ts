@@ -67,6 +67,12 @@ for (const entry of GRAPH_LEVELS) {
       expect(s.dead).toBe(0);
     });
 
+    it('places awnings on decoy houses only where nothing else stands (review S4)', () => {
+      const withAwning = placed.houses.filter((h) => h.awnings.length > 0);
+      expect(withAwning.length).toBeGreaterThan(0);
+      for (const h of withAwning) expect(h.id).toBeGreaterThanOrEqual(100);
+    });
+
     it('zip source roofs have real geometry: not a party wall, windows kept, gap cut in the parapet', () => {
       let n = 0;
       for (const e of placed.edges) {
@@ -90,7 +96,9 @@ for (const entry of GRAPH_LEVELS) {
         const faces = new Set(windowSlots(h).map((k) => k.face));
         for (let f = 0; f < 4; f++) {
           if (h.party[f]) continue;
-          expect(faces.has(f as Face), `house ${h.id} face ${f}`).toBe(true);
+          // an awning face shows a shop opening instead of its ground-floor windows
+          const shop = h.awnings.indexOf(f as Face) >= 0;
+          expect(faces.has(f as Face) || shop, `house ${h.id} face ${f}`).toBe(true);
         }
       }
     });

@@ -73,12 +73,7 @@ export function copyChaseState(dst: ChaseState, src: ChaseState): void {
 
 export function chaseScore(cs: ChaseState, cfg: Tuning): number {
   const c = cfg.chase;
-  return (
-    Math.floor(cs.maxProgress) +
-    c.scoreHop * cs.hops +
-    c.scoreClean * cs.cleans +
-    c.scorePerfect * cs.perfects
-  );
+  return Math.floor(cs.maxProgress) + c.scoreHop * cs.hops + c.scoreClean * cs.cleans + c.scorePerfect * cs.perfects;
 }
 
 function onLivePad(rw: ChaseWorld, world: World, x: number, y: number, z: number): boolean {
@@ -87,13 +82,7 @@ function onLivePad(rw: ChaseWorld, world: World, x: number, y: number, z: number
     for (let i = 0; i < SLOT_PADS; i++) {
       const p = world.pads[pb + i];
       if (p.max.y < PARK_Y + 1) continue;
-      if (
-        x >= p.min.x &&
-        x <= p.max.x &&
-        z >= p.min.z &&
-        z <= p.max.z &&
-        Math.abs(y - p.max.y) <= LAND_PAD_TOL
-      ) {
+      if (x >= p.min.x && x <= p.max.x && z >= p.min.z && z <= p.max.z && Math.abs(y - p.max.y) <= LAND_PAD_TOL) {
         return true;
       }
     }
