@@ -36,6 +36,7 @@ import { step } from '../core/sim';
 import { Vec3 } from '../core/math/vec3';
 import { loadWorldFromJson, loadWorldFromObject } from '../content/load';
 import { STRATEGY_SEED, generateStrategyLevel } from '../content/strategy/gen';
+import { builderPlayLevel } from '../content/builder/store';
 import { DesktopInput } from '../adapters/input/desktop';
 import { TouchInput, type ActionMode } from '../adapters/input/touch';
 import { Sfx } from '../adapters/audio/sfx';
@@ -208,7 +209,8 @@ export function startGame(
         ? loadWorldFromObject(placed.level)
         : isStrategy
           ? loadWorldFromObject(
-              generateStrategyLevel(fixedSeed ? Number(seedParam) | 0 : STRATEGY_SEED),
+              builderPlayLevel(params) ??
+                generateStrategyLevel(fixedSeed ? Number(seedParam) | 0 : STRATEGY_SEED),
             )
           : loadWorldFromJson(village !== undefined && isVillage ? village.villageText : levelText);
   const gs = createGameScene(canvas);
