@@ -10,7 +10,7 @@ A mode may override only what is listed in `MODE_OVERRIDES` (same file) and in t
 | Key | Global default | Where it acts |
 | --- | --- | --- |
 | `camera.sideYawDeg / sideYawSpeed / sideYawEase / sideYawEaseBack` (T300, widened) | 40 / 2.5 / 0.07 / 0.035 | `tickYawOffsets`, called from the one camera tick in `game.ts`; full lean at 2.5 m/s sideways, slower ease back |
-| `camera.lookYawMaxDeg / lookPitchMinDeg / lookPitchMaxDeg / lookDragDegPerPx / lookIdleSec / lookEase` (LOOK mode) | 170 / -25 / 40 / 0.3 / 4 / 0.08 | `adapters/render/lookOffset.ts`, ticked in `game.ts` `stepBody`, added to the camera yaw/pitch in all modes (button, L key, touch and mouse drag) |
+| `camera.lookYawMaxDeg / lookPitchMinDeg / lookPitchMaxDeg / lookDragDegPerPx / lookIdleSec / lookEase` (LOOK mode) | 180 (wraps, free 360) / -25 / 40 / 0.3 / 4 / 0.08 | `adapters/render/lookOffset.ts`, ticked in `game.ts` `stepBody`, added to the camera yaw/pitch in all modes (button, L key, touch and mouse drag) |
 | `camera.lookInvertX / lookInvertY` | 1 / 0 | same helper: drag right turns the view right, drag down looks up; 0/1 flips (global) |
 | LOOK availability (`lookAvailability(heroMode)`) | grounded: toggle; rope: on by default; airborne/hanging: off | `lookOffset.ts`, wired in `game.ts` `stepBody` and `hud.setLookEnabled`, all modes; no tuning key |
 | `camera.tiltDeg` (render-only pitch-down) | 20 | `game.ts` camera tick, all modes (was village-only) |

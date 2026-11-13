@@ -273,7 +273,7 @@ export const DEFAULT_TUNING: Tuning = {
     sideYawSpeed: 2.5,
     sideYawEase: 0.07,
     sideYawEaseBack: 0.035,
-    lookYawMaxDeg: 170,
+    lookYawMaxDeg: 180,
     lookPitchMinDeg: -25,
     lookPitchMaxDeg: 40,
     lookDragDegPerPx: 0.3,

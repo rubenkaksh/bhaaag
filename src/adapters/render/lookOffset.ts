@@ -6,7 +6,7 @@ import { HERO_ATTACHED, HERO_GROUNDED } from '../../core/hero';
 const DEG = Math.PI / 180;
 
 export interface LookCfg {
-  lookYawMaxDeg: number; // max |yaw| from the follow view
+  lookYawMaxDeg: number; // max |yaw| from the follow view; >= 180 wraps (free 360)
   lookPitchMinDeg: number; // lowest pitch offset (negative = look down)
   lookPitchMaxDeg: number; // highest pitch offset
   lookDragDegPerPx: number; // view turn per px of drag
@@ -42,11 +42,12 @@ export function setLookActive(s: LookState, on: boolean): void {
  */
 export function applyLookDrag(s: LookState, dx: number, dy: number, cfg: LookCfg): void {
   if (!s.active) return;
-  s.yaw = clamp(
-    s.yaw + (cfg.lookInvertX >= 0.5 ? dx : -dx) * cfg.lookDragDegPerPx * DEG,
-    -cfg.lookYawMaxDeg * DEG,
-    cfg.lookYawMaxDeg * DEG,
-  );
+  const yaw = s.yaw + (cfg.lookInvertX >= 0.5 ? dx : -dx) * cfg.lookDragDegPerPx * DEG;
+  // lookYawMaxDeg >= 180 means a free full turn: wrap into (-180, 180] so you can keep swiping round.
+  s.yaw =
+    cfg.lookYawMaxDeg >= 180
+      ? yaw - Math.round(yaw / (2 * Math.PI)) * 2 * Math.PI
+      : clamp(yaw, -cfg.lookYawMaxDeg * DEG, cfg.lookYawMaxDeg * DEG);
   s.pitch = clamp(
     s.pitch + (cfg.lookInvertY >= 0.5 ? -dy : dy) * cfg.lookDragDegPerPx * DEG,
     cfg.lookPitchMinDeg * DEG,

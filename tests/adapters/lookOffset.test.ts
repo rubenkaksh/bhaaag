@@ -4,7 +4,7 @@ import { applyLookDrag, lookAvailability, newLookState, setLookActive, tickLook 
 
 const D = Math.PI / 180;
 const cfg = {
-  lookYawMaxDeg: 170,
+  lookYawMaxDeg: 180,
   lookPitchMinDeg: -25,
   lookPitchMaxDeg: 40,
   lookDragDegPerPx: 0.5,
@@ -35,15 +35,26 @@ describe('look offset', () => {
     expect(s.yaw).toBeCloseTo(-20 * D);
     expect(s.pitch).toBeCloseTo(-10 * D);
   });
-  it('clamps yaw and pitch', () => {
+  it('clamps yaw (when capped below 180) and pitch', () => {
     const s = newLookState();
+    const capped = { ...cfg, lookYawMaxDeg: 170 };
     setLookActive(s, true);
-    applyLookDrag(s, 99999, 99999, cfg);
-    expect(s.yaw).toBeCloseTo(170 * D);
+    applyLookDrag(s, 99999 + 1, 99999, capped);
+    expect(Math.abs(s.yaw)).toBeCloseTo(170 * D);
     expect(s.pitch).toBeCloseTo(40 * D);
-    applyLookDrag(s, -99999, -99999, cfg);
+    applyLookDrag(s, -99999, -99999, capped);
     expect(s.yaw).toBeCloseTo(-170 * D);
     expect(s.pitch).toBeCloseTo(-25 * D);
+  });
+  it('wraps yaw past a full 360 so swiping never gets stuck', () => {
+    const s = newLookState();
+    setLookActive(s, true);
+    applyLookDrag(s, 720, 0, cfg); // 360 deg at 0.5 deg/px
+    expect(s.yaw).toBeCloseTo(0);
+    applyLookDrag(s, 400, 0, cfg); // 200 deg -> -160
+    expect(s.yaw).toBeCloseTo(-160 * D);
+    applyLookDrag(s, 100, 0, cfg); // still turning right
+    expect(s.yaw).toBeCloseTo(-110 * D);
   });
   it('switches off after the idle timeout, a drag resets it, a held drag never times out', () => {
     const s = newLookState();
