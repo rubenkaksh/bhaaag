@@ -34,14 +34,21 @@ import {
   POSE_IDLE,
   POSE_ROLL,
   POSE_RUN,
+  VAULTING,
   newHeroPoseInput,
   newHeroPoseState,
   runCadence,
   stepHeroPose,
 } from '../../src/adapters/render/heroPose';
 import type { HeroPoseInput, HeroPoseState } from '../../src/adapters/render/heroPose';
-import { HERO_HANGING } from '../../src/core/hero';
-import { AE_ATTACH, AE_JUMP, AE_LAND, AE_RELEASE } from '../../src/adapters/render/animEvents';
+import { HERO_HANGING, HERO_VAULT } from '../../src/core/hero';
+import {
+  AE_ATTACH,
+  AE_JUMP,
+  AE_LAND,
+  AE_MANTLE,
+  AE_RELEASE,
+} from '../../src/adapters/render/animEvents';
 import {
   applyHeroChannels,
   HERO_COLORS,
@@ -671,6 +678,77 @@ describe('heroPose animation layer', () => {
         stepHeroPose(st, inp, 0);
         for (let c = 0; c < CH_COUNT; c++) expect(Number.isFinite(st.channels[c])).toBe(true);
       }
+    }
+  });
+});
+
+describe('heroPose parkour (ADR 0013)', () => {
+  it('VAULTING mirrors the core mode and tucks the lead knee over time', () => {
+    expect(VAULTING).toBe(HERO_VAULT);
+    const base = newHeroPoseInput();
+    base.state = GROUNDED;
+    base.speed = 5;
+    const run0 = settle(base, 0.5);
+    const inp = newHeroPoseInput();
+    inp.state = VAULTING;
+    inp.speed = 5;
+    const st = settle(inp, 0.3);
+    expect(st.vaultW).toBeGreaterThan(0.9);
+    expect(st.channels[CH_KNEE_L]).toBeGreaterThan(run0.channels[CH_KNEE_L]);
+    expect(st.channels[CH_SPINE_PITCH]).toBeGreaterThan(0.3);
+    expect(weightSum(st)).toBeCloseTo(1, 6);
+  });
+
+  it('the vault blend fades out after the vault ends', () => {
+    const inp = newHeroPoseInput();
+    inp.state = VAULTING;
+    inp.speed = 5;
+    const st = settle(inp, 0.3);
+    inp.state = AIRBORNE;
+    run(st, inp, 0.6);
+    expect(st.vaultW).toBeLessThan(0.01);
+  });
+
+  it('sliding leans the body back and drops the hips; off the ground it does not', () => {
+    const inp = newHeroPoseInput();
+    inp.state = GROUNDED;
+    inp.speed = 6;
+    inp.sliding = true;
+    const st = settle(inp, 0.4);
+    expect(st.slideW).toBeGreaterThan(0.9);
+    expect(st.channels[CH_BODY_PITCH]).toBeLessThan(-0.6);
+    expect(st.channels[CH_HIPS_Y]).toBeLessThan(-0.3);
+    inp.state = AIRBORNE;
+    run(st, inp, 0.6);
+    expect(st.slideW).toBeLessThan(0.01);
+  });
+
+  it('AE_MANTLE plays a climb-up: hips start well below rest and rise back', () => {
+    const { v } = trace(
+      (i) => {
+        i.state = GROUNDED;
+      },
+      AE_MANTLE,
+      0,
+      CH_HIPS_Y,
+      0.6,
+    );
+    const rest = v[v.length - 1];
+    expect(v[0]).toBeLessThan(rest - 0.6);
+    for (let i = 1; i < 18; i++) expect(v[i]).toBeGreaterThanOrEqual(v[i - 1] - 1e-9);
+    expect(Math.abs(v[v.length - 1] - rest)).toBeLessThan(1e-6);
+  });
+
+  it('all channels stay finite through vault, slide and mantle', () => {
+    const st = newHeroPoseState();
+    const inp = newHeroPoseInput();
+    inp.dt = DT;
+    for (let i = 0; i < 120; i++) {
+      inp.state = i < 40 ? VAULTING : GROUNDED;
+      inp.sliding = i >= 60;
+      inp.events = i === 41 ? AE_MANTLE : 0;
+      stepHeroPose(st, inp, 0);
+      for (let c = 0; c < CH_COUNT; c++) expect(Number.isFinite(st.channels[c])).toBe(true);
     }
   });
 });
