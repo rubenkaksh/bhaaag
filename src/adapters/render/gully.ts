@@ -1,13 +1,16 @@
 // Graph levels: the lethal hillside, drawn (review M2). Every world.hazards band is a thin z slice
-// of open ground that kills on touch; this lays a terracotta ribbon over the terrain there, with
-// the walkable patches (hay yards, stair yards, goal yard) cut out, so the player can read where
-// the ground is fatal (Principle 3: terracotta = danger). One merged draw call, stock material.
+// of open ground that kills on touch, and together they cover the whole hill. Painting all of it
+// made the floor one red sheet (owner phone test 2026-11-13), so only a FRINGE hugging each house
+// base is drawn terracotta (Principle 3: terracotta = danger): that is the ground a short fall
+// lands on. The rest of the hill keeps its grass colour. Walkable patches (hay yards, stair
+// yards, goal yard) are cut out. One merged draw call, stock material.
 import { BufferGeometry, Color, Float32BufferAttribute, Mesh, MeshLambertMaterial } from 'three';
 import type { World } from '../../core/world';
 import { HILL_HALF_X, planeY } from './terrain';
 
 export const GULLY_COLOR = '#c4472a'; // same terracotta as the danger style in levelView
-const LIFT = 0.06; // above the drawn terrain (polygonOffset does the rest)
+const LIFT = 0.12; // above the drawn terrain (polygonOffset does the rest)
+export const FRINGE = 1.5; // m of terracotta around each house base
 
 export interface GullyPatch {
   x0: number;
@@ -19,7 +22,45 @@ export interface GullyPatch {
 /** One ribbon quad: x0..x1 over the z slice z0..z1 (z0 < z1). */
 export type GullyQuad = [number, number, number, number];
 
-/** The x intervals of every hazard band that are open lethal ground (patches cut out). */
+type Span = [number, number];
+
+/** x intervals within FRINGE of a house base (outside the base itself) for the z slice z0..z1. */
+function fringeSpans(world: World, z0: number, z1: number): Span[] {
+  const out: Span[] = [];
+  for (let i = 0; i < world.solids.length; i++) {
+    const b = world.solids[i];
+    if (b.max.x - b.min.x < 6 || b.max.y - b.min.y < 4) continue; // house base boxes only
+    if (z1 <= b.min.z - FRINGE || z0 >= b.max.z + FRINGE) continue;
+    const inside = z1 > b.min.z && z0 < b.max.z;
+    if (inside) {
+      out.push([b.min.x - FRINGE, b.min.x], [b.max.x, b.max.x + FRINGE]);
+    } else {
+      out.push([b.min.x - FRINGE, b.max.x + FRINGE]);
+    }
+  }
+  out.sort((a, b) => a[0] - b[0]);
+  const merged: Span[] = []; // union, so neighbouring houses never stack coplanar quads
+  for (const s of out) {
+    const last = merged[merged.length - 1];
+    if (last !== undefined && s[0] <= last[1]) last[1] = Math.max(last[1], s[1]);
+    else merged.push([s[0], s[1]]);
+  }
+  return merged;
+}
+
+function intersect(spans: Span[], mask: Span[]): Span[] {
+  const out: Span[] = [];
+  for (const [a, b] of spans) {
+    for (const [c, d] of mask) {
+      const lo = Math.max(a, c);
+      const hi = Math.min(b, d);
+      if (hi - lo > 0.05) out.push([lo, hi]);
+    }
+  }
+  return out;
+}
+
+/** The x intervals of every hazard band that are lethal ground near a house base (patches cut out). */
 export function gullyQuads(world: World, patches: readonly GullyPatch[]): GullyQuad[] {
   const out: GullyQuad[] = [];
   for (let i = 0; i < world.hazards.length; i++) {
@@ -42,6 +83,7 @@ export function gullyQuads(world: World, patches: readonly GullyPatch[]): GullyQ
       }
       spans = next;
     }
+    spans = intersect(spans, fringeSpans(world, z0, z1));
     for (let j = 0; j < spans.length; j++) out.push([spans[j][0], z0, spans[j][1], z1]);
   }
   return out;

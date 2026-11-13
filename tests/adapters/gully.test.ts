@@ -45,6 +45,27 @@ describe('graph gully (review M2)', () => {
     }
   });
 
+  it('paints only a fringe, never the whole hill red, with no overlapping quads', () => {
+    const quads = gullyQuads(world, placed.patches);
+    let area = 0;
+    for (let i = 0; i < quads.length; i++) {
+      const [x0, z0, x1, z1] = quads[i];
+      area += (x1 - x0) * (z1 - z0);
+      for (let j = i + 1; j < quads.length; j++) {
+        const [a0, b0, a1, b1] = quads[j];
+        const overlap = Math.min(x1, a1) > Math.max(x0, a0) && Math.min(z1, b1) > Math.max(z0, b0);
+        expect(overlap, `quads ${i} and ${j} overlap`).toBe(false);
+      }
+    }
+    let zs = Infinity;
+    let ze = -Infinity;
+    for (const hz of world.hazards) {
+      zs = Math.min(zs, hz.min.z);
+      ze = Math.max(ze, hz.max.z);
+    }
+    expect(area).toBeLessThan(0.25 * 68 * (ze - zs)); // hill is 68 m wide
+  });
+
   it('kills at the visible ground: every band top is within 0.5 m of the drawn terrain', () => {
     setTerrainProfile(placed.profile);
     let checked = 0;
