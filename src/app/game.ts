@@ -39,7 +39,15 @@ import { Sfx } from '../adapters/audio/sfx';
 import { CameraRig, updateCamera } from '../adapters/render/cameraRig';
 import { chaseRigYaw, tickYawOffsets } from '../adapters/render/cameraYaw';
 import type { YawOffsets } from '../adapters/render/cameraYaw';
-import { applyLookDrag, lookAvailability, newLookState, setLookActive, tickLook } from '../adapters/render/lookOffset';
+import {
+  blendPose,
+  newOverviewPose,
+  overviewAvailable,
+  overviewPose,
+  overviewWeight,
+  stepOverview,
+} from '../adapters/render/overviewCam';
+import type { Pt } from '../adapters/render/overviewCam';
 import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
 import { updateLevelView } from '../adapters/render/levelView';
@@ -280,7 +288,14 @@ export function startGame(
   let brakeWas = false;
   let viewport: ViewportLayout = readViewport();
   let lensShiftPx = 0;
-  const look = newLookState(); // LOOK mode: free camera offset around the hero (all modes)
+  // Hold-to-zoom-out bird's eye (MAP button / L or M key): k eases 0..1 per fixed tick, render-only.
+  let ovHeld = false;
+  let ovK = 0;
+  let ovLit = false;
+  let ovEnabled = true; // MAP button enabled (grounded or riding the rope)
+  const ovFollow = newOverviewPose();
+  const ovTarget = newOverviewPose();
+  const ovAhead: Pt[] = [];
 const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig radians): zipline diagonal + side look (T300)
   let hintId = NO_ANCHOR; // anchor highlighted by HINT (T299); render-only, never read by the sim
   let hintT = 0;
@@ -304,11 +319,10 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
     cur.camPitch = cfg.camera.frontPitchDeg * DEG2RAD;
     yawOff.zip = 0;
     yawOff.side = 0;
-    setLookActive(look, false);
-    look.yaw = 0;
-    look.pitch = 0;
-    hudUi.setLookActive(false);
-    lookAuto = false;
+    ovHeld = false;
+    ovK = 0;
+    ovLit = false;
+    hudUi.setOverviewActive(false);
     hintId = NO_ANCHOR;
     hintT = 0;
     tapAnchor = NO_ANCHOR;
@@ -332,36 +346,71 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
     updateCamera(
       curRig,
       feet,
-      base + yawOff.zip + yawOff.side + look.yaw,
-      cur.camPitch - camTilt + (front ? 0.14 : 0) + look.pitch,
+      base + yawOff.zip + yawOff.side,
+      cur.camPitch - camTilt + (front ? 0.14 : 0),
       speed,
       world.solids,
       camCfg,
     );
+    if (ovK > 0) applyOverview(base);
+  }
+
+  /** Blend the follow pose toward the bird's eye pose: hero + the path ahead (next anchors, pads, finish). */
+  function applyOverview(baseYaw: number): void {
+    const fx = Math.sin(baseYaw);
+    const fz = -Math.cos(baseYaw);
+    let n = 0;
+    const add = (x: number, y: number, z: number): void => {
+      // Only what lies ahead of the hero along the view direction (a little behind is fine).
+      if ((x - cur.px) * fx + (z - cur.pz) * fz >= -4) {
+        if (n === ovAhead.length) ovAhead.push({ x: 0, y: 0, z: 0 });
+        const p = ovAhead[n++];
+        p.x = x;
+        p.y = y;
+        p.z = z;
+      }
+    };
+    const first = cs !== null ? 0 : nextRouteIndex;
+    for (let i = first; i < world.route.length; i++) {
+      const a = world.anchors[world.route[i]];
+      if (a !== undefined) add(a.px, a.py, a.pz);
+    }
+    for (let i = 0; i < world.pads.length; i++) {
+      const b = world.pads[i];
+      add((b.min.x + b.max.x) / 2, b.max.y, (b.min.z + b.max.z) / 2);
+    }
+    if (hasGoal) add(goalCx, goalCy, goalCz);
+    ovAhead.length = n; // keep the pool small; entries are re-created on demand
+    ovFollow.px = curRig.pos.x;
+    ovFollow.py = curRig.pos.y;
+    ovFollow.pz = curRig.pos.z;
+    ovFollow.lx = curRig.lookAt.x;
+    ovFollow.ly = curRig.lookAt.y;
+    ovFollow.lz = curRig.lookAt.z;
+    overviewPose(feet, ovAhead, baseYaw, camCfg, ovTarget);
+    blendPose(ovFollow, ovTarget, overviewWeight(ovK));
+    curRig.pos.x = ovFollow.px;
+    curRig.pos.y = ovFollow.py;
+    curRig.pos.z = ovFollow.pz;
+    curRig.lookAt.x = ovFollow.lx;
+    curRig.lookAt.y = ovFollow.ly;
+    curRig.lookAt.z = ovFollow.lz;
   }
 
   const hudUi = new Hud(root, debug, () => restart(), {
     hint: MODE_INFO[mode].hint,
     hopChip: MODE_INFO[mode].hopChip,
     onHint: isStrategy ? null : showHint,
-    onLook: toggleLook,
+    onOverview: setOverviewHeld,
   });
   // Cloud Village never showed the reticle (its tilted view has no aim dot); every other mode keeps
-  // it, including the gold target-found state. The HUD hides it while LOOK is active.
+  // it, including the gold target-found state. The HUD hides it while the overview is held.
   if (isVillage && camTilt > 0) hudUi.hideReticle();
   const chaseHud = isChase ? new ChaseHud(root, () => restart()) : null;
 
-  let lookAuto = false; // on the rope look-around is on by default (lookAvailability.auto)
-  let lookEnabled = true; // LOOK button enabled (hero stable on a roof or riding the rope)
-
-  /** LOOK button / L key: toggle free look-around. Off eases the camera back to the follow view. */
-  function toggleLook(): void {
-    if (phase === 'dead' && cs !== null) return;
-    if (!lookAvailability(cur.mode).available || lookAuto) return; // airborne/hanging: no LOOK; on the rope it is always on
-    setLookActive(look, !look.active);
-    input.lookDx = 0;
-    input.lookDy = 0;
-    hudUi.setLookActive(look.active);
+  /** MAP button / L / M key: hold = zoom out to the bird's eye view, release = ease back. */
+  function setOverviewHeld(held: boolean): void {
+    ovHeld = held && !(phase === 'dead' && cs !== null);
   }
 
   /** HINT: highlight the best takeable zipline anchor for hintSec. No sim state is touched. */
@@ -431,27 +480,18 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
     copyHeroState(prev, cur);
     input.sample(frame);
     frame.moveX = -frame.moveX;
-    // LOOK: drags rotate the camera only (the input adapters keep them out of the sim); idle or toggle ends it.
-    applyLookDrag(look, input.lookDx, input.lookDy, camCfg);
-    input.lookDx = 0;
-    input.lookDy = 0;
-    // LOOK rules (lookAvailability): roof = toggle, rope = on by default, airborne/hanging = off.
-    const av = lookAvailability(cur.mode);
-    if (av.available !== lookEnabled) {
-      lookEnabled = av.available;
-      hudUi.setLookEnabled(lookEnabled);
+    // Overview (hold MAP): only grounded on a roof or riding the rope; elsewhere it releases and eases back.
+    const ovOk = overviewAvailable(cur.mode);
+    if (ovOk !== ovEnabled) {
+      ovEnabled = ovOk;
+      hudUi.setOverviewEnabled(ovOk);
     }
-    if (av.auto) {
-      if (!look.active) setLookActive(look, true);
-      look.idle = 0; // no idle timeout while riding
-    } else if (lookAuto || !av.available) {
-      if (look.active) setLookActive(look, false); // detached / landed / airborne: ease back
+    const ovOn = ovHeld && ovOk;
+    ovK = stepOverview(ovK, ovOn, camCfg);
+    if (ovOn !== ovLit) {
+      ovLit = ovOn;
+      hudUi.setOverviewActive(ovOn);
     }
-    lookAuto = av.auto;
-    const wasLook = look.active;
-    tickLook(look, stepDt, input.lookHeld, camCfg);
-    if (look.active !== wasLook) hudUi.setLookActive(look.active);
-    input.lookMode = look.active;
 
     if (phase === 'pan') {
       // Drain input so nothing pressed during the flyover fires on the first play tick.
@@ -628,7 +668,7 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
   function consumeTap(): void {
     if (!(input instanceof TouchInput) || !input.tapPending) return;
     input.tapPending = false;
-    if (look.active || isLineOnly()) return;
+    if (ovK > 0.05 || isLineOnly()) return; // zoomed out: a tap never aims
     if (cur.mode === HERO_ATTACHED) return;
     const i = pickAnchorAtNdc(
       gs.camera,
@@ -1061,9 +1101,15 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
   };
   const onHintKey = (e: KeyboardEvent): void => {
     if (e.code === 'KeyH' && !e.repeat && !isStrategy) showHint();
-    if (e.code === 'KeyL' && !e.repeat) toggleLook();
+    if ((e.code === 'KeyL' || e.code === 'KeyM') && !e.repeat) setOverviewHeld(true);
   };
+  const onMapKeyUp = (e: KeyboardEvent): void => {
+    if (e.code === 'KeyL' || e.code === 'KeyM') setOverviewHeld(false);
+  };
+  const onBlurRelease = (): void => setOverviewHeld(false);
   window.addEventListener('keydown', onHintKey);
+  window.addEventListener('keyup', onMapKeyUp);
+  window.addEventListener('blur', onBlurRelease);
   window.addEventListener('keydown', onAnyInput, true);
   window.addEventListener('pointerdown', onAnyInput, true);
   // pointerup (not pointerdown) is the user activation on touch browsers.
@@ -1107,6 +1153,8 @@ const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig 
       loop.stop();
       unwatchViewport();
       window.removeEventListener('keydown', onHintKey);
+      window.removeEventListener('keyup', onMapKeyUp);
+      window.removeEventListener('blur', onBlurRelease);
       window.removeEventListener('keydown', onAnyInput, true);
       window.removeEventListener('pointerdown', onAnyInput, true);
       window.removeEventListener('pointerup', onUnlockGesture, true);

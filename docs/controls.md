@@ -9,18 +9,14 @@ covers Hook, Mantle and Brake (release on the rope is DROP) with one thumb targe
 
 - Left thumb: floating stick. It appears where the thumb lands, moves the hero. Swipe down on
   the right side = Drop.
-- **LOOK** button, bottom centre of the HUD (all modes): tap to toggle look-around. While on, a drag on the
-  look zone (anywhere outside the stick zone) turns the camera around the hero (yaw up to `lookYawMaxDeg`, pitch
-  `lookPitchMinDeg`..`lookPitchMaxDeg`); touch taps (tap-to-aim) and the Drop swipe are suspended, so a drag or tap never aims,
-  drops or hooks. Everything else keeps working: the stick, the JUMP button and the context action button. Tap LOOK again, or wait `lookIdleSec` (4 s) without a drag, and the camera eases back
-  to the follow view (`lookEase`). Never changes movement direction (still relative to the follow view).
-  **Stick while LOOK is on:** the stick is NOT floating; it is fixed at its home position (bottom-left, same place each time) and
-  keeps steering. It floats again when LOOK ends.
-  **Direction:** drag right turns the view right, drag down looks up (owner iPhone feedback); `camera.lookInvertX` / `lookInvertY`
-  (1 / 0) flip them.
-  **Availability (`lookAvailability(heroMode)`, `lookOffset.ts`):** grounded on a roof = LOOK toggles as above. Attached to the rope =
-  look-around is ON by default (no toggle, button shows active, no idle timeout; the Drop swipe is suspended, use the button's triple tap) and eases
-  back on detach or landing. Airborne, hanging, dead = LOOK button dimmed/disabled and any active LOOK switches off.
+- **MAP** button, bottom centre of the HUD (all modes): HOLD to zoom out to a bird's eye view. The camera rises and pulls back
+  to an oblique overview that frames the hero plus the path ahead (next anchors, landing pads, finish), clamped to
+  `camera.overviewMaxExtent` from the hero; release and it eases back to the follow camera (`overviewEase`, in and out).
+  Tunables: `overviewHeight`, `overviewPullBack`, `overviewPitchDeg`, `overviewSpanScale`. Render-only: the sim never changes and the
+  stick still moves relative to the normal follow view. The stick floats as usual and the Drop swipe is never suspended.
+  While zoomed out a tap does not aim (tap-to-aim resumes when the view is back).
+  **Availability (`overviewAvailable(heroMode)`, `overviewCam.ts`):** grounded on a roof or attached to the rope. Airborne, hanging,
+  dead = the button is dimmed and any hold releases (the camera eases back).
 - Right thumb: ONE big button (`#btn-jump`). Its label is the context (`ActionMode`, set by
   `game.ts` each frame, drawn by `hud.setActionLabel`):
 
@@ -42,12 +38,12 @@ covers Hook, Mantle and Brake (release on the rope is DROP) with one thumb targe
 
 ## Desktop (unchanged, plus one key)
 
-WASD / arrows move, **L toggles LOOK** (a mouse drag then turns the camera and the mouse click/drag no longer hooks or brakes; no pointer lock; the keyboard keeps working: Space jump, E hook, hold R brake, Shift/Ctrl/Q drop, F climb), Space jump, E or left click hook, hold R or right mouse brake,
+WASD / arrows move, **hold L or M = bird's eye overview** (same rules as the MAP button; nothing else changes while held), Space jump, E or left click hook, hold R or right mouse brake,
 Shift / Ctrl / Q drop, **F hold = climb (mantle)**, Esc menu.
 
 ## Camera and aim
 
-**The only view control is LOOK** (button or L, see above). There is no always-on look-drag, mouse look, pointer lock, right stick or
+**The only view control is the hold-to-zoom-out MAP overview** (button or L / M, see above). There is no look-drag, mouse look, pointer lock, right stick or
 Q/E camera turn. The camera is a fixed view from BEHIND the hero, looking downhill, that follows the hero and pans
 left and right to keep the hero centred (pitch `camera.frontPitchDeg`).
 Automatic changes: while moving sideways the camera leans up to `camera.sideYawDeg` (40 deg, full at

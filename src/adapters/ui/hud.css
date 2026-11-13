@@ -166,7 +166,7 @@
 #hud-hintbtn.on {
   background: rgba(255, 200, 58, 0.45);
 }
-#hud-lookbtn {
+#hud-mapbtn {
   bottom: calc(var(--pad) + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
@@ -187,15 +187,15 @@
   letter-spacing: 0.08em;
   -webkit-tap-highlight-color: transparent;
 }
-#hud-lookbtn svg {
+#hud-mapbtn svg {
   height: 1.7em;
   width: 1.7em;
 }
-#hud-lookbtn:active,
-#hud-lookbtn.on {
+#hud-mapbtn:active,
+#hud-mapbtn.on {
   background: rgba(255, 200, 58, 0.45);
 }
-#hud-lookbtn.dim {
+#hud-mapbtn.dim {
   opacity: 0.35;
   pointer-events: none;
 }
@@ -239,7 +239,7 @@
   box-shadow: 0 0 10px 2px rgba(255, 200, 58, 0.8);
 }
 #hud-reticle.off,
-#hud-reticle.look,
+#hud-reticle.overview,
 #hud-reticle.gone {
   display: none;
 }
@@ -604,7 +604,7 @@
     right: calc(var(--hud-side) + var(--pill-h) + 8px + env(safe-area-inset-right, 0px));
     height: var(--pill-h);
   }
-  #hud-lookbtn {
+  #hud-mapbtn {
     bottom: var(--ab, calc(12px + env(safe-area-inset-bottom, 0px)));
     height: var(--pill-h);
   }

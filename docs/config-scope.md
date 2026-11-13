@@ -10,9 +10,8 @@ A mode may override only what is listed in `MODE_OVERRIDES` (same file) and in t
 | Key | Global default | Where it acts |
 | --- | --- | --- |
 | `camera.sideYawDeg / sideYawSpeed / sideYawEase / sideYawEaseBack` (T300, widened) | 40 / 2.5 / 0.07 / 0.035 | `tickYawOffsets`, called from the one camera tick in `game.ts`; full lean at 2.5 m/s sideways, slower ease back |
-| `camera.lookYawMaxDeg / lookPitchMinDeg / lookPitchMaxDeg / lookDragDegPerPx / lookIdleSec / lookEase` (LOOK mode) | 180 (wraps, free 360) / -25 / 40 / 0.3 / 4 / 0.08 | `adapters/render/lookOffset.ts`, ticked in `game.ts` `stepBody`, added to the camera yaw/pitch in all modes (button, L key, touch and mouse drag) |
-| `camera.lookInvertX / lookInvertY` | 1 / 0 | same helper: drag right turns the view right, drag down looks up; 0/1 flips (global) |
-| LOOK availability (`lookAvailability(heroMode)`) | grounded: toggle; rope: on by default; airborne/hanging: off | `lookOffset.ts`, wired in `game.ts` `stepBody` and `hud.setLookEnabled`, all modes; no tuning key |
+| `camera.overviewHeight / overviewPullBack / overviewPitchDeg / overviewEase / overviewMaxExtent / overviewSpanScale` (hold-MAP bird's eye) | 45 / 12 / 60 / 0.08 / 120 / 0.35 | `adapters/render/overviewCam.ts`, blended in `game.ts` `tickCamera`; height above the framed centre (plus span gain), extra pull-back, nominal pitch, per-tick ease in and out, max reach from the hero that is framed |
+| Overview availability (`overviewAvailable(heroMode)`) | grounded or attached to the rope; airborne/hanging/dead: off | `overviewCam.ts`, wired in `game.ts` `stepBody` and `hud.setOverviewEnabled`, all modes; no tuning key |
 | `camera.tiltDeg` (render-only pitch-down) | 20 | `game.ts` camera tick, all modes (was village-only) |
 | `camera.zipYawDeg / zipYawMinDiagDeg / zipYawEase` | 45 / 20 / 0.06 | same helper |
 | `camera.smooth`, `armRelease`, `fovSpeed` (damping) | see config | `updateCamera`, all modes |
@@ -41,7 +40,7 @@ key the graph uses, the generated level will not follow it.
 
 ## History
 
-LOOK mode (look-around toggle) and the wider side lean were added after device testing: the player could not tell where the next path was. The LOOK offset is render-only, sits on top of the follow view in every mode, and never changes the sim or the stick direction. In Chase the danger vignette is unaffected.
+The tap-to-toggle LOOK mode (swipe look-around) was replaced by a hold-to-zoom-out bird's eye view (MAP button / L or M key): the player could not tell where the next path was, and a swipe look cost too much attention. The overview is render-only, never changes the sim or the stick direction, and eases back to the follow view on release. In Chase the danger vignette is unaffected.
 
 
 The side-look and zip yaw were skipped in Dragon Chase (its camera branch returned before them).

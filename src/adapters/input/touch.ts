@@ -7,8 +7,6 @@
 //   Move    floating stick in #stick-zone (left). The stick base appears
 //           wherever the thumb lands; offset from that origin, clamped to
 //           STICK_RADIUS_PX, normalised -> quantizeAxis (up = forward).
-//   Look    LOOK button on: a drag on #look-zone accumulates lookDx/lookDy (px) for the game's look-around camera;
-//           taps and the drop swipe are suspended meanwhile. LOOK off: no view control.
 //   Aim     short tap on #look-zone (< TAP_MAX_MS, < TAP_MAX_PX) sets tapPending with tapNdcX/tapNdcY (-1..1) for
 //           the game to raycast (tap-to-aim, ADR 0001). The game clears
 //           tapPending after consuming it. hasAim stays 0 in InputFrame
@@ -75,34 +73,6 @@ export class TouchInput {
   tapPending = false;
   tapNdcX = 0;
   tapNdcY = 0;
-
-  // LOOK mode (set by the game): drags on the look zone feed lookDx/lookDy (client px, read and cleared by the game)
-  // instead of tap-to-aim / drop swipe.
-  private lookModeOn = false;
-  private lookCancelled = false; // the in-flight look-zone gesture straddled a LOOK toggle: ignore the rest of it
-  private lookRebase = false; // next look move only re-anchors the delta (no camera jump)
-  get lookMode(): boolean {
-    return this.lookModeOn;
-  }
-  set lookMode(on: boolean) {
-    if (on === this.lookModeOn) return;
-    this.lookModeOn = on;
-    // Toggling LOOK with a finger already down: cancel that gesture, so it neither jumps the camera
-    // nor fires a stray DROP / tap-aim on release.
-    if (this.lookId !== -1) {
-      this.lookCancelled = true;
-      this.lookRebase = true;
-    }
-  }
-  lookDx = 0;
-  lookDy = 0;
-  private lookPrevX = 0;
-  private lookPrevY = 0;
-
-  /** True while a finger is down on the look zone (keeps LOOK from idling out mid-drag). */
-  get lookHeld(): boolean {
-    return this.lookId !== -1;
-  }
 
   // Active pointer per role (-1 = none).
   private stickId = -1;
@@ -229,8 +199,6 @@ export class TouchInput {
     this.pressedPending = 0;
     this.tapper.cancel();
     this.tapPending = false;
-    this.lookDx = 0;
-    this.lookDy = 0;
     this.lookMaxDevPx = 0;
     this.render();
   }
@@ -328,18 +296,10 @@ export class TouchInput {
     this.stickId = e.pointerId;
     this.roles.set(e.pointerId, ROLE_STICK);
     this.capture(this.stickZone, e);
-    // Floating base: appears where the thumb lands. While LOOK is on it is fixed at its home
-    // (the resting ghost's centre), so the thumb can steer while the other hand looks around.
+    // Floating base: appears where the thumb lands.
     this.stickActive = true;
     this.stickOriginX = e.clientX;
     this.stickOriginY = e.clientY;
-    if (this.lookModeOn && this.stickBase !== null) {
-      const r = this.stickBase.getBoundingClientRect();
-      if (r.width > 0) {
-        this.stickOriginX = r.left + r.width / 2;
-        this.stickOriginY = r.top + r.height / 2;
-      }
-    }
     this.stickX = 0;
     this.stickY = 0;
   };
@@ -381,34 +341,16 @@ export class TouchInput {
     if (this.lookId !== -1 || this.lookZone === null) return; // one thumb
     e.preventDefault();
     this.lookId = e.pointerId;
-    this.lookCancelled = false;
-    this.lookRebase = false;
     this.roles.set(e.pointerId, ROLE_LOOK);
     this.capture(this.lookZone, e);
     this.lookStartX = e.clientX;
     this.lookStartY = e.clientY;
     this.lookStartTime = e.timeStamp;
     this.lookMaxDevPx = 0;
-    this.lookPrevX = e.clientX;
-    this.lookPrevY = e.clientY;
   };
 
   private readonly onLookMove = (e: PointerEvent): void => {
     if (e.pointerId !== this.lookId) return;
-    if (this.lookMode) {
-      if (this.lookRebase) {
-        this.lookRebase = false;
-        this.lookPrevX = e.clientX;
-        this.lookPrevY = e.clientY;
-        return;
-      }
-      this.lookDx += e.clientX - this.lookPrevX;
-      this.lookDy += e.clientY - this.lookPrevY;
-      this.lookPrevX = e.clientX;
-      this.lookPrevY = e.clientY;
-      return;
-    }
-    if (this.lookCancelled) return;
     // Track deviation from the start for the tap-vs-drag decision.
     const sx = e.clientX - this.lookStartX;
     const sy = e.clientY - this.lookStartY;
@@ -420,7 +362,6 @@ export class TouchInput {
     if (e.pointerId !== this.lookId) return;
     this.roles.delete(e.pointerId);
     this.lookId = -1;
-    if (this.lookMode || this.lookCancelled) return; // LOOK or a gesture across the toggle: never aims, drops or hooks
     const dt = e.timeStamp - this.lookStartTime;
     const dy = e.clientY - this.lookStartY;
     const dev = Math.max(this.lookMaxDevPx, Math.abs(dy));

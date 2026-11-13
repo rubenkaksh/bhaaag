@@ -97,18 +97,16 @@ export type Tuning = {
     zipYawDeg: number;
     zipYawMinDiagDeg: number;
     zipYawEase: number;
-    lookInvertX: number; // LOOK drag: 1 = drag right turns the view right (flip with 0); global
-    lookInvertY: number; // LOOK drag: 1 = drag down looks down (flip with 0); global
     sideYawDeg: number; // yaw toward the side of lateral travel at sideYawSpeed m/s sideways (T300)
     sideYawSpeed: number; // sideways speed that reaches the full offset, m/s
     sideYawEase: number; // per fixed tick ease toward a larger side-look target
     sideYawEaseBack: number; // per fixed tick ease back toward 0 (slower = smoother return)
-    lookYawMaxDeg: number; // LOOK mode: max yaw from the follow view
-    lookPitchMinDeg: number; // LOOK mode: lowest pitch offset (negative = down)
-    lookPitchMaxDeg: number; // LOOK mode: highest pitch offset
-    lookDragDegPerPx: number; // LOOK mode: view turn per px of drag
-    lookIdleSec: number; // LOOK mode switches itself off after this idle time (0 = never)
-    lookEase: number; // LOOK mode: per fixed tick ease back to the follow view
+    overviewHeight: number; // hold-MAP bird's eye: camera height above the framed centre, m (before span gain)
+    overviewPullBack: number; // extra metres the overview camera sits back from the framed centre
+    overviewPitchDeg: number; // nominal overview pitch down, deg (sets the base back-off from the height)
+    overviewEase: number; // per fixed tick ease of the overview blend (0..1) in and out
+    overviewMaxExtent: number; // max horizontal reach from the hero that the overview frames, m
+    overviewSpanScale: number; // extra camera height per metre of framed span, so a long run still fits
   tiltDeg: number; // render-only pitch-down of the view (deg), all modes; ?tilt= overrides for debugging
   };
   validator: {
@@ -268,17 +266,15 @@ export const DEFAULT_TUNING: Tuning = {
     zipYawMinDiagDeg: 20,
     zipYawEase: 0.06,
     sideYawDeg: 40,
-    lookInvertX: 1,
-    lookInvertY: 0,
     sideYawSpeed: 2.5,
     sideYawEase: 0.07,
     sideYawEaseBack: 0.035,
-    lookYawMaxDeg: 180,
-    lookPitchMinDeg: -25,
-    lookPitchMaxDeg: 40,
-    lookDragDegPerPx: 0.3,
-    lookIdleSec: 4,
-    lookEase: 0.08,
+    overviewHeight: 45,
+    overviewPullBack: 12,
+    overviewPitchDeg: 60,
+    overviewEase: 0.08,
+    overviewMaxExtent: 120,
+    overviewSpanScale: 0.35,
     tiltDeg: 20,
   },
   validator: {
