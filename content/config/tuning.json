@@ -98,5 +98,8 @@
   "line": { "zoneTol": 0.6 },
   "tramp": { "vUp": 9, "jumpBonus": 1.5, "airSteer": 12, "airSteerCap": 6 },
   "cushion": { "lockSec": 0.5 },
-  "climb": { "reachMin": 0.6, "reachMax": 2.2, "holdSec": 0.35, "vyMax": 8, "mantleFwd": 0.3 }
+  "climb": { "reachMin": 0.6, "reachMax": 2.2, "holdSec": 0.35, "vyMax": 8, "mantleFwd": 0.3 },
+  "vault": { "minSpeed": 2.5, "maxH": 1.1, "maxDepth": 0.7, "sec": 0.28, "keep": 0.9, "coneDeg": 45, "clearH": 0.1 },
+  "slide": { "minSpeed": 7, "sec": 0.6, "height": 1.0, "decel": 4, "minKeep": 2 },
+  "parkour": { "airStepUp": 0.5, "grabProbe": 0.3, "autoMantleSec": 0.25, "stickDot": 0.7 }
 }

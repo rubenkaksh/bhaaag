@@ -6,6 +6,7 @@ export const HERO_AIRBORNE = 1;
 export const HERO_DEAD = 2;
 export const HERO_ATTACHED = 3; // riding the rope
 export const HERO_HANGING = 4; // clinging at a wall / rope end
+export const HERO_VAULT = 5; // vaulting an obstacle (ADR 0013; not entered yet)
 
 // deadCause
 export const DEAD_NONE = 0;
@@ -26,6 +27,8 @@ export const HERO_EV_PERFECT = 64; // JUMP released inside the timed window (spe
 export const HERO_EV_BOUNCE = 128; // landed on a trampoline and left the roof again
 export const HERO_EV_CUSHION = 256; // landed on a cushion (absorbed, briefly locked)
 export const HERO_EV_GRAB = 512; // caught a ledge in the air (also sets HANGING)
+export const HERO_EV_VAULT = 2048; // ADR 0013, not emitted yet
+export const HERO_EV_SLIDE = 4096; // ADR 0013, not emitted yet
 export const HERO_EV_MANTLE = 1024; // climbed onto the held ledge
 
 // Conventions: yaw 0 faces +z; forward = (sin yaw, cos yaw) in (x, z);
