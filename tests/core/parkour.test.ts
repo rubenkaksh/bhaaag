@@ -211,6 +211,19 @@ describe('airborne step-up (ADR 0013 s2.1)', () => {
     expect(topY).toBeCloseTo(0.45, 2);
   });
 
+  it('does not lift the hero into an overhang above the ledge (review S5)', () => {
+    const w = world(1);
+    addSolid(w, box(-4, 0, 5, 4, 0.45, 5.25));
+    addSolid(w, box(-4, 2.0, 3, 4, 2.3, 6)); // low ceiling: standing on the ledge would clip it
+    const s = hero(0, 0.15, 4.4, 0, 5);
+    s.vy = -1;
+    for (let i = 0; i < 30; i++) {
+      step(s, stick(1), w, cfg);
+      expect(s.grounded === 1 && s.py > 0.4).toBe(false);
+    }
+    expect(s.dead).toBe(0);
+  });
+
   it('is inert at parkour 0', () => {
     const w = world(0);
     addSolid(w, box(-4, 0, 5, 4, 0.45, 5.25));
@@ -295,7 +308,7 @@ describe('roll and slide on landing (ADR 0013 s2.3)', () => {
     let minSp = 99;
     let slidingUnder = false;
     for (let i = 0; i < 80; i++) {
-      step(s, new InputFrame(), w, cfg);
+      step(s, stick(1), w, cfg);
       if (s.pz > 4.7 && s.pz < 7.5) {
         slidingUnder = slidingUnder || s.slideT > 0;
         minSp = Math.min(minSp, Math.hypot(s.vx, s.vz));
@@ -303,6 +316,29 @@ describe('roll and slide on landing (ADR 0013 s2.3)', () => {
     }
     expect(slidingUnder).toBe(true);
     expect(minSp).toBeGreaterThanOrEqual(cfg.slide.minKeep - 1e-6);
+  });
+
+  it('the slide ends when the stick is released or pulled back in the open (review S2)', () => {
+    for (const mag of [0, -1]) {
+      const w = world(1);
+      const s = hero(0, 0.3, 0, 0, 7.5);
+      run(s, w, stick(1), 22);
+      expect(s.slideT).toBeGreaterThan(0);
+      run(s, w, stick(mag), 2);
+      expect(s.slideT).toBe(0);
+    }
+  });
+
+  it('a slide that hits a wall under a low ceiling can still crawl out (review S1)', () => {
+    const w = world(1);
+    addSolid(w, box(-4, 1.2, 4, 4, 1.5, 7)); // low ceiling
+    addSolid(w, box(-4, 0, 7, 4, 1.5, 7.3)); // wall at its end
+    const s = hero(0, 0.3, 0, 0, 7.5);
+    run(s, w, stick(1), 90);
+    expect(s.pz).toBeGreaterThan(4.5); // under the ceiling, stopped by the wall
+    run(s, w, stick(-1), 240);
+    expect(s.pz).toBeLessThan(3.9); // crawled back out
+    expect(s.dead).toBe(0);
   });
 
   it('no slide without the stick held forward', () => {

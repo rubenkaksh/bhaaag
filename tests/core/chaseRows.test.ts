@@ -58,7 +58,8 @@ describe('rowSpec', () => {
 
   it('different seeds give different rows later on', () => {
     let diff = 0;
-    for (let r = 6; r < 40; r++) if (rowSpec(1, r).n !== rowSpec(2, r).n || rowSpec(1, r).cx !== rowSpec(2, r).cx) diff++;
+    for (let r = 6; r < 40; r++)
+      if (rowSpec(1, r).n !== rowSpec(2, r).n || rowSpec(1, r).cx !== rowSpec(2, r).cx) diff++;
     expect(diff).toBeGreaterThan(10);
   });
 });
@@ -70,7 +71,7 @@ describe('rowBoxes', () => {
     for (const r of [4, 9, 31, 77]) {
       const spec = rowSpec(5, r);
       rowBoxes(spec, ROW0_ZTOP, r > 0, a);
-      const zTop = -143.7 * (r % 5 + 1);
+      const zTop = -143.7 * ((r % 5) + 1);
       rowBoxes(spec, zTop, r > 0, b);
       const dz = zTop - ROW0_ZTOP;
       for (let i = 0; i < SLOT_SOLIDS; i++) {

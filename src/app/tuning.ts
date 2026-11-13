@@ -36,7 +36,8 @@ export function mergeTuning(): Tuning {
 
 export function resolveCfg(mode: GameMode): Tuning {
   const cfg = mergeTuning() as unknown as Record<string, Record<string, number>>;
-  const ov = MODE_OVERRIDES[mode] as unknown as Record<string, Record<string, number>>;
+  // A graph level without a MODE_OVERRIDES line plays on the base tuning (review S3).
+  const ov = (MODE_OVERRIDES[mode] ?? {}) as unknown as Record<string, Record<string, number>>;
   for (const key of Object.keys(ov)) cfg[key] = { ...cfg[key], ...ov[key] };
   return cfg as unknown as Tuning;
 }

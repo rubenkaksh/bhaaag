@@ -876,6 +876,19 @@ function headBlocked(w: World, s: HeroState, cfg: Tuning): boolean {
   return false;
 }
 
+// True when no solid sits in the standing body volume of a hero with feet at (x, y, z): the
+// airborne step-up must not put the capsule inside an overhang (review S5).
+function bodyClearAt(w: World, x: number, y: number, z: number, cfg: Tuning): boolean {
+  const r = cfg.hero.radius;
+  const top = y + cfg.hero.height;
+  for (let i = 0; i < w.solids.length; i++) {
+    const b = w.solids[i];
+    if (b.min.y >= top || b.max.y <= y + cfg.hero.stepUp) continue;
+    if (circleOverlapsAabbXZ(b, x, z, r)) return false;
+  }
+  return true;
+}
+
 export function step(s: HeroState, input: InputFrame, world: World, cfg: Tuning): void {
   s.eventBits = 0;
   if (s.dead === 1) return;
@@ -1018,6 +1031,17 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   // Slippery pitched roof under the feet (ADR 0002): -1 when none.
   const slip = s.grounded === 1 ? slipSupport(world, s, cfg) : -1;
 
+  // The landing slide ends the moment the stick is released or pulled back (review S2), unless a
+  // low ceiling is overhead (the hero cannot stand up there).
+  if (
+    s.grounded === 1 &&
+    s.slideT > 0 &&
+    (mag < 0.1 || s.vx * wantX + s.vz * wantZ < 0) &&
+    !headBlocked(world, s, cfg)
+  ) {
+    s.slideT = 0;
+  }
+
   // Horizontal velocity.
   if (slip >= 0) {
     s.slideT = 0;
@@ -1030,6 +1054,13 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
       const k = slideSpeed(sp, cfg.slide.decel, cfg.slide.minKeep, dt) / sp;
       s.vx *= k;
       s.vz *= k;
+    }
+    // Stuck under a low ceiling (a wall zeroed the slide): crawl along the stick at minKeep so the
+    // hero can always escape (review S1).
+    if (sp < 0.1 && mag > 0 && headBlocked(world, s, cfg)) {
+      const c = cfg.slide.minKeep / cfg.hero.run;
+      s.vx = wantX * c;
+      s.vz = wantZ * c;
     }
     s.slideT -= dt;
     if (s.slideT <= 0) s.slideT = headBlocked(world, s, cfg) ? dt : 0;
@@ -1124,7 +1155,11 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   // Airborne step-up (parkour): clipping a low ledge while falling lifts the feet onto it.
   if (pk && hitX && s.grounded === 0 && s.vy <= 0 && nyX === 0 && solidX >= 0) {
     const d = world.solids[solidX].max.y - s.py;
-    if (d > 0 && d <= cfg.parkour.airStepUp) {
+    if (
+      d > 0 &&
+      d <= cfg.parkour.airStepUp &&
+      bodyClearAt(world, s.px, world.solids[solidX].max.y + AIR_LIFT, s.pz, cfg)
+    ) {
       s.py = world.solids[solidX].max.y + AIR_LIFT;
       mvx = sweepAxis(world, s.px, s.py, s.pz, cfg.hero.height, r, 0, s.vx * dt);
       hitX = scratchHit.hit;
@@ -1156,7 +1191,11 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   let solidZ = hitSolid;
   if (pk && hitZ && s.grounded === 0 && s.vy <= 0 && nyZ === 0 && solidZ >= 0) {
     const d = world.solids[solidZ].max.y - s.py;
-    if (d > 0 && d <= cfg.parkour.airStepUp) {
+    if (
+      d > 0 &&
+      d <= cfg.parkour.airStepUp &&
+      bodyClearAt(world, s.px, world.solids[solidZ].max.y + AIR_LIFT, s.pz, cfg)
+    ) {
       s.py = world.solids[solidZ].max.y + AIR_LIFT;
       mvz = sweepAxis(world, s.px, s.py, s.pz, cfg.hero.height, r, 2, s.vz * dt);
       hitZ = scratchHit.hit;
