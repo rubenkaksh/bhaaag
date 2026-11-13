@@ -1,4 +1,4 @@
-# ADR 0013: Level builder and builder level files
+# ADR 0014: Level builder and builder level files
 
 Date: 2026-11-13. Status: proposed (owner ask 2026-11-13). Builds on ADR 0011/0012. Nagarkot Run
 (`src/content/strategy/gen.ts`, `graph.ts`, ADR 0011/0012) stays frozen; nothing here edits it.
