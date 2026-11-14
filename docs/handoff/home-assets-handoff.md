@@ -488,3 +488,20 @@ lives in `content/` (`content/graphs/`, `content/levels/`). Unblocked first. Eve
     threshold. Files: `src/core/world.ts`, `src/core/sim.ts`, `src/core/config.ts`,
     `content/config/tuning.json`, `tests/core/parkour.test.ts`. Depends: H3. Accept: new tests at
     and above the threshold; all old bot tests untouched and green. Blocked: Q10.
+
+## Owner decisions (2026-11-14)
+
+Answers to the six open questions. These supersede the Q-list above.
+
+- Q4 (layout engine): NEW. Commission placer v2 (road polyline, switchbacks, road-side rows). New ADR, new code path, applies to the new level only.
+- Q10 (hay surface): Use the existing `hay` cushion logic. No graded surface. No change to collision rules.
+- Q12 (toilet block): NEW kit prop, part of the house kit (not a graph node). Keep the 1.5 x 1.5 x 2.2 m solid with a cream top. It is not a `via` or gap in the graph format.
+- Q16 (textures): Budget may increase. Approve one corrugated-tin tile and one straw tile. New total cap not yet stated (see Open items).
+- Q18 (level graph): Owner supplies a subgraph of Nagarkot Run with a limit of 10 houses. Replaces the earlier 20-house fixture cap for this level. See Open items.
+- Q20 (portrait camera): The camera points along the path direction. It rotates through U-turns and re-aims per house, so the view follows the road.
+
+## Open items from these decisions
+
+- Nagarkot Run is frozen by the 2026-11-13 amendment. Using a subgraph of it as the source for the new level needs an explicit amendment or a copy. Owner to confirm.
+- New texture budget total (Q16) is not stated. Owner to give the new cap.
+- Q20 camera rule touches the view code. Confirm whether this applies to all graph levels or only the new level, since valley-1 is hash-frozen.
