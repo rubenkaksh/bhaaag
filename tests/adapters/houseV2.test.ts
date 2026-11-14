@@ -1,8 +1,10 @@
 import { InstancedMesh, Matrix4, Quaternion, Vector3 } from 'three';
 import type { Group } from 'three';
 import { describe, expect, it } from 'vitest';
-import { demoStreet, hillRow } from '../../src/content/house/demoStreet';
-import { windowSlots } from '../../src/content/house/houseSpec';
+import { demoStreet, hillRow, homeStreet } from '../../src/content/house/demoStreet';
+import { HK, windowSlots } from '../../src/content/house/houseSpec';
+import { loadGraph } from '../../src/content/graph/registry';
+import { placeGraph } from '../../src/content/graph/place';
 import { PIECE_IDS } from '../../src/adapters/render/decor/kit';
 import { LOW_HIDDEN_DECOR } from '../../src/adapters/render/graphicsTier';
 import { buildHouseDecor } from '../../src/adapters/render/decor/houseV2';
@@ -138,5 +140,56 @@ describe('Low tier hidden pieces (review M4)', () => {
     ]);
     expect(LOW_HIDDEN_DECOR).not.toContain('decor_guard');
     expect(counts(demo).guard ?? 0).toBeGreaterThan(0);
+  });
+});
+
+/** Instanced meshes (by short name) that `look` adds or grows compared with the default look. */
+function addedBy(g: Group, base: Group): string[] {
+  const a = counts(g);
+  const b = counts(base);
+  return Object.keys(a).filter((k) => a[k] > (b[k] ?? 0));
+}
+
+describe("look: 'home' (H4 hay cover)", () => {
+  const home = homeStreet();
+  const off = buildHouseDecor(home.houses, home.props);
+  const on = buildHouseDecor(home.houses, home.props, 1, { look: 'home' });
+  const boxesOf = (g: Group): HouseDecorBox[] => g.userData.boxes as HouseDecorBox[];
+
+  it('is off by default: an explicit empty option equals no option, and no cover is drawn', () => {
+    const empty = buildHouseDecor(home.houses, home.props, 1, {});
+    expect(JSON.stringify(empty.userData.boxes)).toBe(JSON.stringify(off.userData.boxes));
+    expect(counts(empty)).toEqual(counts(off));
+    expect(boxesOf(off).some((b) => b.kind === 'hayCover')).toBe(false);
+  });
+
+  it('leaves the valley-1 decor identical with the option off', () => {
+    const placed = placeGraph(loadGraph('valley-1'));
+    const a = buildHouseDecor(placed.houses, placed.props, 7);
+    const b = buildHouseDecor(placed.houses, placed.props, 7, {});
+    expect(counts(b)).toEqual(counts(a));
+    expect(JSON.stringify(b.userData.boxes)).toBe(JSON.stringify(a.userData.boxes));
+    expect((a.userData.boxes as HouseDecorBox[]).some((x) => x.kind === 'hayCover')).toBe(false);
+  });
+
+  it('draws a tin cap and straw bands on each hay stack only with the option on', () => {
+    const hay = home.props.filter((p) => p.kind === 'hay').length;
+    expect(hay).toBeGreaterThan(0);
+    expect(boxesOf(on).filter((b) => b.kind === 'hayCover')).toHaveLength(hay);
+    expect(counts(on).trim ?? 0).toBe((counts(off).trim ?? 0) + 3 * hay);
+    expect(counts(on).crate).toBe(counts(off).crate); // body and the other props untouched
+    expect((on.userData.stats as HouseDecorStats).refused).toBe(0);
+  });
+
+  it('keeps the cushion height: the cover rises at most 2 cm over the hay top', () => {
+    const hay = home.props.find((p) => p.kind === 'hay')!;
+    const cover = boxesOf(on).find((b) => b.kind === 'hayCover')!;
+    expect(cover.max[1]).toBeLessThanOrEqual(hay.groundY + HK.hayTop + 0.02 + 1e-9);
+  });
+
+  it('hides the cover on Low: everything the look adds is a piece Low hides', () => {
+    const added = addedBy(on, off);
+    expect(added.length).toBeGreaterThan(0);
+    for (const id of added) expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
   });
 });

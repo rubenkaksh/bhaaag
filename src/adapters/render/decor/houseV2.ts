@@ -36,6 +36,16 @@ const HAY = '#e2c872';
 const TRAMP_RIM = '#3a2c24';
 const POLE = '#4a3424';
 
+// look 'home' (home-assets handoff H4+): flat tints only, no textures. None of them is the gold
+// affordance, cream (safe) or terracotta (danger); tests/adapters/palette.test.ts checks.
+const HOME_TIN = '#8c949a'; // desaturated corrugated tin / tarp
+const HOME_STRAW = '#b8975a'; // straw bands on a hay stack
+
+/** Per-level look. 'home' is the opt-in Kathmandu hill-house dressing; absent keeps v1 output exactly. */
+export interface HouseDecorOptions {
+  look?: 'home';
+}
+
 export interface HouseDecorStats {
   houses: number;
   windows: number;
@@ -362,7 +372,7 @@ function dressHouse(o: Out, h: HouseSpec, seed: number, shutterIdx: { n: number 
   }
 }
 
-function dressProp(o: Out, p: PropSpec): void {
+function dressProp(o: Out, p: PropSpec, home: boolean): void {
   const g = p.groundY;
   const sq = (size: number): Rect => ({
     x0: p.x - size / 2,
@@ -395,6 +405,7 @@ function dressProp(o: Out, p: PropSpec): void {
       const r = sq(HK.haySize);
       if (o.kit.add('crate', p.x, g, p.z, HK.haySize, HK.hayTop, HK.haySize, p.yaw, c(HAY))) {
         o.boxes.push({ kind: 'hay', min: [r.x0, g, r.z0], max: [r.x1, g + HK.hayTop, r.z1] });
+        if (home) hayCover(o, p);
       }
       return;
     }
@@ -432,8 +443,47 @@ function dressProp(o: Out, p: PropSpec): void {
   }
 }
 
+/**
+ * look 'home': a tin/tarp strip across the top and two straw bands round the body of a hay stack.
+ * Made from the `trim` piece (a plain tinted unit box), which Low already hides; the cream body
+ * stays and nothing rises more than 2 cm over the cushion top, so the landing height is unchanged.
+ */
+function hayCover(o: Out, p: PropSpec): void {
+  const g = p.groundY;
+  const top = g + HK.hayTop;
+  const wide = HK.haySize + 0.08; // proud of the body by 4 cm a side
+  let ok = o.kit.add(
+    'trim',
+    p.x,
+    top - 0.06,
+    p.z,
+    HK.haySize - 0.9,
+    0.08,
+    HK.haySize,
+    p.yaw,
+    c(HOME_TIN),
+  );
+  const bands = [0.22, 0.52];
+  for (let i = 0; i < bands.length; i++) {
+    ok = o.kit.add('trim', p.x, g + bands[i], p.z, wide, 0.12, wide, p.yaw, c(HOME_STRAW)) && ok;
+  }
+  if (ok) {
+    o.boxes.push({
+      kind: 'hayCover',
+      min: [p.x - wide / 2, g, p.z - wide / 2],
+      max: [p.x + wide / 2, top + 0.02, p.z + wide / 2],
+    });
+  }
+}
+
 /** Draws every house and prop through one instanced kit. userData: stats (HouseDecorStats), boxes. */
-export function buildHouseDecor(houses: HouseSpec[], props: PropSpec[], seed = 1): Group {
+export function buildHouseDecor(
+  houses: HouseSpec[],
+  props: PropSpec[],
+  seed = 1,
+  opts: HouseDecorOptions = {},
+): Group {
+  const home = opts.look === 'home';
   const o = new Out(houses.length);
   const shutterIdx = { n: 0 };
   let windows = 0;
@@ -445,7 +495,7 @@ export function buildHouseDecor(houses: HouseSpec[], props: PropSpec[], seed = 1
     shops += houses[i].awnings.length;
     if (houses[i].balcony !== -1) doors++;
   }
-  for (let i = 0; i < props.length; i++) dressProp(o, props[i]);
+  for (let i = 0; i < props.length; i++) dressProp(o, props[i], home);
 
   const used: Record<string, number> = {};
   let refused = 0;
