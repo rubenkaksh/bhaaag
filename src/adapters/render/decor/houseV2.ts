@@ -4,6 +4,7 @@
 import { Color, Group } from 'three';
 import { DecorKit, RAIL_LEN, TANK_UNIT_H, mulberry32 } from './kit';
 import type { PieceId } from './kit';
+import { FLAGS } from './placeDecor';
 import {
   HK,
   balconyDoor,
@@ -11,6 +12,7 @@ import {
   deckY,
   faceNormal,
   faceRect,
+  facePoint,
   parapetHeight,
   parapetSegments,
   poleAnchor,
@@ -41,6 +43,14 @@ const POLE = '#4a3424';
 const HOME_TIN = '#8c949a'; // desaturated corrugated tin / tarp
 const HOME_STRAW = '#b8975a'; // straw bands on a hay stack
 const HOME_TANK = ['#26282c', '#2e6b47']; // black and green plastic drums (as the v1 tanks)
+
+/** Prayer-flag colours: the v1 FLAGS minus the gold one, so no flag reads as the gold affordance. */
+const GOLD_FLAG = '#d0a12e';
+export const HOME_FLAG_COLOURS: readonly string[] = FLAGS.filter((f) => f !== GOLD_FLAG);
+const FLAG_CHANCE = 0.6;
+const FLAG_COUNT = 8;
+const FLAG_POST_H = 2.3;
+const FLAG_INSET = 0.5; // line and posts stand this far inside the deck edge
 
 const TANK_SCALE = 1.2; // v1 tank unit is 1.0 m of platform and 2.18 m tall
 const TANK_HALF = 0.8; // conservative half footprint of a scaled tank (ladder included), m
@@ -355,7 +365,10 @@ function dressHouse(
     }
   }
 
-  if (home) roofTank(o, h, seed);
+  if (home) {
+    roofTank(o, h, seed);
+    flagLine(o, h, seed);
+  }
 
   // Zipline pole: a post and a short crossbar at the anchor.
   if (h.pole) {
@@ -439,6 +452,71 @@ function roofTank(o: Out, h: HouseSpec, seed: number): void {
         house: h.id,
       });
     }
+    return;
+  }
+}
+
+/**
+ * look 'home': one prayer-flag line along a free deck edge (Medium/High only: posts, string and
+ * flags are the `trim` and `flag` pieces, both hidden on Low). Never on a takeoff, run-out, party
+ * or roof-stairs edge, and never within 3 m of the zipline pole anchor.
+ */
+function flagLine(o: Out, h: HouseSpec, seed: number): void {
+  const rng = mulberry32((h.id * 15485863 + seed * 17 + 3) >>> 0);
+  const roll = rng();
+  const start = Math.floor(rng() * 4);
+  if (roll >= FLAG_CHANCE) return;
+  const k = HK.half;
+  const deck = deckY(h);
+  const y = deck + FLAG_POST_H;
+  const reach = k - FLAG_INSET; // half length of the line and its depth from the centre
+  for (let i = 0; i < 4; i++) {
+    const f = ((start + i) % 4) as Face;
+    const run = h.runout !== undefined && h.runout.some((r) => r.face === f);
+    if (h.party[f] || h.takeoff.indexOf(f) >= 0 || run) continue;
+    if (h.stairs !== null && h.stairs.face === f) continue;
+    const a = facePoint(h, f, -reach, reach);
+    const b = facePoint(h, f, reach, reach);
+    if (h.pole) {
+      const an = poleAnchor(h);
+      // distance from the anchor to the horizontal string
+      const dx = Math.max(Math.min(an[0], Math.max(a[0], b[0])), Math.min(a[0], b[0])) - an[0];
+      const dz = Math.max(Math.min(an[2], Math.max(a[1], b[1])), Math.min(a[1], b[1])) - an[2];
+      if (Math.hypot(dx, dz, y - an[1]) < 3) continue;
+    }
+    const alongZ = Math.abs(b[1] - a[1]) > Math.abs(b[0] - a[0]);
+    const len = 2 * reach;
+    const post = c(POLE);
+    for (const e of [a, b]) {
+      o.box(
+        'trim',
+        'flagPost',
+        e[0] - 0.05,
+        deck,
+        e[1] - 0.05,
+        e[0] + 0.05,
+        y,
+        e[1] + 0.05,
+        post,
+        h.id,
+      );
+    }
+    const mx = (a[0] + b[0]) / 2;
+    const mz = (a[1] + b[1]) / 2;
+    o.kit.add('trim', mx, y - 0.03, mz, len, 0.03, 0.03, alongZ ? Math.PI / 2 : 0, post);
+    for (let n = 0; n < FLAG_COUNT; n++) {
+      const u = (n + 0.5) / FLAG_COUNT - 0.5;
+      const fx = mx + (b[0] - a[0]) * u;
+      const fz = mz + (b[1] - a[1]) * u;
+      const col = c(HOME_FLAG_COLOURS[n % HOME_FLAG_COLOURS.length]);
+      o.kit.add('flag', fx, y - 0.25, fz, 1.3, 1.3, 1.3, yawOf(f) + (n % 2) * Math.PI, col);
+    }
+    o.boxes.push({
+      kind: 'flagLine',
+      min: [Math.min(a[0], b[0]) - 0.05, y - 0.5, Math.min(a[1], b[1]) - 0.05],
+      max: [Math.max(a[0], b[0]) + 0.05, y, Math.max(a[1], b[1]) + 0.05],
+      house: h.id,
+    });
     return;
   }
 }

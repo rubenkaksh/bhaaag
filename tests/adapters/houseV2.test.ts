@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { Color, InstancedMesh, Matrix4, Quaternion, Vector3 } from 'three';
 import type { Group } from 'three';
 import { describe, expect, it } from 'vitest';
@@ -7,7 +8,8 @@ import { loadGraph } from '../../src/content/graph/registry';
 import { placeGraph } from '../../src/content/graph/place';
 import { PIECE_IDS } from '../../src/adapters/render/decor/kit';
 import { LOW_HIDDEN_DECOR } from '../../src/adapters/render/graphicsTier';
-import { buildHouseDecor } from '../../src/adapters/render/decor/houseV2';
+import { buildHouseDecor, HOME_FLAG_COLOURS } from '../../src/adapters/render/decor/houseV2';
+import { FLAGS } from '../../src/adapters/render/decor/placeDecor';
 import type { HouseDecorBox, HouseDecorStats } from '../../src/adapters/render/decor/houseV2';
 import type { Face, HouseSpec, PropSpec, Rect } from '../../src/content/house/houseSpec';
 
@@ -177,7 +179,9 @@ describe("look: 'home' (H4 hay cover)", () => {
     const hay = home.props.filter((p) => p.kind === 'hay').length;
     expect(hay).toBeGreaterThan(0);
     expect(boxesOf(on).filter((b) => b.kind === 'hayCover')).toHaveLength(hay);
-    expect(counts(on).trim ?? 0).toBe((counts(off).trim ?? 0) + 3 * hay);
+    const propsOff = buildHouseDecor([], home.props);
+    const propsOn = buildHouseDecor([], home.props, 1, { look: 'home' });
+    expect(counts(propsOn).trim ?? 0).toBe((counts(propsOff).trim ?? 0) + 3 * hay);
     expect(counts(on).crate).toBe(counts(off).crate); // body and the other props untouched
     expect((on.userData.stats as HouseDecorStats).refused).toBe(0);
   });
@@ -319,5 +323,67 @@ describe("look: 'home' (H6 rooftop water tanks)", () => {
   it('hides tanks on Low through the home-only mesh', () => {
     expect(LOW_HIDDEN_DECOR).toContain('decor_homeTank');
     expect(LOW_HIDDEN_DECOR).not.toContain('decor_tank'); // v1 tanks are unchanged
+  });
+});
+
+describe("look: 'home' (H7 prayer-flag strings)", () => {
+  const placed = placeGraph(loadGraph('valley-1'));
+  const houses = [...placed.houses, ...hillRow(5, 30)].map((h, i) => ({ ...h, id: i + 1 }));
+  const off = buildHouseDecor(houses, [], 2);
+  const on = buildHouseDecor(houses, [], 2, { look: 'home' });
+  const lines = (on.userData.boxes as HouseDecorBox[]).filter((b) => b.kind === 'flagLine');
+
+  it('draws lines on some houses only with the option on, from the Low-hidden pieces', () => {
+    expect(counts(off).flag ?? 0).toBe(0);
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.length).toBeLessThan(houses.length);
+    expect(counts(on).flag).toBe(8 * lines.length);
+    expect(LOW_HIDDEN_DECOR).toContain('decor_flag');
+    for (const id of addedBy(on, off)) expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
+  });
+
+  it('refuses nothing and stays within the 24-mesh cap', () => {
+    expect((on.userData.stats as HouseDecorStats).refused).toBe(0);
+    expect(Object.keys(counts(on)).length).toBeLessThanOrEqual(24);
+  });
+
+  it('keeps lines off takeoff, run-out and party edges', () => {
+    for (const l of lines) {
+      const h = houses.find((x) => x.id === l.house)!;
+      // the line is thin along the axis it stands on: its own face is the one it is nearest to
+      const thinX = l.max[0] - l.min[0] < 0.2;
+      const dx = (l.min[0] + l.max[0]) / 2 - h.cx;
+      const dz = (l.min[2] + l.max[2]) / 2 - h.cz;
+      const f = thinX ? (dx > 0 ? 0 : 1) : dz > 0 ? 2 : 3;
+      expect(h.party[f], 'party ' + h.id).toBe(false);
+      expect(h.takeoff.includes(f as Face), 'takeoff ' + h.id).toBe(false);
+      expect(
+        (h.runout ?? []).some((r) => r.face === f),
+        'runout ' + h.id,
+      ).toBe(false);
+    }
+  });
+
+  it('uses only FLAGS colours and none of them is the gold affordance', () => {
+    expect(HOME_FLAG_COLOURS.length).toBeGreaterThan(0);
+    for (const col of HOME_FLAG_COLOURS) expect(FLAGS).toContain(col);
+    const dropped = FLAGS.filter((f) => !HOME_FLAG_COLOURS.includes(f));
+    expect(dropped).toEqual(['#d0a12e']);
+    const level = readFileSync('src/adapters/render/levelView.ts', 'utf8');
+    const gold = /const COLOR_ANCHOR = '(#[0-9a-fA-F]{6})'/.exec(level)![1];
+    const rgb = (h: string): number[] => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+    const dist = (a: string, b: string): number => {
+      const x = rgb(a);
+      const y = rgb(b);
+      return Math.hypot(2 * (x[0] - y[0]), 4 * (x[1] - y[1]), 3 * (x[2] - y[2])) / 3;
+    };
+    for (const col of HOME_FLAG_COLOURS) expect(dist(gold, col), col).toBeGreaterThan(80);
+    // the instances carry exactly these colours
+    const flag = on.getObjectByName('decor_flag') as InstancedMesh;
+    const c = new Color();
+    for (let i = 0; i < flag.count; i++) {
+      flag.getColorAt(i, c);
+      expect(HOME_FLAG_COLOURS.map((x) => x.toLowerCase())).toContain('#' + c.getHexString());
+    }
   });
 });
