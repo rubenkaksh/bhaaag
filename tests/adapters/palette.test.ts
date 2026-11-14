@@ -96,4 +96,18 @@ describe("colour language: look 'home' tints", () => {
     expect(dist(straw, terracotta)).toBeGreaterThan(40);
     expect(dist(straw, danger)).toBeGreaterThan(40);
   });
+
+  it('crop dressing tones (dried corn, chili) stay clear of gold, cream and terracotta', () => {
+    for (const name of ['CROP_CORN', 'CROP_CHILI']) {
+      const col = v2Hex(name);
+      for (const [rn, ref] of [
+        ['gold', gold],
+        ['cream', cream],
+        ['terracotta', terracotta],
+        ['danger', danger],
+      ] as const) {
+        expect(dist(col, ref), name + ' vs ' + rn).toBeGreaterThan(40);
+      }
+    }
+  });
 });

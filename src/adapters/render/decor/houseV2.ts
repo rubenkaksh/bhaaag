@@ -52,6 +52,15 @@ const FLAG_COUNT = 8;
 const FLAG_POST_H = 2.3;
 const FLAG_INSET = 0.5; // line and posts stand this far inside the deck edge
 
+// look 'home' crop dressing: muted dried-crop tones, none of them gold, cream or terracotta.
+const CROP_CORN = '#c2a04e';
+const CROP_CHILI = '#6e2f26';
+const BANANA_STEM = '#6b7a3a';
+const BANANA_LEAF = '#4e7d35';
+const CROP_FACE_CHANCE = 0.5;
+const BANANA_CHANCE = 0.4;
+const BANANA_REACH = 0.8; // plant centre this far out from the wall; leaves reach 0.7 m round it
+
 const TANK_SCALE = 1.2; // v1 tank unit is 1.0 m of platform and 2.18 m tall
 const TANK_HALF = 0.8; // conservative half footprint of a scaled tank (ladder included), m
 const TANK_CHANCE = 0.5;
@@ -368,6 +377,7 @@ function dressHouse(
   if (home) {
     roofTank(o, h, seed);
     flagLine(o, h, seed);
+    cropDress(o, h, seed);
   }
 
   // Zipline pole: a post and a short crossbar at the anchor.
@@ -518,6 +528,60 @@ function flagLine(o: Out, h: HouseSpec, seed: number): void {
       house: h.id,
     });
     return;
+  }
+}
+
+/**
+ * look 'home': dried-crop bundles hung under the roof cornice on some walls and a banana plant at
+ * the foot of one. Only on walls without a party side, and not on a balcony, awning or stairs wall
+ * (those are busy). Built from `trim` and `canopy`, both hidden on Low; render only.
+ */
+function cropDress(o: Out, h: HouseSpec, seed: number): void {
+  const rng = mulberry32((h.id * 49979687 + seed * 13 + 11) >>> 0);
+  const k = HK.half;
+  const deck = deckY(h);
+  const free: Face[] = [];
+  for (let f = 0; f < 4; f++) {
+    const face = f as Face;
+    if (h.party[f] || h.balcony === face || h.awnings.indexOf(face) >= 0) continue;
+    if (h.stairs !== null && h.stairs.face === face) continue;
+    free.push(face);
+  }
+  for (let i = 0; i < free.length; i++) {
+    if (rng() >= CROP_FACE_CHANCE) continue;
+    const lens = [0.9, 1.1, 0.8];
+    for (let n = 0; n < 3; n++) {
+      const s = (n - 1) * 0.45;
+      const r = faceRect(h, free[i], s - 0.11, s + 0.11, k, k + 0.12);
+      const col = c(n === 1 ? CROP_CHILI : CROP_CORN);
+      o.rect('trim', 'cropHang', r, deck - 0.32 - lens[n], deck - 0.32, col, h.id);
+    }
+  }
+  if (free.length > 0 && rng() < BANANA_CHANCE) {
+    const f = free[Math.floor(rng() * free.length)];
+    const sgn = rng() < 0.5 ? -1 : 1;
+    const p = facePoint(h, f, sgn * 3.3, k + BANANA_REACH);
+    const g = h.groundY;
+    o.box(
+      'trim',
+      'bananaStem',
+      p[0] - 0.07,
+      g,
+      p[1] - 0.07,
+      p[0] + 0.07,
+      g + 1.7,
+      p[1] + 0.07,
+      c(BANANA_STEM),
+      h.id,
+    );
+    o.kit.add('canopy', p[0], g + 1.9, p[1], 0.7, 0.3, 0.7, 0, c(BANANA_LEAF));
+    o.kit.add('canopy', p[0], g + 1.6, p[1], 0.55, 0.22, 0.55, 0.8, c(BANANA_LEAF));
+    o.boxes.push({
+      kind: 'banana',
+      min: [p[0] - 0.7, g, p[1] - 0.7],
+      max: [p[0] + 0.7, g + 2.2, p[1] + 0.7],
+      house: h.id,
+    });
   }
 }
 

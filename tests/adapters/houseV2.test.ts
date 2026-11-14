@@ -387,3 +387,61 @@ describe("look: 'home' (H7 prayer-flag strings)", () => {
     }
   });
 });
+
+describe("look: 'home' (H8 crop dressing)", () => {
+  const placed = placeGraph(loadGraph('valley-1'));
+  const fixtures = [
+    { name: 'valley-1', houses: placed.houses },
+    { name: 'hillRow', houses: hillRow(9, 40) },
+  ];
+  const kindsOf = (g: Group, kind: string): HouseDecorBox[] =>
+    (g.userData.boxes as HouseDecorBox[]).filter((b) => b.kind === kind);
+
+  it('adds crop hangs and banana plants only with the option on, from Low-hidden pieces', () => {
+    let hangs = 0;
+    let bananas = 0;
+    for (const f of fixtures) {
+      const off = buildHouseDecor(f.houses, [], 3);
+      const on = buildHouseDecor(f.houses, [], 3, { look: 'home' });
+      expect(kindsOf(off, 'cropHang') as unknown[]).toHaveLength(0);
+      hangs += kindsOf(on, 'cropHang').length;
+      bananas += kindsOf(on, 'banana').length;
+      expect((on.userData.stats as HouseDecorStats).refused, f.name).toBe(0);
+      expect(counts(on).canopy ?? 0).toBe(2 * kindsOf(on, 'banana').length);
+      for (const id of addedBy(on, off)) expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
+    }
+    expect(hangs).toBeGreaterThan(0);
+    expect(bananas).toBeGreaterThan(0);
+  });
+
+  it('keeps every crop piece off party sides and off other houses', () => {
+    for (const f of fixtures) {
+      const on = buildHouseDecor(f.houses, [], 3, { look: 'home' });
+      const k = HK.half;
+      for (const b of [...kindsOf(on, 'cropHang'), ...kindsOf(on, 'banana')]) {
+        const h = f.houses.find((x) => x.id === b.house)!;
+        // on a face of its own house, never inside the party strip of that house
+        for (let fc = 0; fc < 4; fc++) {
+          if (!h.party[fc]) continue;
+          const strip = faceRect(h, fc as Face, -k, k, k - 0.01, k + 1.5);
+          const hit =
+            b.min[0] < strip.x1 &&
+            b.max[0] > strip.x0 &&
+            b.min[2] < strip.z1 &&
+            b.max[2] > strip.z0;
+          expect(hit, 'party face ' + fc + ' of house ' + h.id).toBe(false);
+        }
+        for (const o of f.houses) {
+          if (o.id === h.id || b.min[1] > deckY(o) - 0.5) continue;
+          const body = { x0: o.cx - k, x1: o.cx + k, z0: o.cz - k, z1: o.cz + k };
+          const hit =
+            b.min[0] < body.x1 && b.max[0] > body.x0 && b.min[2] < body.z1 && b.max[2] > body.z0;
+          if (hit)
+            expect(b.min[1] >= deckY(o) || b.max[1] <= o.groundY, 'inside house ' + o.id).toBe(
+              true,
+            );
+        }
+      }
+    }
+  });
+});

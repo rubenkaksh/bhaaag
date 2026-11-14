@@ -106,6 +106,9 @@ describe('A3 static budgets', () => {
       buildHouseDecor(street.houses, street.props),
       buildHouseDecor(hillRow(4, 20), street.props),
       buildHouseDecor(home.houses, home.props),
+      // look 'home' (H4-H8) adds only Low-hidden pieces: same caps, same Low draw count
+      buildHouseDecor(home.houses, home.props, 1, { look: 'home' }),
+      buildHouseDecor(hillRow(4, 20), street.props, 1, { look: 'home' }),
     ];
     const low = renderConfigFor('low', true);
     // everything that is not house decor in a v1 level (ground, lane, pads, ropes) plus the backdrop and hero
