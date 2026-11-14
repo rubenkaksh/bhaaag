@@ -60,3 +60,40 @@ describe('colour language', () => {
     for (const f of brick) expect(dist(danger, f)).toBeGreaterThan(20);
   });
 });
+
+// Home look (handoff H5): flat tin tint on awnings and the hay cap. Parsed from houseV2 source.
+const v2 = readFileSync('src/adapters/render/decor/houseV2.ts', 'utf8');
+const v2Hex = (name: string): string =>
+  new RegExp('const ' + name + " = '(#[0-9a-fA-F]{6})'").exec(v2)![1];
+
+describe("colour language: look 'home' tints", () => {
+  const tin = v2Hex('HOME_TIN');
+  const straw = v2Hex('HOME_STRAW');
+  const cream = v2Hex('CREAM');
+  const terracotta = v2Hex('TERRACOTTA');
+  const sat = (h: string): number => {
+    const c = rgb(h);
+    return (Math.max(...c) - Math.min(...c)) / Math.max(...c);
+  };
+
+  it('the tin tint is not gold, cream or terracotta (nor the danger style colour)', () => {
+    for (const [name, ref] of [
+      ['gold', gold],
+      ['cream', cream],
+      ['terracotta', terracotta],
+      ['danger', danger],
+    ] as const) {
+      expect(dist(tin, ref), name).toBeGreaterThan(60);
+    }
+  });
+
+  it('the tin tint is desaturated (a grey, not a signal colour)', () => {
+    expect(sat(tin)).toBeLessThan(0.2);
+  });
+
+  it('the straw bands stay clear of gold and terracotta', () => {
+    expect(dist(straw, gold)).toBeGreaterThan(60);
+    expect(dist(straw, terracotta)).toBeGreaterThan(40);
+    expect(dist(straw, danger)).toBeGreaterThan(40);
+  });
+});

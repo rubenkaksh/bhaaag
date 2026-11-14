@@ -159,7 +159,13 @@ function opening(o: Out, kind: string, op: Opening, col: Color, house: number): 
   onWall(o, 'window', kind, op.face, op.x, op.y, op.z, op.w, op.h, col, house);
 }
 
-function dressHouse(o: Out, h: HouseSpec, seed: number, shutterIdx: { n: number }): void {
+function dressHouse(
+  o: Out,
+  h: HouseSpec,
+  seed: number,
+  shutterIdx: { n: number },
+  home: boolean,
+): void {
   const rng = mulberry32((h.id * 7919 + seed) >>> 0);
   const g = h.groundY;
   const deck = deckY(h);
@@ -328,7 +334,8 @@ function dressHouse(o: Out, h: HouseSpec, seed: number, shutterIdx: { n: number 
       0.08,
       len,
       yawOf(f),
-      c(AWNING[(h.id + i) % AWNING.length]),
+      // look 'home': corrugated tin, a flat desaturated tint (the kit's awning is the canopy piece)
+      c(home ? HOME_TIN : AWNING[(h.id + i) % AWNING.length]),
       pitch,
     );
     if (ok) {
@@ -490,7 +497,7 @@ export function buildHouseDecor(
   let shops = 0;
   let doors = 0;
   for (let i = 0; i < houses.length; i++) {
-    dressHouse(o, houses[i], seed, shutterIdx);
+    dressHouse(o, houses[i], seed, shutterIdx, home);
     windows += windowSlots(houses[i]).length;
     shops += houses[i].awnings.length;
     if (houses[i].balcony !== -1) doors++;

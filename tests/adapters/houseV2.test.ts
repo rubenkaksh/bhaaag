@@ -1,4 +1,4 @@
-import { InstancedMesh, Matrix4, Quaternion, Vector3 } from 'three';
+import { Color, InstancedMesh, Matrix4, Quaternion, Vector3 } from 'three';
 import type { Group } from 'three';
 import { describe, expect, it } from 'vitest';
 import { demoStreet, hillRow, homeStreet } from '../../src/content/house/demoStreet';
@@ -191,5 +191,42 @@ describe("look: 'home' (H4 hay cover)", () => {
     const added = addedBy(on, off);
     expect(added.length).toBeGreaterThan(0);
     for (const id of added) expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
+  });
+});
+
+describe("look: 'home' (H5 tin awnings)", () => {
+  const street = demoStreet();
+  const awningColours = (g: Group): string[] => {
+    const cornice = g.getObjectByName('decor_cornice') as InstancedMesh;
+    const m = new Matrix4();
+    const q = new Quaternion();
+    const p = new Vector3();
+    const s = new Vector3();
+    const col = new Color();
+    const out: string[] = [];
+    for (let i = 0; i < cornice.count; i++) {
+      cornice.getMatrixAt(i, m);
+      m.decompose(p, q, s);
+      if (new Vector3(0, 1, 0).applyQuaternion(q).y >= 0.99) continue; // not an awning
+      cornice.getColorAt(i, col);
+      out.push('#' + col.getHexString());
+    }
+    return out;
+  };
+
+  it('tints every awning one flat tin colour with the option on, and keeps the kit palette off', () => {
+    const off = awningColours(buildHouseDecor(street.houses, street.props));
+    const on = awningColours(buildHouseDecor(street.houses, street.props, 1, { look: 'home' }));
+    expect(off.length).toBeGreaterThan(1);
+    expect(on).toHaveLength(off.length);
+    expect(new Set(on).size).toBe(1);
+    expect(new Set(off).size).toBeGreaterThan(1);
+    expect(on[0]).not.toBe(off[0]);
+  });
+
+  it('changes no instance counts (a colour, not a new piece)', () => {
+    const off = buildHouseDecor(street.houses, street.props);
+    const on = buildHouseDecor(street.houses, street.props, 1, { look: 'home' });
+    expect(counts(on).cornice).toBe(counts(off).cornice);
   });
 });
