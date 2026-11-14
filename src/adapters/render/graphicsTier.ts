@@ -198,6 +198,8 @@ export const LOW_HIDDEN_DECOR: readonly string[] = [
   'decor_trim',
   'decor_strings',
   'decor_birds',
+  // look 'home' water tanks (H6): v1 levels never create this mesh, so v1 Low output is unchanged.
+  'decor_homeTank',
 ];
 export const GOVERNOR_MS = 20;
 

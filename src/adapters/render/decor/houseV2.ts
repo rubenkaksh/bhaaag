@@ -2,7 +2,7 @@
 // existing instanced decor kit. It never reads solids: the same spec feeds houseKit.emitHouse for
 // the sim and this module for the look, through the shared helpers in houseSpec.ts.
 import { Color, Group } from 'three';
-import { DecorKit, RAIL_LEN, mulberry32 } from './kit';
+import { DecorKit, RAIL_LEN, TANK_UNIT_H, mulberry32 } from './kit';
 import type { PieceId } from './kit';
 import {
   HK,
@@ -40,6 +40,12 @@ const POLE = '#4a3424';
 // affordance, cream (safe) or terracotta (danger); tests/adapters/palette.test.ts checks.
 const HOME_TIN = '#8c949a'; // desaturated corrugated tin / tarp
 const HOME_STRAW = '#b8975a'; // straw bands on a hay stack
+const HOME_TANK = ['#26282c', '#2e6b47']; // black and green plastic drums (as the v1 tanks)
+
+const TANK_SCALE = 1.2; // v1 tank unit is 1.0 m of platform and 2.18 m tall
+const TANK_HALF = 0.8; // conservative half footprint of a scaled tank (ladder included), m
+const TANK_CHANCE = 0.5;
+const TANK_RUN_UP = 3.2; // no tank within this depth of a takeoff, runout or party edge
 
 /** Per-level look. 'home' is the opt-in Kathmandu hill-house dressing; absent keeps v1 output exactly. */
 export interface HouseDecorOptions {
@@ -349,6 +355,8 @@ function dressHouse(
     }
   }
 
+  if (home) roofTank(o, h, seed);
+
   // Zipline pole: a post and a short crossbar at the anchor.
   if (h.pole) {
     const a = poleAnchor(h);
@@ -376,6 +384,62 @@ function dressHouse(
       c(POLE),
       h.id,
     );
+  }
+}
+
+/**
+ * Rects (world xz) of a deck where a render-only rooftop tank must not stand: a strip along every
+ * takeoff, run-out and party edge, the zipline launch zone (3 x 3 m, 2 m toward -z of the centre,
+ * with a margin) and the foot of the pole.
+ */
+export function tankKeepOut(h: HouseSpec): Rect[] {
+  const k = HK.half;
+  const out: Rect[] = [];
+  for (let f = 0; f < 4; f++) {
+    const face = f as Face;
+    const run = h.runout !== undefined && h.runout.some((r) => r.face === face);
+    if (h.party[f] || h.takeoff.indexOf(face) >= 0 || run) {
+      out.push(faceRect(h, face, -k, k, k - TANK_RUN_UP, k));
+    }
+  }
+  if (h.runout !== undefined && h.runout.length > 0) {
+    out.push({ x0: h.cx - 1.75, x1: h.cx + 1.75, z0: h.cz - 3.75, z1: h.cz - 0.25 });
+  }
+  if (h.pole) {
+    const a = poleAnchor(h);
+    out.push({ x0: a[0] - 1.5, x1: a[0] + 1.5, z0: a[2] - 1.5, z1: a[2] + 1.5 });
+  }
+  return out;
+}
+
+/** look 'home': a water tank in one free deck corner of some 2-storey houses (seeded). Render only. */
+function roofTank(o: Out, h: HouseSpec, seed: number): void {
+  if (h.storeys !== 2) return;
+  const rng = mulberry32((h.id * 104729 + seed * 31 + 7) >>> 0);
+  const roll = rng();
+  const start = Math.floor(rng() * 4);
+  const col = c(HOME_TANK[Math.floor(rng() * HOME_TANK.length)]);
+  const yaw = Math.floor(rng() * 4) * (Math.PI / 2);
+  if (roll >= TANK_CHANCE) return;
+  const keep = tankKeepOut(h);
+  const inset = HK.half - HK.parapetThick - TANK_HALF - 0.1;
+  const deck = deckY(h);
+  for (let i = 0; i < 4; i++) {
+    const q = (start + i) % 4;
+    const x = h.cx + (q % 2 === 0 ? -inset : inset);
+    const z = h.cz + (q < 2 ? -inset : inset);
+    const r: Rect = { x0: x - TANK_HALF, x1: x + TANK_HALF, z0: z - TANK_HALF, z1: z + TANK_HALF };
+    const clear = keep.every((k) => r.x1 <= k.x0 || r.x0 >= k.x1 || r.z1 <= k.z0 || r.z0 >= k.z1);
+    if (!clear) continue;
+    if (o.kit.add('homeTank', x, deck, z, TANK_SCALE, TANK_SCALE, TANK_SCALE, yaw, col)) {
+      o.boxes.push({
+        kind: 'tank',
+        min: [r.x0, deck, r.z0],
+        max: [r.x1, deck + TANK_UNIT_H * TANK_SCALE, r.z1],
+        house: h.id,
+      });
+    }
+    return;
   }
 }
 

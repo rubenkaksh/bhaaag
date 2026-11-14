@@ -2,14 +2,14 @@ import { Color, InstancedMesh, Matrix4, Quaternion, Vector3 } from 'three';
 import type { Group } from 'three';
 import { describe, expect, it } from 'vitest';
 import { demoStreet, hillRow, homeStreet } from '../../src/content/house/demoStreet';
-import { HK, windowSlots } from '../../src/content/house/houseSpec';
+import { HK, deckY, faceRect, poleAnchor, windowSlots } from '../../src/content/house/houseSpec';
 import { loadGraph } from '../../src/content/graph/registry';
 import { placeGraph } from '../../src/content/graph/place';
 import { PIECE_IDS } from '../../src/adapters/render/decor/kit';
 import { LOW_HIDDEN_DECOR } from '../../src/adapters/render/graphicsTier';
 import { buildHouseDecor } from '../../src/adapters/render/decor/houseV2';
 import type { HouseDecorBox, HouseDecorStats } from '../../src/adapters/render/decor/houseV2';
-import type { PropSpec } from '../../src/content/house/houseSpec';
+import type { Face, HouseSpec, PropSpec, Rect } from '../../src/content/house/houseSpec';
 
 function counts(g: Group): Record<string, number> {
   const out: Record<string, number> = {};
@@ -137,6 +137,7 @@ describe('Low tier hidden pieces (review M4)', () => {
       'decor_trim',
       'decor_strings',
       'decor_birds',
+      'decor_homeTank', // look 'home' only; v1 levels never create it
     ]);
     expect(LOW_HIDDEN_DECOR).not.toContain('decor_guard');
     expect(counts(demo).guard ?? 0).toBeGreaterThan(0);
@@ -228,5 +229,95 @@ describe("look: 'home' (H5 tin awnings)", () => {
     const off = buildHouseDecor(street.houses, street.props);
     const on = buildHouseDecor(street.houses, street.props, 1, { look: 'home' });
     expect(counts(on).cornice).toBe(counts(off).cornice);
+  });
+});
+
+describe("look: 'home' (H6 rooftop water tanks)", () => {
+  const placed = placeGraph(loadGraph('valley-1'));
+  const fixtures: { name: string; houses: HouseSpec[]; props: PropSpec[]; zones: Rect[] }[] = [
+    {
+      name: 'valley-1',
+      houses: placed.houses,
+      props: placed.props,
+      zones: placed.edges
+        .filter((e) => e.zone !== undefined)
+        .map((e) => ({
+          x0: e.zone![0] - 1.5,
+          x1: e.zone![0] + 1.5,
+          z0: e.zone![2] - 1.5,
+          z1: e.zone![2] + 1.5,
+        })),
+    },
+    { name: 'hillRow', houses: hillRow(3, 40), props: [], zones: [] },
+  ];
+  const overlap = (a: Rect, b: Rect): boolean =>
+    a.x0 < b.x1 && a.x1 > b.x0 && a.z0 < b.z1 && a.z1 > b.z0;
+  const rectOf = (b: HouseDecorBox): Rect => ({
+    x0: b.min[0],
+    x1: b.max[0],
+    z0: b.min[2],
+    z1: b.max[2],
+  });
+
+  it('puts tanks on some 2-storey decks only, never with the option off', () => {
+    let total = 0;
+    for (const f of fixtures) {
+      const off = buildHouseDecor(f.houses, f.props, 4);
+      expect(counts(off).homeTank ?? 0, f.name).toBe(0);
+      const on = buildHouseDecor(f.houses, f.props, 4, { look: 'home' });
+      const tanks = (on.userData.boxes as HouseDecorBox[]).filter((b) => b.kind === 'tank');
+      expect(counts(on).homeTank ?? 0, f.name).toBe(tanks.length);
+      total += tanks.length;
+      for (const t of tanks) {
+        const h = f.houses.find((x) => x.id === t.house)!;
+        expect(h.storeys).toBe(2);
+        expect(t.min[1]).toBeCloseTo(deckY(h), 6);
+      }
+      const twoStorey = f.houses.filter((x) => x.storeys === 2).length;
+      expect(tanks.length, f.name).toBeLessThan(twoStorey); // "some", not all
+      expect((on.userData.stats as HouseDecorStats).refused).toBe(0);
+    }
+    expect(total).toBeGreaterThan(0);
+  });
+
+  it('keeps every tank off line zones, takeoff strips, run-out strips, party edges and poles', () => {
+    for (const f of fixtures) {
+      const on = buildHouseDecor(f.houses, f.props, 4, { look: 'home' });
+      const tanks = (on.userData.boxes as HouseDecorBox[]).filter((b) => b.kind === 'tank');
+      for (const t of tanks) {
+        const h = f.houses.find((x) => x.id === t.house)!;
+        const tr = rectOf(t);
+        for (const z of f.zones) expect(overlap(tr, z), f.name + ' zone').toBe(false);
+        // independent of tankKeepOut: 2.5 m strips along the edges a runner leaves by
+        const k = HK.half;
+        for (let fc = 0; fc < 4; fc++) {
+          const run = (h.runout ?? []).some((r) => r.face === fc);
+          if (!h.takeoff.includes(fc as Face) && !run && !h.party[fc]) continue;
+          expect(overlap(tr, faceRect(h, fc as Face, -k, k, k - 2.5, k)), f.name + ' strip').toBe(
+            false,
+          );
+        }
+        if (h.pole) {
+          const a = poleAnchor(h);
+          expect(overlap(tr, { x0: a[0] - 1, x1: a[0] + 1, z0: a[2] - 1, z1: a[2] + 1 })).toBe(
+            false,
+          );
+        }
+        // inside the parapet ring
+        expect(tr.x0).toBeGreaterThanOrEqual(h.cx - k + HK.parapetThick);
+        expect(tr.x1).toBeLessThanOrEqual(h.cx + k - HK.parapetThick);
+      }
+    }
+  });
+
+  it('adds no solids: tanks are decor boxes only and the level JSON is unchanged', () => {
+    const before = JSON.stringify(placed.level);
+    buildHouseDecor(placed.houses, placed.props, placed.seed, { look: 'home' });
+    expect(JSON.stringify(placeGraph(loadGraph('valley-1')).level)).toBe(before);
+  });
+
+  it('hides tanks on Low through the home-only mesh', () => {
+    expect(LOW_HIDDEN_DECOR).toContain('decor_homeTank');
+    expect(LOW_HIDDEN_DECOR).not.toContain('decor_tank'); // v1 tanks are unchanged
   });
 });

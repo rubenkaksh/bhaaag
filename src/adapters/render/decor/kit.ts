@@ -43,7 +43,8 @@ export type PieceId =
   | 'trim'
   | 'stair'
   | 'crate'
-  | 'guard';
+  | 'guard'
+  | 'homeTank';
 
 export const PIECE_IDS: PieceId[] = [
   'body',
@@ -68,6 +69,7 @@ export const PIECE_IDS: PieceId[] = [
   'stair',
   'crate',
   'guard',
+  'homeTank',
 ];
 
 export const PIECE_CAP: Record<PieceId, number> = {
@@ -93,6 +95,7 @@ export const PIECE_CAP: Record<PieceId, number> = {
   stair: 160, // house kit v2 (ADR 0013): 16 treads per flight
   crate: 60, // crates, box piles, hay, tramp frames
   guard: 40, // house kit v2 balcony rails (same geometry as the v1 rail; not hidden on Low)
+  homeTank: 50, // look 'home' rooftop water tanks: the v1 tank geometry in its own mesh so Low can hide it
 };
 
 /** Pieces that do NOT scale with the house count (the forest); every other piece does. */
@@ -461,6 +464,7 @@ function geometries(): Record<PieceId, BufferGeometry> {
     trim: unitBox(),
     stair: stairUnit(),
     crate: crateUnit(),
+    homeTank: tankUnit(),
   };
 }
 
