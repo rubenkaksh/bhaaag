@@ -521,3 +521,13 @@ Answers to the six open questions. These supersede the Q-list above.
 - "Choose your floor": meaning not yet confirmed (approval threshold, storeys per house, or other).
 - Camera turn speed (about 90°/s vs snap at U-turns).
 - Camera timing (landing only vs during runs).
+
+## Owner decisions (2026-11-14, part 3)
+
+- Camera turning: 60°/s eased turns normally; instant snap at U-turns. Re-aim on landing only.
+- Fork markers: markers are shown at forks for the two exits (in addition to the camera rule above).
+- Texture budget: total doubled to about 300 KB (earlier decision). The "choose your floor" / "threshold for the minimal house model" answer is read as the owner-approval threshold, which doubles from 300 KiB to 600 KiB. This is the recorder's reading of "double the current threshold"; owner to correct if it meant something else.
+
+## Still open (after part 3)
+
+- Confirm the reading of "threshold" above (600 KiB approval threshold).
