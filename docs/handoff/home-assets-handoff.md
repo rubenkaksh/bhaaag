@@ -505,3 +505,19 @@ Answers to the six open questions. These supersede the Q-list above.
 - Nagarkot Run is frozen by the 2026-11-13 amendment. Using a subgraph of it as the source for the new level needs an explicit amendment or a copy. Owner to confirm.
 - New texture budget total (Q16) is not stated. Owner to give the new cap.
 - Q20 camera rule touches the view code. Confirm whether this applies to all graph levels or only the new level, since valley-1 is hash-frozen.
+
+## Owner decisions (2026-11-14, part 2)
+
+- Camera model: hybrid, as proposed by Opus. Base heading follows the road tangent ahead of the hero; optional per-node override. Applies to the new level only.
+- Camera at forks: "hold incoming heading until commit" (Fable). The camera keeps the approach heading; it turns to the chosen exit about 2–3 m past the node, with hysteresis on the commit distance. Accepted with the level check: every exit within about ±75° of the approach heading. Failing forks use the midpoint of the two exits.
+- Stick: tied to camera direction (not world-fixed).
+- Level scope for the camera rule: new level only. Valley-1 unchanged.
+- Sloped roofs: landable. Sliding happens only on long, open slopes. Closed or short roofs do not slide. Reference: IMG_1668 (modern house, steep tile roofs, stepped balconies), used for roof and balcony structure only.
+- Nagarkot Run: copy, not a subgraph of the frozen original.
+- Texture budget: doubled (about 300 KB total).
+
+## Still open
+
+- "Choose your floor": meaning not yet confirmed (approval threshold, storeys per house, or other).
+- Camera turn speed (about 90°/s vs snap at U-turns).
+- Camera timing (landing only vs during runs).
