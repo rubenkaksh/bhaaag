@@ -12,7 +12,7 @@ import {
 } from '../../src/adapters/render/graphicsTier';
 import { createHeroRig } from '../../src/adapters/render/heroRig';
 import { buildBlob } from '../../src/adapters/render/blob';
-import { demoStreet, hillRow } from '../../src/content/house/demoStreet';
+import { demoStreet, hillRow, homeStreet } from '../../src/content/house/demoStreet';
 import { buildHouseDecor } from '../../src/adapters/render/decor/houseV2';
 
 // ADR 0009 / three-track-plan A3: static budgets that hold without a GPU. The rendered numbers
@@ -101,9 +101,11 @@ describe('A3 static budgets', () => {
 
   it('house kit v2 (ADR 0013): instanced meshes <= 24 and Low draw calls <= 55 for a house level', () => {
     const street = demoStreet();
+    const home = homeStreet();
     const fixtures = [
       buildHouseDecor(street.houses, street.props),
       buildHouseDecor(hillRow(4, 20), street.props),
+      buildHouseDecor(home.houses, home.props),
     ];
     const low = renderConfigFor('low', true);
     // everything that is not house decor in a v1 level (ground, lane, pads, ropes) plus the backdrop and hero

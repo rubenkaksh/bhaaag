@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { demoStreet, hillRow } from '../../src/content/house/demoStreet';
+import { demoStreet, hillRow, homeStreet } from '../../src/content/house/demoStreet';
 import { emitHouse, emitProp, newDraft } from '../../src/content/house/houseKit';
 import {
   HK,
@@ -158,7 +158,7 @@ describe('house kit v2 emitters (ADR 0013 s1)', () => {
 
   it('windows: count equals the formula; every exposed face has one per storey', () => {
     const { houses } = demoStreet();
-    for (const h of [...houses, ...hillRow(3, 20)]) {
+    for (const h of [...houses, ...homeStreet().houses, ...hillRow(3, 20)]) {
       const slots = windowSlots(h);
       expect(slots.length, 'house ' + h.id).toBe(expectedWindowCount(h));
       let n = 0;
@@ -261,5 +261,52 @@ describe('house kit v2 emitters (ADR 0013 s1)', () => {
     expect(w.ramps.some((r) => r.slip === 1)).toBe(true);
     expect(w.parkour).toBe(1);
     expect(d.anchors.length).toBe(2);
+  });
+
+  it('the home street (H2): valid houses, no overlapping solids, loads as a parkour level', () => {
+    const { houses, props, ground } = homeStreet();
+    expect(houses.length).toBeGreaterThanOrEqual(5);
+    const d = newDraft();
+    for (const h of houses) emitHouse(h, d); // validateHouse inside
+    for (const p of props) emitProp(p, d);
+    for (let i = 0; i < d.solids.length; i++) {
+      for (let j = i + 1; j < d.solids.length; j++) {
+        const a = d.solids[i];
+        const b = d.solids[j];
+        const ov = [0, 1, 2].every((k) => a.min[k] < b.max[k] - 1e-6 && b.min[k] < a.max[k] - 1e-6);
+        expect(ov, `solids ${i} and ${j} overlap`).toBe(false);
+      }
+    }
+    // touching houses agree about their shared wall
+    for (const a of houses) {
+      for (const b of houses) {
+        if (a.id !== b.id && a.cz === b.cz && b.cx - a.cx === 8) {
+          expect(a.party[0] && b.party[1], `houses ${a.id} and ${b.id}`).toBe(true);
+        }
+      }
+    }
+    // the ground slabs stay out of the house bodies
+    for (const g of ground) {
+      for (const s of d.solids.slice(0, 1))
+        expect(g.max[2] <= s.min[2] || g.min[2] >= s.max[2]).toBe(true);
+    }
+    const w = loadWorldFromObject({
+      version: 1,
+      spawn: [0, 7, 0],
+      spawnYaw: 0,
+      killPlaneY: -60,
+      solids: [...d.solids, ...ground],
+      ramps: d.ramps,
+      anchors: d.anchors,
+      style: [...d.style, ...ground.map(() => 0)],
+      lineOnly: 1,
+      climb: 1,
+      parkour: 1,
+      tramps: d.tramps,
+      cushions: d.cushions,
+    });
+    expect(w.parkour).toBe(1);
+    expect(w.cushions.length).toBe(2); // hay + box pile
+    expect(w.ramps.filter((r) => r.slip === 1).length).toBe(2); // A1 and B1 awnings
   });
 });

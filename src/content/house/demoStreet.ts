@@ -1,4 +1,5 @@
 // Fixtures for the house kit v2 tests (ADR 0013 section 4.1). Not shipped in any level.
+import { archetype } from './archetypes';
 import type { HouseSpec, PropSpec } from './houseSpec';
 
 function house(
@@ -81,6 +82,47 @@ export function demoStreet(): { houses: HouseSpec[]; props: PropSpec[] } {
     { kind: 'tramp', x: 15, z: -7, groundY: -2, yaw: Math.PI / 2 },
   ];
   return { houses, props };
+}
+
+/** Street terrace height of `homeStreet`: 3 m below the row's ground (hay, crate and box pile stand on it). */
+export const HOME_STREET_Y = -3;
+
+/** A ground slab of a fixture (not a kit piece; the level builder adds it as a style-0 solid). */
+export interface GroundSlab {
+  min: [number, number, number];
+  max: [number, number, number];
+}
+
+/**
+ * Home street fixture (handoff H2) built from the archetype presets, for tests and budgets. Row
+ * along +x at ground 0: A1 (2 storeys, deck 6.0, awning on face 3) touching A2 (1 storey, deck 3.2,
+ * so A1 drops 2.8 m onto A2); a 3.5 m gap to A3 (1 storey) behind A2's 0.45 parapet; B1 (balcony and
+ * shop awning) and B2 (balcony, stairs, pole) further on, all touching. A front yard (top 0) lies on
+ * the -z side and a street terrace 3 m lower (top HOME_STREET_Y) on the +z side, with a hay stack,
+ * crate and box pile on it. `ground` holds the two slabs; they sit outside the house bodies.
+ */
+export function homeStreet(): { houses: HouseSpec[]; props: PropSpec[]; ground: GroundSlab[] } {
+  const gap = 3.5;
+  const a3x = 12 + gap + 4; // A2 ends at x = 12; A3 starts after the gap
+  const houses: HouseSpec[] = [
+    archetype('A1', 1, 0, 0, 0, { party: [true, false, false, false] }),
+    archetype('A2', 2, 8, 0, 0, { party: [false, true, false, false], takeoff: [0] }),
+    archetype('A3', 3, a3x, 0, 0, { party: [true, false, false, false], takeoff: [1] }),
+    archetype('B1', 4, a3x + 8, 0, 0, { party: [true, true, false, false] }),
+    archetype('B2', 5, a3x + 16, 0, 0, { party: [false, true, false, false] }),
+  ];
+  const g = HOME_STREET_Y;
+  const props: PropSpec[] = [
+    // the hay sits where a run-and-jump off A1's +z edge lands (the sim test pins this)
+    { kind: 'hay', x: 0, z: 12.5, groundY: g, yaw: 0 },
+    { kind: 'crate', x: -4.5, z: 9, groundY: g, yaw: 0 },
+    { kind: 'boxPile', x: 5, z: 9, groundY: g, yaw: 0 },
+  ];
+  const ground: GroundSlab[] = [
+    { min: [-30, -8, -40], max: [70, 0, -4] },
+    { min: [-30, -8, 4], max: [70, g, 40] },
+  ];
+  return { houses, props, ground };
 }
 
 /** Deterministic PRNG for fixtures (mulberry32). */
