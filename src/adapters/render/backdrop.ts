@@ -225,11 +225,11 @@ const SPECS: Spec[] = [
     p: [0, 0.3, 0.55, 0.77, 0.92, 1],
     crest: massifCrest,
     anchored: false,
-    shade: rgb('#5a4d7c'),
-    lit: rgb('#a07488'),
-    haze: 0.2,
+    shade: rgb('#5c5a86'),
+    lit: rgb('#b08a92'),
+    haze: 0.08,
     hazeCol: rgb('#d9a9a4'),
-    mist: 0.5,
+    mist: 0.4,
     ripple: 0.25,
   },
   {
@@ -281,9 +281,9 @@ const SPECS: Spec[] = [
     p: [0, 0, 0.42, 0.82, 1, 0.8],
     crest: forestCrest(95, 170, 160, 55),
     anchored: true,
-    shade: rgb('#1e3a24'),
-    lit: rgb('#42683a'),
-    haze: 0.12,
+    shade: rgb('#24502c'),
+    lit: rgb('#5c9440'),
+    haze: 0.07,
     hazeCol: rgb('#a8a49c'),
     mist: 0.15,
     ripple: 0.08,
@@ -295,9 +295,9 @@ const SPECS: Spec[] = [
     p: [0, 0, 0.45, 0.85, 1, 0.8],
     crest: forestCrest(70, 130, 108, 66),
     anchored: true,
-    shade: rgb('#15301c'),
-    lit: rgb('#35582f'),
-    haze: 0.05,
+    shade: rgb('#1c4524'),
+    lit: rgb('#4a8038'),
+    haze: 0.03,
     hazeCol: rgb('#a0a096'),
     mist: 0.1,
     ripple: 0.08,
@@ -396,8 +396,8 @@ function buildRing(spec: Spec, m: number): BackdropLayer {
         const snowEl =
           12.8 + 2.2 * noise(i / m, j * 0.9, 29, 13) + 1.0 * (noise(i / m, 0, 83, 17) - 0.5);
         const s = smoothstep(snowEl - 0.9, snowEl + 0.5, elv);
-        const snowLit = rgb('#ffe8bc');
-        const snowShade = rgb('#c496b4');
+        const snowLit = rgb('#fff4dc');
+        const snowShade = rgb('#b4b0d8');
         const snow = mix(snowShade, snowLit, smoothstep(-0.5, 0.5, ndl + 0.5 + 1.4 * facet));
         base = mix(base, snow, s);
       } else {
