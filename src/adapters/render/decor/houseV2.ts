@@ -622,6 +622,38 @@ function dressProp(o: Out, p: PropSpec, home: boolean): void {
       }
       return;
     }
+    case 'shed': {
+      // toilet block: brick body, thin cream cap marks the walkable roof (safe)
+      const r = sq(HK.shedSize);
+      const cap = 0.06;
+      if (
+        !o.kit.add(
+          'crate',
+          p.x,
+          g,
+          p.z,
+          HK.shedSize,
+          HK.shedTop - cap,
+          HK.shedSize,
+          p.yaw,
+          c(BRICK),
+        )
+      )
+        return;
+      o.kit.add(
+        'crate',
+        p.x,
+        g + HK.shedTop - cap,
+        p.z,
+        HK.shedSize,
+        cap,
+        HK.shedSize,
+        p.yaw,
+        c(CREAM),
+      );
+      o.boxes.push({ kind: 'shed', min: [r.x0, g, r.z0], max: [r.x1, g + HK.shedTop, r.z1] });
+      return;
+    }
     case 'tramp': {
       const r = sq(HK.trampSize);
       const top = HK.trampTop;

@@ -549,3 +549,11 @@ Remaining tasks and what they need:
 - New, not yet in the task list: path-following camera for the new level (hybrid road tangent, 60°/s eased, instant snap at U-turns, re-aim on landing only, stick tied to camera, hold-heading-until-commit at forks with a ±75° exit check, markers at forks); tile roofs slide only on long open slopes.
 
 Open: confirm the 600 KiB approval-threshold reading.
+
+## Owner decisions (2026-11-15)
+
+- Texture budget is per tier: Low 150 KB, Medium 300 KB, High 600 KB. This replaces the "600 KiB approval threshold" reading and the single ~300 KB total. PRODUCT.md Principle 5 must be restated to match (task A1 below).
+- Level graph: the road is for viewing only and adds nothing to logic. Placer v2 / H15 is DROPPED; the new level uses placer v1 (z-only profile, shelves approximated by knots). The road polyline, if drawn at all, is decor.
+- All follow-on tasks are to be done: H10, H11, H12, H14, plus the camera and sloped-roof tasks and the art-review steps.
+- Order: finish the High-tier sky-band fix first; then the rest; then an Opus review, fixes, merge to main and deploy.
+- Deploy target named by the owner is GitHub Pages; the repo CLAUDE.md says Cloudflare Pages via GitHub Actions. To confirm before deploy.

@@ -149,6 +149,9 @@ export function emitProp(p: PropSpec, out: LevelJsonDraft): void {
       out.cushions.push(slab(r, g + HK.hayTop));
       return;
     }
+    case 'shed':
+      solid(out, squareRect(p, HK.shedSize), base, g + HK.shedTop, STYLE_PROP);
+      return;
     case 'tramp': {
       const r = squareRect(p, HK.trampSize);
       solid(out, r, base, g + HK.trampTop, STYLE_PROP);

@@ -228,6 +228,18 @@ describe('house kit v2 emitters (ADR 0013 s1)', () => {
     }
   });
 
+  it('shed: 1.5 x 1.5 x 2.2 solid, style 6, no cushion or tramp', () => {
+    const d = newDraft();
+    emitProp({ kind: 'shed', x: 4, z: 5, groundY: 1, yaw: 0 }, d);
+    expect(d.solids).toHaveLength(1);
+    expect(d.solids[0].max[1]).toBeCloseTo(3.2, 6);
+    expect(d.solids[0].max[0] - d.solids[0].min[0]).toBeCloseTo(1.5, 6);
+    expect(d.solids[0].max[2] - d.solids[0].min[2]).toBeCloseTo(1.5, 6);
+    expect(d.style[0]).toBe(6);
+    expect(d.cushions).toHaveLength(0);
+    expect(d.tramps).toHaveLength(0);
+  });
+
   it('the demo street loads as a parkour level and no solids overlap', () => {
     const { houses, props } = demoStreet();
     const d = newDraft();
