@@ -240,6 +240,8 @@ export type BuildLevelOpts = {
     props: PropSpec[];
     profile: [number, number][];
     seed: number;
+    /** Opt-in house decor look (default off). */
+    look?: 'home';
     /** Walkable ground patches: cut out of the drawn gully. */
     patches?: GullyPatch[];
   };
@@ -299,7 +301,11 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
     buildDecor(world, undefined, { scenery, houseDress: opts.houseDress, floorY: opts.floorY }),
   );
   if (opts.graph !== undefined) {
-    g.add(buildHouseDecor(opts.graph.houses, opts.graph.props, opts.graph.seed));
+    g.add(
+      buildHouseDecor(opts.graph.houses, opts.graph.props, opts.graph.seed, {
+        look: opts.graph.look,
+      }),
+    );
     const gully = buildGully(world, opts.graph.patches ?? []);
     if (gully !== null) g.add(gully);
   }

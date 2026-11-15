@@ -101,7 +101,7 @@ import { DustPuff } from '../adapters/render/dustPuff';
 import { GameLoop } from './loop';
 import { framingFor } from '../adapters/render/framing';
 import { MODE_INFO, graphIdOf, isGraphMode, readBest, writeBest } from './modes/mode';
-import { loadGraph } from '../content/graph/registry';
+import { graphEntry, loadGraph } from '../content/graph/registry';
 import { placeGraph } from '../content/graph/place';
 import type { GameMode } from './modes/mode';
 import { readViewport, watchViewport } from './viewport';
@@ -224,6 +224,7 @@ export function startGame(
                   props: placed.props,
                   profile: placed.profile,
                   seed: placed.seed,
+                  look: graphEntry(graphIdOf(mode))?.look,
                   patches: placed.patches,
                 },
           floorY: village !== undefined && isVillage ? village.VILLAGE_CLOUD_TOP_Y : undefined,
