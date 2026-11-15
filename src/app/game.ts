@@ -79,7 +79,7 @@ import { routeIndexFor } from '../core/chase/chaseWorld';
 import { cloudCoverFor } from '../core/chase/dragon';
 import { GRADE as HILL_GRADE, hillY } from '../core/chase/rows';
 import { ChaseRowsView } from '../adapters/render/chase/chaseRowsView';
-import { DragonModelView as DragonSpriteView } from '../adapters/render/chase/dragonModelView';
+import { DragonSpriteView } from '../adapters/render/chase/dragonSpriteView';
 import { EndlessGround } from '../adapters/render/chase/endlessGround';
 import { ChaseHud } from '../adapters/ui/chaseHud';
 import { RopeView } from './ropeView';
