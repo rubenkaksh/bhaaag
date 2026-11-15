@@ -8,3 +8,7 @@ assets-src/*
 !assets-src/.gitkeep
 docs/reference/
 art/shots/auto/
+
+# local agent worktrees and bulky local art (never commit)
+.claude/worktrees/
+art/
