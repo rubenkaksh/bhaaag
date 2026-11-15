@@ -5,6 +5,8 @@ const node = z.object({
   id: z.number().int().min(1),
   storeys: z.union([z.literal(1), z.literal(2)]).optional(), // else rng
   balcony: z.boolean().optional(), // else rng (2-storey only)
+  /** Optional camera heading override in degrees (0 faces +z, +90 faces +x); only path-camera levels read it. */
+  heading: z.number().min(-360).max(360).optional(),
 });
 
 const edge = z.object({

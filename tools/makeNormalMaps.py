@@ -3,16 +3,17 @@
 Run from the repo root:
   uv run --no-project --with pillow --with numpy python -I tools/makeNormalMaps.py
 Luminance is treated as height; Sobel gradients with wrap-around keep the tiles seamless. No AI
-generation involved, so no extra licence line is needed (the colour tiles keep theirs).
+generation involved. Pass tile names as arguments to build only those (e.g. tin straw); no arguments rebuilds the original six, so no extra licence line is needed (the colour tiles keep theirs).
 """
 
+import sys
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
 DIR = Path(__file__).resolve().parent.parent / "public/assets/textures"
-NAMES = ["roof_tile", "wall_brick", "wall_plaster", "brick_a", "stone_warm", "terracotta_a"]
+NAMES = sys.argv[1:] or ["roof_tile", "wall_brick", "wall_plaster", "brick_a", "stone_warm", "terracotta_a"]
 STRENGTH = 2.5
 
 for name in NAMES:

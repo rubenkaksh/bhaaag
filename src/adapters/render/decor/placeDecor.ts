@@ -64,7 +64,7 @@ const TRUNK = '#4a3424';
 const WIN_D = 0.118; // window depth unit: sticks out 1.6 x this = 0.19 m
 // Laundry lines: muted cloth tones only, so gold/cream/terracotta keep their meaning.
 const LAUNDRY = ['#6b8fb5', '#8fae8a', '#a98fb8', '#7aa3a0'];
-const FLAGS = ['#2f62b8', '#f2efe4', '#c8322f', '#2f8a4f', '#d0a12e'];
+export const FLAGS = ['#2f62b8', '#f2efe4', '#c8322f', '#2f8a4f', '#d0a12e'];
 const STRING = '#3a2a20';
 
 export interface DecorBox {

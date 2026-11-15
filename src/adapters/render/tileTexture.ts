@@ -14,11 +14,11 @@ const cache = new Map<string, Texture>();
  * tools/makeWallTextures.py). Browser only: tests run in node with no DOM and get null, so
  * materials keep their flat colours there.
  */
-export function tileTexture(name: string): Texture | null {
+export function tileTexture(name: string, ext = 'jpg'): Texture | null {
   if (typeof document === 'undefined') return null;
   let t = cache.get(name);
   if (!t) {
-    t = new TextureLoader().load(BASE + name + '.jpg');
+    t = new TextureLoader().load(BASE + name + '.' + ext);
     t.wrapS = RepeatWrapping;
     t.wrapT = RepeatWrapping;
     t.colorSpace = SRGBColorSpace;

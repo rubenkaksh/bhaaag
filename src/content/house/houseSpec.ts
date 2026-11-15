@@ -34,7 +34,7 @@ export interface HouseSpec {
 export const RUNOUT_GAP = 1.6;
 
 export interface PropSpec {
-  kind: 'crate' | 'boxPile' | 'hay' | 'tramp';
+  kind: 'crate' | 'boxPile' | 'hay' | 'tramp' | 'shed';
   x: number;
   z: number;
   groundY: number;
@@ -113,6 +113,8 @@ export const HK = {
   hayTop: 0.9,
   trampSize: 1.8,
   trampTop: 0.5,
+  shedSize: 1.5, // toilet block footprint, square
+  shedTop: 2.2,
   slab: 0.02, // cushion and tramp slab thickness (inside the sim's slab tolerance)
 } as const;
 
@@ -271,8 +273,7 @@ export function parapetSegments(h: HouseSpec, f: Face): Span[] {
   const ro = h.runout;
   if (ro !== undefined) {
     for (let i = 0; i < ro.length; i++) {
-      if (ro[i].face === f)
-        {
+      if (ro[i].face === f) {
         const half = (ro[i].w ?? RUNOUT_GAP) / 2;
         spans = subtract(spans, [ro[i].s - half, ro[i].s + half]);
       }

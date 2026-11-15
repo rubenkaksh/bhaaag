@@ -14,7 +14,7 @@ Goal: a Miniclip-style game. Open the link, play one hand-tuned Kathmandu roofto
 - One-hit death, hand-brake (hold REEL on rope), vCling 7.5, touch scheme (tap-to-aim, one contextual action button, JUMP, swipe-down DROP), landscape-first phones.
 
 ## Budget
-Target: first complete run-through playable in days, not weeks. Keep the JS bundle small (three + game under ~600 KB gzipped), stock materials, primitives only. Textures: small baked JPEG/normal tiles are allowed (amended 2026-11-09, graphics overhaul, ~150 KB added max); no hand-written shaders, no GLB.
+Target: first complete run-through playable in days, not weeks. Keep the JS bundle small (three + game under ~600 KB gzipped), stock materials, primitives only. Textures: small baked JPEG/normal tiles are allowed (amended 2026-11-09, graphics overhaul; per-tier cap since 2026-11-15: Low 150 KB, Medium 300 KB, High 600 KB of runtime-loaded textures); no hand-written shaders, no GLB.
 
 ## Model and animation
 Opus (high) specifies the hero rig and pose set; smaller agents implement. Procedural primitives, no GLB. ADR 0003 is trimmed by this note to: procedural capsule-and-box mannequin, 6 poses (run, jump/fall, rope hang, slide-brake, roll, dead), blended by code.

@@ -16,6 +16,7 @@ export const MODE_OVERRIDES: Record<GameMode, TuningOverride> = {
   strategy: {},
   village: {},
   'g:valley-1': {},
+  'g:home-street': {},
 };
 
 export function mergeTuning(): Tuning {

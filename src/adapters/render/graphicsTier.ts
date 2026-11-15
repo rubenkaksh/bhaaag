@@ -186,7 +186,7 @@ export const PIXEL_RATIO_CAP: Record<GraphicsTier, readonly [number, number]> = 
 
 /** Lane half-width (m) for shadow casters and detail: decor beyond it never casts. */
 export const CASTER_REACH = 12;
-/** Low drops these pieces: every instanced mesh is a draw call and none carries the lane. v1 rails are hidden as before; the v2 balcony rails are the separate `guard` piece, which stays (fall guard, T313). */
+/** Low drops these pieces: every instanced mesh is a draw call and none carries the lane. v1 rails are hidden as before; the v2 balcony rails are the separate `guard` piece, which stays (fall guard, T313). `look: 'home'` decor (houseV2) is built only from pieces listed here, so Low hides all of it; tests/adapters/houseV2.test.ts checks. */
 export const LOW_HIDDEN_DECOR: readonly string[] = [
   'decor_rail',
   'decor_canopy',
@@ -198,6 +198,10 @@ export const LOW_HIDDEN_DECOR: readonly string[] = [
   'decor_trim',
   'decor_strings',
   'decor_birds',
+  // look 'home' water tanks (H6): v1 levels never create this mesh, so v1 Low output is unchanged.
+  'decor_homeTank',
+  // look 'home' straw bands on hay stacks (H14): Low keeps the cream stack and the flat tin strip only.
+  'decor_homeStraw',
 ];
 export const GOVERNOR_MS = 20;
 

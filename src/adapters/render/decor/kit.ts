@@ -43,7 +43,9 @@ export type PieceId =
   | 'trim'
   | 'stair'
   | 'crate'
-  | 'guard';
+  | 'guard'
+  | 'homeTank'
+  | 'homeTin';
 
 export const PIECE_IDS: PieceId[] = [
   'body',
@@ -68,6 +70,8 @@ export const PIECE_IDS: PieceId[] = [
   'stair',
   'crate',
   'guard',
+  'homeTank',
+  'homeTin',
 ];
 
 export const PIECE_CAP: Record<PieceId, number> = {
@@ -93,6 +97,8 @@ export const PIECE_CAP: Record<PieceId, number> = {
   stair: 160, // house kit v2 (ADR 0013): 16 treads per flight
   crate: 60, // crates, box piles, hay, tramp frames
   guard: 40, // house kit v2 balcony rails (same geometry as the v1 rail; not hidden on Low)
+  homeTank: 50, // look 'home' rooftop water tanks: the v1 tank geometry in its own mesh so Low can hide it
+  homeTin: 60, // look 'home' corrugated tin (awnings, hay strip): a unit box that takes the tin tile on Medium/High
 };
 
 /** Pieces that do NOT scale with the house count (the forest); every other piece does. */
@@ -461,6 +467,8 @@ function geometries(): Record<PieceId, BufferGeometry> {
     trim: unitBox(),
     stair: stairUnit(),
     crate: crateUnit(),
+    homeTank: tankUnit(),
+    homeTin: wallBox(1),
   };
 }
 
@@ -485,9 +493,18 @@ export class DecorKit {
 
   readonly cap: Record<PieceId, number>;
 
-  constructor(houses = 0) {
+  /**
+   * `home` (look 'home', houseV2 only): the kit's own `tank` piece is never used by the house kit
+   * (rooftop tanks use `homeTank`), so its slot becomes the straw-banded unit box `decor_homeStraw`.
+   * That keeps the piece list, and the 24 instanced-mesh cap, unchanged.
+   */
+  constructor(houses = 0, home = false) {
     this.cap = pieceCaps(houses);
     const geos = geometries();
+    if (home) {
+      geos.tank.dispose();
+      geos.tank = wallBox(1);
+    }
     const mat = new MeshLambertMaterial({
       color: '#ffffff',
       vertexColors: true,
@@ -525,14 +542,23 @@ export class DecorKit {
               ? matPlaster
               : id === 'roof'
                 ? matRoof
-                : mat,
+                : home && (id === 'homeTin' || id === 'tank')
+                  ? mat.clone() // own material: its map and boost are tier driven
+                  : mat,
         this.cap[id],
       );
-      m.name = 'decor_' + id;
+      m.name = 'decor_' + (home && id === 'tank' ? 'homeStraw' : id);
       m.count = 0;
       m.frustumCulled = false;
       // Shadow casters are opt-in (A3 caps the shadow pass): only the house shells.
       m.userData.cast = id === 'wallBrick' || id === 'wallPlaster' || id === 'roof';
+      if (home) {
+        // Medium/High swap the tiles in (render/homeTextures.ts, scene.applyFlags); Low and node keep flat tints.
+        if (id === 'homeTin')
+          m.userData.tierMaps = { rich: { map: 'tin', normal: 'tin' }, boost: 2.4 };
+        if (id === 'tank')
+          m.userData.tierMaps = { rich: { map: 'straw', normal: 'straw' }, boost: 2.2 };
+      }
       meshes[id] = m;
       used[id] = 0;
       dropped[id] = 0;

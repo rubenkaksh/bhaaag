@@ -2,8 +2,9 @@
 // existing instanced decor kit. It never reads solids: the same spec feeds houseKit.emitHouse for
 // the sim and this module for the look, through the shared helpers in houseSpec.ts.
 import { Color, Group } from 'three';
-import { DecorKit, RAIL_LEN, mulberry32 } from './kit';
+import { DecorKit, RAIL_LEN, TANK_UNIT_H, mulberry32 } from './kit';
 import type { PieceId } from './kit';
+import { FLAGS } from './placeDecor';
 import {
   HK,
   balconyDoor,
@@ -11,6 +12,7 @@ import {
   deckY,
   faceNormal,
   faceRect,
+  facePoint,
   parapetHeight,
   parapetSegments,
   poleAnchor,
@@ -36,6 +38,39 @@ const HAY = '#e2c872';
 const TRAMP_RIM = '#3a2c24';
 const POLE = '#4a3424';
 
+// look 'home' (home-assets handoff H4+): flat tints only, no textures. None of them is the gold
+// affordance, cream (safe) or terracotta (danger); tests/adapters/palette.test.ts checks.
+const HOME_TIN = '#8c949a'; // desaturated corrugated tin / tarp
+const HOME_STRAW = '#b8975a'; // straw bands on a hay stack
+const HOME_TANK = ['#26282c', '#2e6b47']; // black and green plastic drums (as the v1 tanks)
+
+/** Prayer-flag colours: the v1 FLAGS minus the gold one, so no flag reads as the gold affordance. */
+const GOLD_FLAG = '#d0a12e';
+export const HOME_FLAG_COLOURS: readonly string[] = FLAGS.filter((f) => f !== GOLD_FLAG);
+const FLAG_CHANCE = 0.6;
+const FLAG_COUNT = 8;
+const FLAG_POST_H = 2.3;
+const FLAG_INSET = 0.5; // line and posts stand this far inside the deck edge
+
+// look 'home' crop dressing: muted dried-crop tones, none of them gold, cream or terracotta.
+const CROP_CORN = '#c2a04e';
+const CROP_CHILI = '#6e2f26';
+const BANANA_STEM = '#6b7a3a';
+const BANANA_LEAF = '#4e7d35';
+const CROP_FACE_CHANCE = 0.5;
+const BANANA_CHANCE = 0.4;
+const BANANA_REACH = 0.8; // plant centre this far out from the wall; leaves reach 0.7 m round it
+
+const TANK_SCALE = 1.2; // v1 tank unit is 1.0 m of platform and 2.18 m tall
+const TANK_HALF = 0.8; // conservative half footprint of a scaled tank (ladder included), m
+const TANK_CHANCE = 0.5;
+const TANK_RUN_UP = 3.2; // no tank within this depth of a takeoff, runout or party edge
+
+/** Per-level look. 'home' is the opt-in Kathmandu hill-house dressing; absent keeps v1 output exactly. */
+export interface HouseDecorOptions {
+  look?: 'home';
+}
+
 export interface HouseDecorStats {
   houses: number;
   windows: number;
@@ -58,8 +93,8 @@ const c = (hex: string): Color => new Color(hex);
 class Out {
   readonly kit: DecorKit;
   readonly boxes: HouseDecorBox[] = [];
-  constructor(houses: number) {
-    this.kit = new DecorKit(houses);
+  constructor(houses: number, home = false) {
+    this.kit = new DecorKit(houses, home);
   }
   box(
     piece: PieceId,
@@ -149,7 +184,13 @@ function opening(o: Out, kind: string, op: Opening, col: Color, house: number): 
   onWall(o, 'window', kind, op.face, op.x, op.y, op.z, op.w, op.h, col, house);
 }
 
-function dressHouse(o: Out, h: HouseSpec, seed: number, shutterIdx: { n: number }): void {
+function dressHouse(
+  o: Out,
+  h: HouseSpec,
+  seed: number,
+  shutterIdx: { n: number },
+  home: boolean,
+): void {
   const rng = mulberry32((h.id * 7919 + seed) >>> 0);
   const g = h.groundY;
   const deck = deckY(h);
@@ -310,7 +351,8 @@ function dressHouse(o: Out, h: HouseSpec, seed: number, shutterIdx: { n: number 
     const d = k + HK.awningD / 2;
     const midY = g + (HK.awningHigh + HK.awningLow) / 2 - 0.04;
     const ok = o.kit.add(
-      'cornice',
+      // look 'home': the tin piece (takes the corrugated tile on Medium/High, flat tint on Low)
+      home ? 'homeTin' : 'cornice',
       h.cx + n[0] * d,
       midY,
       h.cz + n[1] * d,
@@ -318,7 +360,8 @@ function dressHouse(o: Out, h: HouseSpec, seed: number, shutterIdx: { n: number 
       0.08,
       len,
       yawOf(f),
-      c(AWNING[(h.id + i) % AWNING.length]),
+      // look 'home': corrugated tin, a flat desaturated tint (the kit's awning is the canopy piece)
+      c(home ? HOME_TIN : AWNING[(h.id + i) % AWNING.length]),
       pitch,
     );
     if (ok) {
@@ -330,6 +373,12 @@ function dressHouse(o: Out, h: HouseSpec, seed: number, shutterIdx: { n: number 
         house: h.id,
       });
     }
+  }
+
+  if (home) {
+    roofTank(o, h, seed);
+    flagLine(o, h, seed);
+    cropDress(o, h, seed);
   }
 
   // Zipline pole: a post and a short crossbar at the anchor.
@@ -362,7 +411,182 @@ function dressHouse(o: Out, h: HouseSpec, seed: number, shutterIdx: { n: number 
   }
 }
 
-function dressProp(o: Out, p: PropSpec): void {
+/**
+ * Rects (world xz) of a deck where a render-only rooftop tank must not stand: a strip along every
+ * takeoff, run-out and party edge, the zipline launch zone (3 x 3 m, 2 m toward -z of the centre,
+ * with a margin) and the foot of the pole.
+ */
+export function tankKeepOut(h: HouseSpec): Rect[] {
+  const k = HK.half;
+  const out: Rect[] = [];
+  for (let f = 0; f < 4; f++) {
+    const face = f as Face;
+    const run = h.runout !== undefined && h.runout.some((r) => r.face === face);
+    if (h.party[f] || h.takeoff.indexOf(face) >= 0 || run) {
+      out.push(faceRect(h, face, -k, k, k - TANK_RUN_UP, k));
+    }
+  }
+  if (h.runout !== undefined && h.runout.length > 0) {
+    out.push({ x0: h.cx - 1.75, x1: h.cx + 1.75, z0: h.cz - 3.75, z1: h.cz - 0.25 });
+  }
+  if (h.pole) {
+    const a = poleAnchor(h);
+    out.push({ x0: a[0] - 1.5, x1: a[0] + 1.5, z0: a[2] - 1.5, z1: a[2] + 1.5 });
+  }
+  return out;
+}
+
+/** look 'home': a water tank in one free deck corner of some 2-storey houses (seeded). Render only. */
+function roofTank(o: Out, h: HouseSpec, seed: number): void {
+  if (h.storeys !== 2) return;
+  const rng = mulberry32((h.id * 104729 + seed * 31 + 7) >>> 0);
+  const roll = rng();
+  const start = Math.floor(rng() * 4);
+  const col = c(HOME_TANK[Math.floor(rng() * HOME_TANK.length)]);
+  const yaw = Math.floor(rng() * 4) * (Math.PI / 2);
+  if (roll >= TANK_CHANCE) return;
+  const keep = tankKeepOut(h);
+  const inset = HK.half - HK.parapetThick - TANK_HALF - 0.1;
+  const deck = deckY(h);
+  for (let i = 0; i < 4; i++) {
+    const q = (start + i) % 4;
+    const x = h.cx + (q % 2 === 0 ? -inset : inset);
+    const z = h.cz + (q < 2 ? -inset : inset);
+    const r: Rect = { x0: x - TANK_HALF, x1: x + TANK_HALF, z0: z - TANK_HALF, z1: z + TANK_HALF };
+    const clear = keep.every((k) => r.x1 <= k.x0 || r.x0 >= k.x1 || r.z1 <= k.z0 || r.z0 >= k.z1);
+    if (!clear) continue;
+    if (o.kit.add('homeTank', x, deck, z, TANK_SCALE, TANK_SCALE, TANK_SCALE, yaw, col)) {
+      o.boxes.push({
+        kind: 'tank',
+        min: [r.x0, deck, r.z0],
+        max: [r.x1, deck + TANK_UNIT_H * TANK_SCALE, r.z1],
+        house: h.id,
+      });
+    }
+    return;
+  }
+}
+
+/**
+ * look 'home': one prayer-flag line along a free deck edge (Medium/High only: posts, string and
+ * flags are the `trim` and `flag` pieces, both hidden on Low). Never on a takeoff, run-out, party
+ * or roof-stairs edge, and never within 3 m of the zipline pole anchor.
+ */
+function flagLine(o: Out, h: HouseSpec, seed: number): void {
+  const rng = mulberry32((h.id * 15485863 + seed * 17 + 3) >>> 0);
+  const roll = rng();
+  const start = Math.floor(rng() * 4);
+  if (roll >= FLAG_CHANCE) return;
+  const k = HK.half;
+  const deck = deckY(h);
+  const y = deck + FLAG_POST_H;
+  const reach = k - FLAG_INSET; // half length of the line and its depth from the centre
+  for (let i = 0; i < 4; i++) {
+    const f = ((start + i) % 4) as Face;
+    const run = h.runout !== undefined && h.runout.some((r) => r.face === f);
+    if (h.party[f] || h.takeoff.indexOf(f) >= 0 || run) continue;
+    if (h.stairs !== null && h.stairs.face === f) continue;
+    const a = facePoint(h, f, -reach, reach);
+    const b = facePoint(h, f, reach, reach);
+    if (h.pole) {
+      const an = poleAnchor(h);
+      // distance from the anchor to the horizontal string
+      const dx = Math.max(Math.min(an[0], Math.max(a[0], b[0])), Math.min(a[0], b[0])) - an[0];
+      const dz = Math.max(Math.min(an[2], Math.max(a[1], b[1])), Math.min(a[1], b[1])) - an[2];
+      if (Math.hypot(dx, dz, y - an[1]) < 3) continue;
+    }
+    const alongZ = Math.abs(b[1] - a[1]) > Math.abs(b[0] - a[0]);
+    const len = 2 * reach;
+    const post = c(POLE);
+    for (const e of [a, b]) {
+      o.box(
+        'trim',
+        'flagPost',
+        e[0] - 0.05,
+        deck,
+        e[1] - 0.05,
+        e[0] + 0.05,
+        y,
+        e[1] + 0.05,
+        post,
+        h.id,
+      );
+    }
+    const mx = (a[0] + b[0]) / 2;
+    const mz = (a[1] + b[1]) / 2;
+    o.kit.add('trim', mx, y - 0.03, mz, len, 0.03, 0.03, alongZ ? Math.PI / 2 : 0, post);
+    for (let n = 0; n < FLAG_COUNT; n++) {
+      const u = (n + 0.5) / FLAG_COUNT - 0.5;
+      const fx = mx + (b[0] - a[0]) * u;
+      const fz = mz + (b[1] - a[1]) * u;
+      const col = c(HOME_FLAG_COLOURS[n % HOME_FLAG_COLOURS.length]);
+      o.kit.add('flag', fx, y - 0.25, fz, 1.3, 1.3, 1.3, yawOf(f) + (n % 2) * Math.PI, col);
+    }
+    o.boxes.push({
+      kind: 'flagLine',
+      min: [Math.min(a[0], b[0]) - 0.05, y - 0.5, Math.min(a[1], b[1]) - 0.05],
+      max: [Math.max(a[0], b[0]) + 0.05, y, Math.max(a[1], b[1]) + 0.05],
+      house: h.id,
+    });
+    return;
+  }
+}
+
+/**
+ * look 'home': dried-crop bundles hung under the roof cornice on some walls and a banana plant at
+ * the foot of one. Only on walls without a party side, and not on a balcony, awning or stairs wall
+ * (those are busy). Built from `trim` and `canopy`, both hidden on Low; render only.
+ */
+function cropDress(o: Out, h: HouseSpec, seed: number): void {
+  const rng = mulberry32((h.id * 49979687 + seed * 13 + 11) >>> 0);
+  const k = HK.half;
+  const deck = deckY(h);
+  const free: Face[] = [];
+  for (let f = 0; f < 4; f++) {
+    const face = f as Face;
+    if (h.party[f] || h.balcony === face || h.awnings.indexOf(face) >= 0) continue;
+    if (h.stairs !== null && h.stairs.face === face) continue;
+    free.push(face);
+  }
+  for (let i = 0; i < free.length; i++) {
+    if (rng() >= CROP_FACE_CHANCE) continue;
+    const lens = [0.9, 1.1, 0.8];
+    for (let n = 0; n < 3; n++) {
+      const s = (n - 1) * 0.45;
+      const r = faceRect(h, free[i], s - 0.11, s + 0.11, k, k + 0.12);
+      const col = c(n === 1 ? CROP_CHILI : CROP_CORN);
+      o.rect('trim', 'cropHang', r, deck - 0.32 - lens[n], deck - 0.32, col, h.id);
+    }
+  }
+  if (free.length > 0 && rng() < BANANA_CHANCE) {
+    const f = free[Math.floor(rng() * free.length)];
+    const sgn = rng() < 0.5 ? -1 : 1;
+    const p = facePoint(h, f, sgn * 3.3, k + BANANA_REACH);
+    const g = h.groundY;
+    o.box(
+      'trim',
+      'bananaStem',
+      p[0] - 0.07,
+      g,
+      p[1] - 0.07,
+      p[0] + 0.07,
+      g + 1.7,
+      p[1] + 0.07,
+      c(BANANA_STEM),
+      h.id,
+    );
+    o.kit.add('canopy', p[0], g + 1.9, p[1], 0.7, 0.3, 0.7, 0, c(BANANA_LEAF));
+    o.kit.add('canopy', p[0], g + 1.6, p[1], 0.55, 0.22, 0.55, 0.8, c(BANANA_LEAF));
+    o.boxes.push({
+      kind: 'banana',
+      min: [p[0] - 0.7, g, p[1] - 0.7],
+      max: [p[0] + 0.7, g + 2.2, p[1] + 0.7],
+      house: h.id,
+    });
+  }
+}
+
+function dressProp(o: Out, p: PropSpec, home: boolean): void {
   const g = p.groundY;
   const sq = (size: number): Rect => ({
     x0: p.x - size / 2,
@@ -395,7 +619,40 @@ function dressProp(o: Out, p: PropSpec): void {
       const r = sq(HK.haySize);
       if (o.kit.add('crate', p.x, g, p.z, HK.haySize, HK.hayTop, HK.haySize, p.yaw, c(HAY))) {
         o.boxes.push({ kind: 'hay', min: [r.x0, g, r.z0], max: [r.x1, g + HK.hayTop, r.z1] });
+        if (home) hayCover(o, p);
       }
+      return;
+    }
+    case 'shed': {
+      // toilet block: brick body, thin cream cap marks the walkable roof (safe)
+      const r = sq(HK.shedSize);
+      const cap = 0.06;
+      if (
+        !o.kit.add(
+          'crate',
+          p.x,
+          g,
+          p.z,
+          HK.shedSize,
+          HK.shedTop - cap,
+          HK.shedSize,
+          p.yaw,
+          c(BRICK),
+        )
+      )
+        return;
+      o.kit.add(
+        'crate',
+        p.x,
+        g + HK.shedTop - cap,
+        p.z,
+        HK.shedSize,
+        cap,
+        HK.shedSize,
+        p.yaw,
+        c(CREAM),
+      );
+      o.boxes.push({ kind: 'shed', min: [r.x0, g, r.z0], max: [r.x1, g + HK.shedTop, r.z1] });
       return;
     }
     case 'tramp': {
@@ -432,20 +689,61 @@ function dressProp(o: Out, p: PropSpec): void {
   }
 }
 
+/**
+ * look 'home': a tin/tarp strip across the top and two straw bands round the body of a hay stack.
+ * Tin strip from `homeTin` (flat tint on Low, tin tile on Medium/High) and straw bands from
+ * `homeStraw` (Low hides it); the cream body
+ * stays and nothing rises more than 2 cm over the cushion top, so the landing height is unchanged.
+ */
+function hayCover(o: Out, p: PropSpec): void {
+  const g = p.groundY;
+  const top = g + HK.hayTop;
+  const wide = HK.haySize + 0.08; // proud of the body by 4 cm a side
+  let ok = o.kit.add(
+    'homeTin',
+    p.x,
+    top - 0.06,
+    p.z,
+    HK.haySize - 0.9,
+    0.08,
+    HK.haySize,
+    p.yaw,
+    c(HOME_TIN),
+  );
+  const bands = [0.22, 0.52];
+  for (let i = 0; i < bands.length; i++) {
+    // `tank` is the home kit's straw-textured unit box (DecorKit, named decor_homeStraw)
+    ok = o.kit.add('tank', p.x, g + bands[i], p.z, wide, 0.12, wide, p.yaw, c(HOME_STRAW)) && ok;
+  }
+  if (ok) {
+    o.boxes.push({
+      kind: 'hayCover',
+      min: [p.x - wide / 2, g, p.z - wide / 2],
+      max: [p.x + wide / 2, top + 0.02, p.z + wide / 2],
+    });
+  }
+}
+
 /** Draws every house and prop through one instanced kit. userData: stats (HouseDecorStats), boxes. */
-export function buildHouseDecor(houses: HouseSpec[], props: PropSpec[], seed = 1): Group {
-  const o = new Out(houses.length);
+export function buildHouseDecor(
+  houses: HouseSpec[],
+  props: PropSpec[],
+  seed = 1,
+  opts: HouseDecorOptions = {},
+): Group {
+  const home = opts.look === 'home';
+  const o = new Out(houses.length, home);
   const shutterIdx = { n: 0 };
   let windows = 0;
   let shops = 0;
   let doors = 0;
   for (let i = 0; i < houses.length; i++) {
-    dressHouse(o, houses[i], seed, shutterIdx);
+    dressHouse(o, houses[i], seed, shutterIdx, home);
     windows += windowSlots(houses[i]).length;
     shops += houses[i].awnings.length;
     if (houses[i].balcony !== -1) doors++;
   }
-  for (let i = 0; i < props.length; i++) dressProp(o, props[i]);
+  for (let i = 0; i < props.length; i++) dressProp(o, props[i], home);
 
   const used: Record<string, number> = {};
   let refused = 0;

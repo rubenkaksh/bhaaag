@@ -28,7 +28,8 @@ function draw(mesh: Mesh): void {
 
 function positions(mesh: Mesh): BufferAttribute {
   const attr = mesh.geometry.getAttribute('position');
-  if (attr === undefined || attr.itemSize !== 3) throw new Error(mesh.name + ': no position attribute');
+  if (attr === undefined || attr.itemSize !== 3)
+    throw new Error(mesh.name + ': no position attribute');
   return attr as BufferAttribute;
 }
 
