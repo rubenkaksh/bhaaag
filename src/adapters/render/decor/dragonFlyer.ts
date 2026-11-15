@@ -61,15 +61,6 @@ export function buildDragonFlyer(): Mesh {
     mesh.rotation.y = Math.PI - a;
     mesh.rotation.z = 0.3 + 0.08 * Math.sin(TAU * 0.2 * t);
     mesh.rotation.x = 0.06 * Math.sin(TAU * 0.2 * t + 1);
-    if (Math.floor(t) % 3 === 0 && Math.random() < 0.05) {
-      const v = mesh.position.clone().project(camera as never);
-      console.log(
-        'DRG',
-        mesh.position.toArray().map(Math.round),
-        (camera as never as { position: Vector3 }).position.toArray().map(Math.round),
-        v.toArray().map((x: number) => x.toFixed(2)),
-      );
-    }
     mesh.updateMatrixWorld();
   };
   return mesh;
