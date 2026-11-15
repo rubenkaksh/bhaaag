@@ -531,3 +531,21 @@ Answers to the six open questions. These supersede the Q-list above.
 ## Still open (after part 3)
 
 - Confirm the reading of "threshold" above (600 KiB approval threshold).
+
+## Session status (end of 2026-11-14 session)
+
+Done and pushed on `claude/determined-hopper-t0drsv` (no PR): H1 archetype presets, H2 home street fixture, H3 obstacle sim tests, H4 opt-in `look: 'home'` + hay cover, H5 tin awnings, H6 rooftop tanks, H7 prayer-flag strings, H8 crop dressing, H9 lobby fits six entries. Lint, typecheck and 687 tests pass; `graphFreeze.test.ts` green.
+
+Not verified: the home look has never been rendered (no dev scene uses it yet); nothing tested on a real phone.
+
+Remaining tasks and what they need:
+- H10 new graph level file + registry line: needs the owner graph (copy of Nagarkot Run, max 10 houses; nodes, edges, via choices, start/goal, decoys). Q4 chose placer v2, so H15 (placer v2 ADR) comes first.
+- H11 freeze hash: after H10.
+- H12 turn on home look for the new level: after H5-H8 and H11.
+- H13 toilet block prop (decided: new kit prop, part of the house, not a graph node).
+- H14 tin/straw texture tiles: budget doubled (about 300 KB total; approval threshold 600 KiB, owner to confirm this reading).
+- H15 placer v2 ADR (road-first): `docs/adr/0014-road-first-placer.md`, owner sign-off.
+- H16 graded hay surface: dropped (Q10: use existing cushion).
+- New, not yet in the task list: path-following camera for the new level (hybrid road tangent, 60°/s eased, instant snap at U-turns, re-aim on landing only, stick tied to camera, hold-heading-until-commit at forks with a ±75° exit check, markers at forks); tile roofs slide only on long open slopes.
+
+Open: confirm the 600 KiB approval-threshold reading.
