@@ -118,17 +118,6 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     if (!disposed) backdropRoot.add(m.buildBackdrop(backdropTier));
   });
   scene.add(backdropRoot);
-  // Ambient dragon flyer (~100 KB of baked geometry): lazy, Medium/High without phones only.
-  let dragon: Object3D | null = null;
-  if (cfg.atmosphere) {
-    void import('./decor/dragonFlyer').then((m) => {
-      if (disposed) return;
-      dragon = m.buildDragonFlyer();
-      dragon.visible = cfg.atmosphere;
-      scene.add(dragon);
-      flagsDirty = true;
-    });
-  }
   const sun = new DirectionalLight(cfg.sun.color, cfg.sun.intensity);
   scene.add(sun);
   scene.add(sun.target);
@@ -235,7 +224,6 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
       if (o !== undefined) o.visible = rich;
     }
     dust.visible = rich;
-    if (dragon !== null) dragon.visible = rich;
     applyCloudCover();
     applyForest();
     flagsDirty = true;

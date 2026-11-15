@@ -7,7 +7,6 @@ import {
   SPRITE_SCALE,
   bodyEnvelope,
 } from '../../src/adapters/render/chase/dragonView';
-import { DragonSpriteView } from '../../src/adapters/render/chase/dragonSpriteView';
 import type { GraphicsTier } from '../../src/adapters/render/graphicsTier';
 
 const tiers: GraphicsTier[] = ['low', 'medium', 'high'];
@@ -69,10 +68,6 @@ function spineOk(d: DragonView): void {
 }
 
 describe('DragonView (T304 3D dragon)', () => {
-  it('keeps the sprite view name for game.ts', () => {
-    expect(DragonSpriteView).toBe(DragonView);
-  });
-
   it('is 7 draw calls and no textures at every tier, with more detail on higher tiers', () => {
     const tris = tiers.map((t) => {
       const v = new DragonView(t);
