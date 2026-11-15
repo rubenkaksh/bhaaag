@@ -24,7 +24,7 @@ describe('texture tier budget', () => {
   });
   it('home textures never load on Low', () => {
     for (const m of TEXTURE_MANIFEST) {
-      if (/^(tin|straw|facade|horizon)/.test(m.file)) expect(m.tiers, m.file).not.toContain('low');
+      if (/^(tin|straw|horizon)/.test(m.file)) expect(m.tiers, m.file).not.toContain('low');
     }
   });
   it('palette keeps clear of gold, cream and terracotta', () => {

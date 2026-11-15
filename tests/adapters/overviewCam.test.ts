@@ -8,7 +8,13 @@ import {
   stepOverview,
   type OverviewCfg,
 } from '../../src/adapters/render/overviewCam';
-import { HERO_AIRBORNE, HERO_ATTACHED, HERO_DEAD, HERO_GROUNDED, HERO_HANGING } from '../../src/core/hero';
+import {
+  HERO_AIRBORNE,
+  HERO_ATTACHED,
+  HERO_DEAD,
+  HERO_GROUNDED,
+  HERO_HANGING,
+} from '../../src/core/hero';
 
 const cfg: OverviewCfg = {
   overviewHeight: 40,
@@ -31,8 +37,20 @@ describe('overviewPose', () => {
   });
 
   it('frames hero plus path: centre is the bounds middle and height grows with the span', () => {
-    const near = overviewPose({ x: 0, y: 10, z: 0 }, [{ x: 0, y: 0, z: -20 }], 0, cfg, newOverviewPose());
-    const far = overviewPose({ x: 0, y: 10, z: 0 }, [{ x: 0, y: 0, z: -80 }], 0, cfg, newOverviewPose());
+    const near = overviewPose(
+      { x: 0, y: 10, z: 0 },
+      [{ x: 0, y: 0, z: -20 }],
+      0,
+      cfg,
+      newOverviewPose(),
+    );
+    const far = overviewPose(
+      { x: 0, y: 10, z: 0 },
+      [{ x: 0, y: 0, z: -80 }],
+      0,
+      cfg,
+      newOverviewPose(),
+    );
     expect(near.lz).toBeCloseTo(-10);
     expect(near.ly).toBeCloseTo(5);
     expect(far.lz).toBeCloseTo(-40);
@@ -41,7 +59,13 @@ describe('overviewPose', () => {
   });
 
   it('clamps far points to the max extent from the hero', () => {
-    const p = overviewPose({ x: 0, y: 0, z: 0 }, [{ x: 0, y: 0, z: -1000 }], 0, cfg, newOverviewPose());
+    const p = overviewPose(
+      { x: 0, y: 0, z: 0 },
+      [{ x: 0, y: 0, z: -1000 }],
+      0,
+      cfg,
+      newOverviewPose(),
+    );
     expect(p.lz).toBeCloseTo(-50);
   });
 

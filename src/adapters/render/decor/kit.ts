@@ -558,12 +558,6 @@ export class DecorKit {
           m.userData.tierMaps = { rich: { map: 'tin', normal: 'tin' }, boost: 2.4 };
         if (id === 'tank')
           m.userData.tierMaps = { rich: { map: 'straw', normal: 'straw' }, boost: 2.2 };
-        if (id === 'wallPlaster') {
-          m.userData.tierMaps = {
-            low: { map: 'wall_plaster', normal: 'wall_plaster' },
-            rich: { map: 'facade' },
-          };
-        }
       }
       meshes[id] = m;
       used[id] = 0;

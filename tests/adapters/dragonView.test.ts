@@ -1,7 +1,12 @@
 import { BufferGeometry, Mesh, PerspectiveCamera, Vector3 } from 'three';
 import type { Material } from 'three';
 import { describe, expect, it } from 'vitest';
-import { DRAGON_TIERS, DragonView, SPRITE_SCALE, bodyEnvelope } from '../../src/adapters/render/chase/dragonView';
+import {
+  DRAGON_TIERS,
+  DragonView,
+  SPRITE_SCALE,
+  bodyEnvelope,
+} from '../../src/adapters/render/chase/dragonView';
 import { DragonSpriteView } from '../../src/adapters/render/chase/dragonSpriteView';
 import type { GraphicsTier } from '../../src/adapters/render/graphicsTier';
 
