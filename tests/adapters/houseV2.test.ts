@@ -140,6 +140,7 @@ describe('Low tier hidden pieces (review M4)', () => {
       'decor_strings',
       'decor_birds',
       'decor_homeTank', // look 'home' only; v1 levels never create it
+      'decor_homeStraw', // look 'home' only (H14 straw bands)
     ]);
     expect(LOW_HIDDEN_DECOR).not.toContain('decor_guard');
     expect(counts(demo).guard ?? 0).toBeGreaterThan(0);
@@ -181,7 +182,9 @@ describe("look: 'home' (H4 hay cover)", () => {
     expect(boxesOf(on).filter((b) => b.kind === 'hayCover')).toHaveLength(hay);
     const propsOff = buildHouseDecor([], home.props);
     const propsOn = buildHouseDecor([], home.props, 1, { look: 'home' });
-    expect(counts(propsOn).trim ?? 0).toBe((counts(propsOff).trim ?? 0) + 3 * hay);
+    expect(counts(propsOn).trim ?? 0).toBe(counts(propsOff).trim ?? 0); // tin strip and bands left the trim piece
+    expect(counts(propsOn).homeTin).toBe(hay);
+    expect(counts(propsOn).homeStraw).toBe(2 * hay);
     expect(counts(on).crate).toBe(counts(off).crate); // body and the other props untouched
     expect((on.userData.stats as HouseDecorStats).refused).toBe(0);
   });
@@ -195,14 +198,16 @@ describe("look: 'home' (H4 hay cover)", () => {
   it('hides the cover on Low: everything the look adds is a piece Low hides', () => {
     const added = addedBy(on, off);
     expect(added.length).toBeGreaterThan(0);
-    for (const id of added) expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
+    for (const id of added)
+      if (id !== 'homeTin') expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
   });
 });
 
 describe("look: 'home' (H5 tin awnings)", () => {
   const street = demoStreet();
   const awningColours = (g: Group): string[] => {
-    const cornice = g.getObjectByName('decor_cornice') as InstancedMesh;
+    const cornice = (g.getObjectByName('decor_homeTin') ??
+      g.getObjectByName('decor_cornice')) as InstancedMesh;
     const m = new Matrix4();
     const q = new Quaternion();
     const p = new Vector3();
@@ -229,10 +234,15 @@ describe("look: 'home' (H5 tin awnings)", () => {
     expect(on[0]).not.toBe(off[0]);
   });
 
-  it('changes no instance counts (a colour, not a new piece)', () => {
+  it('moves the awnings to the tin piece and leaves the stone cornices alone', () => {
     const off = buildHouseDecor(street.houses, street.props);
     const on = buildHouseDecor(street.houses, street.props, 1, { look: 'home' });
-    expect(counts(on).cornice).toBe(counts(off).cornice);
+    const awnings = (on.userData.boxes as HouseDecorBox[]).filter(
+      (b) => b.kind === 'awning',
+    ).length;
+    expect(awnings).toBeGreaterThan(0);
+    expect(counts(on).homeTin).toBeGreaterThanOrEqual(awnings); // plus the hay tin strips
+    expect(counts(on).cornice ?? 0).toBeLessThanOrEqual(counts(off).cornice ?? 0);
   });
 });
 
@@ -339,7 +349,8 @@ describe("look: 'home' (H7 prayer-flag strings)", () => {
     expect(lines.length).toBeLessThan(houses.length);
     expect(counts(on).flag).toBe(8 * lines.length);
     expect(LOW_HIDDEN_DECOR).toContain('decor_flag');
-    for (const id of addedBy(on, off)) expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
+    for (const id of addedBy(on, off))
+      if (id !== 'homeTin') expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
   });
 
   it('refuses nothing and stays within the 24-mesh cap', () => {
@@ -408,7 +419,8 @@ describe("look: 'home' (H8 crop dressing)", () => {
       bananas += kindsOf(on, 'banana').length;
       expect((on.userData.stats as HouseDecorStats).refused, f.name).toBe(0);
       expect(counts(on).canopy ?? 0).toBe(2 * kindsOf(on, 'banana').length);
-      for (const id of addedBy(on, off)) expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
+      for (const id of addedBy(on, off))
+        if (id !== 'homeTin') expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
     }
     expect(hangs).toBeGreaterThan(0);
     expect(bananas).toBeGreaterThan(0);

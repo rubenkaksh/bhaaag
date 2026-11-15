@@ -200,6 +200,8 @@ export const LOW_HIDDEN_DECOR: readonly string[] = [
   'decor_birds',
   // look 'home' water tanks (H6): v1 levels never create this mesh, so v1 Low output is unchanged.
   'decor_homeTank',
+  // look 'home' straw bands on hay stacks (H14): Low keeps the cream stack and the flat tin strip only.
+  'decor_homeStraw',
 ];
 export const GOVERNOR_MS = 20;
 

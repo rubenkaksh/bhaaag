@@ -24,6 +24,7 @@ import type { EffectComposer } from 'three/examples/jsm/postprocessing/EffectCom
 import { createComposer } from './postFx';
 import { buildBlob, placeBlob } from './blob';
 import type { World } from '../../core/world';
+import { applyTierMaps } from './homeTextures';
 import { buildLevelMeshes } from './levelView';
 import type { BuildLevelOpts } from './levelView';
 import { buildDust, buildSkyView, updateDust } from './skyView';
@@ -277,6 +278,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
       // and roofs. Everything else only receives, which keeps the shadow pass under the A3 cap.
       o.castShadow = lit && o.userData.cast === true;
       if (materialsDirty) {
+        applyTierMaps(o, cfg.tier);
         swapStandard(o, cfg.normalMaps && !coarse);
         const m = o.material;
         if (Array.isArray(m)) for (const mm of m) mm.needsUpdate = true;

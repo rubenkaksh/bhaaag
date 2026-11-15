@@ -93,8 +93,8 @@ const c = (hex: string): Color => new Color(hex);
 class Out {
   readonly kit: DecorKit;
   readonly boxes: HouseDecorBox[] = [];
-  constructor(houses: number) {
-    this.kit = new DecorKit(houses);
+  constructor(houses: number, home = false) {
+    this.kit = new DecorKit(houses, home);
   }
   box(
     piece: PieceId,
@@ -351,7 +351,8 @@ function dressHouse(
     const d = k + HK.awningD / 2;
     const midY = g + (HK.awningHigh + HK.awningLow) / 2 - 0.04;
     const ok = o.kit.add(
-      'cornice',
+      // look 'home': the tin piece (takes the corrugated tile on Medium/High, flat tint on Low)
+      home ? 'homeTin' : 'cornice',
       h.cx + n[0] * d,
       midY,
       h.cz + n[1] * d,
@@ -690,7 +691,8 @@ function dressProp(o: Out, p: PropSpec, home: boolean): void {
 
 /**
  * look 'home': a tin/tarp strip across the top and two straw bands round the body of a hay stack.
- * Made from the `trim` piece (a plain tinted unit box), which Low already hides; the cream body
+ * Tin strip from `homeTin` (flat tint on Low, tin tile on Medium/High) and straw bands from
+ * `homeStraw` (Low hides it); the cream body
  * stays and nothing rises more than 2 cm over the cushion top, so the landing height is unchanged.
  */
 function hayCover(o: Out, p: PropSpec): void {
@@ -698,7 +700,7 @@ function hayCover(o: Out, p: PropSpec): void {
   const top = g + HK.hayTop;
   const wide = HK.haySize + 0.08; // proud of the body by 4 cm a side
   let ok = o.kit.add(
-    'trim',
+    'homeTin',
     p.x,
     top - 0.06,
     p.z,
@@ -710,7 +712,8 @@ function hayCover(o: Out, p: PropSpec): void {
   );
   const bands = [0.22, 0.52];
   for (let i = 0; i < bands.length; i++) {
-    ok = o.kit.add('trim', p.x, g + bands[i], p.z, wide, 0.12, wide, p.yaw, c(HOME_STRAW)) && ok;
+    // `tank` is the home kit's straw-textured unit box (DecorKit, named decor_homeStraw)
+    ok = o.kit.add('tank', p.x, g + bands[i], p.z, wide, 0.12, wide, p.yaw, c(HOME_STRAW)) && ok;
   }
   if (ok) {
     o.boxes.push({
@@ -729,7 +732,7 @@ export function buildHouseDecor(
   opts: HouseDecorOptions = {},
 ): Group {
   const home = opts.look === 'home';
-  const o = new Out(houses.length);
+  const o = new Out(houses.length, home);
   const shutterIdx = { n: 0 };
   let windows = 0;
   let shops = 0;
