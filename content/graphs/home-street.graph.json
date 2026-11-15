@@ -1,0 +1,114 @@
+{
+  "format": "bhaaag-graph",
+  "version": 1,
+  "id": "home-street",
+  "name": "Home Street",
+  "placer": 1,
+  "seed": 20261115,
+  "nodes": [
+    {
+      "id": 1,
+      "storeys": 1
+    },
+    {
+      "id": 2,
+      "storeys": 2
+    },
+    {
+      "id": 3,
+      "storeys": 1
+    },
+    {
+      "id": 4,
+      "storeys": 2
+    },
+    {
+      "id": 5,
+      "storeys": 1
+    },
+    {
+      "id": 6,
+      "storeys": 1
+    },
+    {
+      "id": 7,
+      "storeys": 1
+    },
+    {
+      "id": 8,
+      "storeys": 2
+    },
+    {
+      "id": 9,
+      "storeys": 1
+    },
+    {
+      "id": 10,
+      "storeys": 1
+    }
+  ],
+  "edges": [
+    {
+      "a": 1,
+      "b": 2,
+      "kind": "touch"
+    },
+    {
+      "a": 2,
+      "b": 3,
+      "kind": "gap",
+      "via": "boxes"
+    },
+    {
+      "a": 3,
+      "b": 4,
+      "kind": "zip"
+    },
+    {
+      "a": 4,
+      "b": 5,
+      "kind": "gap",
+      "via": "cushion"
+    },
+    {
+      "a": 4,
+      "b": 9,
+      "kind": "touch"
+    },
+    {
+      "a": 5,
+      "b": 6,
+      "kind": "touch"
+    },
+    {
+      "a": 6,
+      "b": 7,
+      "kind": "gap",
+      "via": "boxes"
+    },
+    {
+      "a": 7,
+      "b": 8,
+      "kind": "zip"
+    },
+    {
+      "a": 8,
+      "b": 10,
+      "kind": "gap",
+      "via": "tramp"
+    }
+  ],
+  "start": 1,
+  "goal": 10,
+  "decoys": 4,
+  "profile": [
+    [0, 0],
+    [-26, -1],
+    [-46, -12],
+    [-50, -12.5],
+    [-80, -14],
+    [-100, -24],
+    [-104, -25],
+    [-140, -26]
+  ]
+}
