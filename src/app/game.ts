@@ -103,6 +103,8 @@ import { framingFor } from '../adapters/render/framing';
 import { MODE_INFO, graphIdOf, isGraphMode, readBest, writeBest } from './modes/mode';
 import { graphEntry, loadGraph } from '../content/graph/registry';
 import { placeGraph } from '../content/graph/place';
+import { PathCam, buildPathGraph } from '../content/graph/pathCamera';
+import { buildForkMarkers } from '../adapters/render/forkMarkers';
 import type { GameMode } from './modes/mode';
 import { readViewport, watchViewport } from './viewport';
 import { viewportSize } from '../adapters/ui/orientation';
@@ -192,6 +194,12 @@ export function startGame(
   const isVillage = mode === 'village';
   const isGraph = isGraphMode(mode);
   const placed = isGraph ? placeGraph(loadGraph(graphIdOf(mode))) : null;
+  // Opt-in path camera (home-street): heading follows the route; written into the sim camYaw so the stick stays camera-relative.
+  const pathGraph =
+    isGraph && placed !== null && graphEntry(graphIdOf(mode))?.pathCamera === true
+      ? buildPathGraph(loadGraph(graphIdOf(mode)), placed.houses)
+      : null;
+  const pathCam = pathGraph !== null ? new PathCam(pathGraph) : null;
   if (isVillage && village === undefined) throw new Error('village assets not loaded');
   const seedParam = params.get('seed');
   const fixedSeed = seedParam !== null && Number.isFinite(Number(seedParam));
@@ -230,6 +238,8 @@ export function startGame(
           floorY: village !== undefined && isVillage ? village.VILLAGE_CLOUD_TOP_Y : undefined,
         })
       : null;
+  if (level !== null && pathGraph !== null && placed !== null)
+    level.add(buildForkMarkers(pathGraph, placed.edges));
   // Chase views: no classic scenery; own rows, endless ground and dragon.
   if (cs !== null) gs.setBlobWorld(world);
   const rowsView = isChase ? new ChaseRowsView(() => gs.refreshFlags()) : null;
@@ -340,6 +350,10 @@ export function startGame(
     // Camera sits BEHIND the hero looking downhill (Chase frontPov 1 flips it ahead, see tickCamera).
     cur.camYaw = world.spawnYaw;
     cur.camPitch = cfg.camera.frontPitchDeg * DEG2RAD;
+    if (pathCam !== null) {
+      pathCam.reset(cur.px, cur.pz, cur.camYaw);
+      cur.camYaw = pathCam.heading;
+    }
     yawOff.zip = 0;
     yawOff.side = 0;
     ovHeld = false;
@@ -579,6 +593,14 @@ export function startGame(
         }
       }
       consumeTap();
+      if (pathCam !== null) {
+        cur.camYaw = pathCam.update(
+          stepDt,
+          cur.px,
+          cur.pz,
+          frame.lookYaw !== 0 || frame.lookPitch !== 0,
+        );
+      }
       computeAim();
       if (aimId !== NO_ANCHOR && cur.mode !== HERO_ATTACHED) {
         frame.hasAim = 1;
@@ -593,6 +615,7 @@ export function startGame(
 
       const ev = cur.eventBits;
       if ((ev & HERO_EV_LANDED) !== 0) {
+        if (pathCam !== null) pathCam.landed(cur.px, cur.pz);
         animEv |= AE_LAND;
         if (-prev.vy > animImpact) animImpact = -prev.vy;
       }
