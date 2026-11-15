@@ -1,0 +1,22 @@
+{
+  "note": "Fixed world palette for tools/cartoonify.py: desaturated warm colours. None may sit near the gold affordance (#ffc83a), the cream safe colour (#f1e9d2) or the terracotta danger colour (levelView DANGER style); tests/adapters/textureBudget.test.ts checks the distance.",
+  "colors": [
+    "#2b2724",
+    "#44372e",
+    "#5f4e40",
+    "#7d6a55",
+    "#9a8468",
+    "#b4a283",
+    "#c6baa4",
+    "#5a6040",
+    "#7a8157",
+    "#9aa07a",
+    "#3a4632",
+    "#566872",
+    "#7b8d9a",
+    "#8c949a",
+    "#a9b1b4",
+    "#7f7486"
+  ],
+  "hazeColor": "#eaa978"
+}
