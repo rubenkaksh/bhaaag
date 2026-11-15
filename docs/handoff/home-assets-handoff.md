@@ -557,3 +557,7 @@ Open: confirm the 600 KiB approval-threshold reading.
 - All follow-on tasks are to be done: H10, H11, H12, H14, plus the camera and sloped-roof tasks and the art-review steps.
 - Order: finish the High-tier sky-band fix first; then the rest; then an Opus review, fixes, merge to main and deploy.
 - Deploy target named by the owner is GitHub Pages; the repo CLAUDE.md says Cloudflare Pages via GitHub Actions. To confirm before deploy.
+
+## Reference photos live on the `assets` branch (2026-11-15)
+
+The 15 owner reference photos and the sketch (~18 MB) are NOT in main. They are on the side branch `assets` under `docs/handoff/references/`. View with `git show assets:docs/handoff/references/README.md` or `git checkout assets -- docs/handoff/references` (do not commit it back to main).
