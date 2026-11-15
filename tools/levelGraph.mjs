@@ -1,3 +1,5 @@
+/* global process, console */
+/* eslint-disable @typescript-eslint/no-unused-expressions -- compact comma-expression style kept as authored */
 // Level graph, on demand.
 //   node tools/levelGraph.mjs                          # Nagarkot Run, text summary
 //   node tools/levelGraph.mjs nagarkot --svg > g.svg   # layered graph: success route, other
