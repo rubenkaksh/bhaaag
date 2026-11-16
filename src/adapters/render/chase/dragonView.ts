@@ -301,8 +301,8 @@ function buildEyes(seg: number): BufferGeometry {
   const p: Part[] = [];
   for (let k = 0; k < 2; k++) {
     const sg = k === 0 ? -1 : 1;
-    ellipsoid(p, seg, EYE, sg * 1.55, 1.05, -1.7, 0.62, 0.58, 0.5);
-    ellipsoid(p, seg, PUPIL, sg * 1.68, 1.05, -2.1, 0.2, 0.34, 0.12);
+    ellipsoid(p, seg, EYE, sg * 1.7, 1.0, -1.85, 0.68, 0.64, 0.55);
+    ellipsoid(p, seg, PUPIL, sg * 1.82, 1.0, -2.3, 0.26, 0.28, 0.12);
   }
   return mergeParts(p);
 }
@@ -337,8 +337,8 @@ export class DragonView {
     fog: false,
   });
   private readonly maneMat = new MeshLambertMaterial({
-    color: '#c8402a',
-    emissive: '#7a1c0c',
+    color: '#d4553a',
+    emissive: '#8a2c14',
     fog: false,
   });
   private readonly eyeMat = new MeshBasicMaterial({
@@ -609,8 +609,8 @@ export class DragonView {
       this.maneData[o + 4] = this.q.y;
       this.maneData[o + 5] = this.q.z;
       this.maneData[o + 6] = this.q.w;
-      this.maneData[o + 7] = 2.4 + rand() * 1.5 - (Math.sin(phi) < -0.5 ? 0.8 : 0);
-      this.maneData[o + 8] = 0.5 + rand() * 0.25;
+      this.maneData[o + 7] = 1.5 + rand() * 0.9 - (Math.sin(phi) < -0.5 ? 0.5 : 0);
+      this.maneData[o + 8] = 0.75 + rand() * 0.25;
       this.maneData[o + 9] = rand() * Math.PI * 2;
     }
     const mane = new InstancedMesh(this.coneGeo, this.maneMat, nm);
