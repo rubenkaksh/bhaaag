@@ -80,10 +80,11 @@ for (const entry of GRAPH_LEVELS) {
         const h = placed.houses.find((k) => k.id === e.a);
         if (h === undefined) continue;
         n++;
-        expect(h.party[3], `house ${h.id}`).toBe(false);
+        const fc = (h.runout ?? [])[0]?.face ?? 3;
+        expect(h.party[fc], `house ${h.id}`).toBe(false);
         expect((h.runout ?? []).length, `house ${h.id} run-out`).toBe(1);
-        expect(windowSlots(h).some((k) => k.face === 3)).toBe(true);
-        const segs = parapetSegments(h, 3);
+        expect(windowSlots(h).some((k) => k.face === fc)).toBe(true);
+        const segs = parapetSegments(h, fc);
         expect(segs.length).toBeGreaterThan(0);
         const gap = (h.runout ?? [])[0].s;
         for (const [a, b] of segs) expect(gap < a || gap > b).toBe(true);

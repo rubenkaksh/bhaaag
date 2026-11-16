@@ -215,6 +215,44 @@ function wallBox(tiles: number): BufferGeometry {
   return g;
 }
 
+/**
+ * Look 'home' facade point on the facade tile with no crack or stain (public/assets/textures/
+ * facade.jpg, picked by the lowest local variance). The top and bottom faces of a wall box are
+ * pinned to it, so a deck or a ledge reads as flat plaster, never as the wall photo.
+ */
+const FACADE_FLAT_UV: [number, number] = [52 / 256, 1 - 12 / 256];
+/** Facade tile covers 4 m x one storey (~3 m): the 8 m wall repeats it twice across, once up. */
+const FACADE_U_REPEAT = 2;
+
+/**
+ * Look 'home' wall box (T323). The old whole-piece facade map stretched unit-box UVs over decks
+ * and parapets. Here only the four side faces carry the tile, at a fixed 4 m x 1 storey scale
+ * (the house kit's walls are always 8 m wide and one storey is added per piece, see houseV2
+ * dressHouse), and the top and bottom faces sit on one flat texel.
+ */
+function facadeBox(): BufferGeometry {
+  const g = new BoxGeometry(1, 1, 1);
+  g.translate(0, 0.5, 0);
+  paintGrad(g, 0, 1);
+  const uv = g.getAttribute('uv');
+  // BoxGeometry vertex order: +x, -x, +y, -y, +z, -z faces, four vertices each
+  for (let i = 0; i < uv.count; i++) {
+    const face = Math.floor(i / 4);
+    if (face === 2 || face === 3) uv.setXY(i, FACADE_FLAT_UV[0], FACADE_FLAT_UV[1]);
+    else uv.setXY(i, uv.getX(i) * FACADE_U_REPEAT, uv.getY(i));
+  }
+  return g;
+}
+
+/** Look 'home' clay-tile slab (awning roofs, shed eaves): a unit box, tile repeated 3 x 2. */
+function roofSlab(): BufferGeometry {
+  const g = new BoxGeometry(1, 1, 1);
+  g.translate(0, 0.5, 0);
+  paintGrad(g, 0, 1);
+  scaleUv(g, 3, 2);
+  return g;
+}
+
 function scaleUv(g: BufferGeometry, su: number, sv: number): void {
   const uv = g.getAttribute('uv');
   for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv);
@@ -504,6 +542,11 @@ export class DecorKit {
     if (home) {
       geos.tank.dispose();
       geos.tank = wallBox(1);
+      // 'roof' (the v1 pyramid) and the plaster wall are re-shaped for the home look only
+      geos.roof.dispose();
+      geos.roof = roofSlab();
+      geos.wallPlaster.dispose();
+      geos.wallPlaster = facadeBox();
     }
     const mat = new MeshLambertMaterial({
       color: '#ffffff',
@@ -538,16 +581,19 @@ export class DecorKit {
           ? twoSided
           : id === 'wallBrick'
             ? matBrick
-            : id === 'wallPlaster'
-              ? matPlaster
-              : id === 'roof'
-                ? matRoof
-                : home && (id === 'homeTin' || id === 'tank')
+            : home && id === 'wallPlaster'
+              ? matPlaster.clone() // own material: facade on Medium/High, the plaster tile on Low
+              : id === 'wallPlaster'
+                ? matPlaster
+                : home && (id === 'homeTin' || id === 'tank' || id === 'roof')
                   ? mat.clone() // own material: its map and boost are tier driven
-                  : mat,
+                  : id === 'roof'
+                    ? matRoof
+                    : mat,
         this.cap[id],
       );
-      m.name = 'decor_' + (home && id === 'tank' ? 'homeStraw' : id);
+      m.name =
+        'decor_' + (home && id === 'tank' ? 'homeStraw' : home && id === 'roof' ? 'homeRoof' : id);
       m.count = 0;
       m.frustumCulled = false;
       // Shadow casters are opt-in (A3 caps the shadow pass): only the house shells.
@@ -558,6 +604,13 @@ export class DecorKit {
           m.userData.tierMaps = { rich: { map: 'tin', normal: 'tin' }, boost: 2.4 };
         if (id === 'tank')
           m.userData.tierMaps = { rich: { map: 'straw', normal: 'straw' }, boost: 2.2 };
+        if (id === 'roof')
+          m.userData.tierMaps = { rich: { map: 'roof_home', normal: 'roof_home' }, boost: 2.2 };
+        if (id === 'wallPlaster')
+          m.userData.tierMaps = {
+            low: { map: 'wall_plaster' },
+            rich: { map: 'facade', normal: 'facade' },
+          };
       }
       meshes[id] = m;
       used[id] = 0;

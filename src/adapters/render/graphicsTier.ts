@@ -202,6 +202,8 @@ export const LOW_HIDDEN_DECOR: readonly string[] = [
   'decor_homeTank',
   // look 'home' straw bands on hay stacks (H14): Low keeps the cream stack and the flat tin strip only.
   'decor_homeStraw',
+  // look 'home' clay-tile eave under shed caps: Low keeps the plain shed block.
+  'decor_homeRoof',
 ];
 export const GOVERNOR_MS = 20;
 

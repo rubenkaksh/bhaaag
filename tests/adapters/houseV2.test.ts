@@ -141,6 +141,7 @@ describe('Low tier hidden pieces (review M4)', () => {
       'decor_birds',
       'decor_homeTank', // look 'home' only; v1 levels never create it
       'decor_homeStraw', // look 'home' only (H14 straw bands)
+      'decor_homeRoof', // look 'home' only (clay-tile shed eave)
     ]);
     expect(LOW_HIDDEN_DECOR).not.toContain('decor_guard');
     expect(counts(demo).guard ?? 0).toBeGreaterThan(0);
@@ -199,7 +200,8 @@ describe("look: 'home' (H4 hay cover)", () => {
     const added = addedBy(on, off);
     expect(added.length).toBeGreaterThan(0);
     for (const id of added)
-      if (id !== 'homeTin') expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
+      if (id !== 'homeTin' && id !== 'wallPlaster')
+        expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
   });
 });
 
@@ -350,7 +352,8 @@ describe("look: 'home' (H7 prayer-flag strings)", () => {
     expect(counts(on).flag).toBe(8 * lines.length);
     expect(LOW_HIDDEN_DECOR).toContain('decor_flag');
     for (const id of addedBy(on, off))
-      if (id !== 'homeTin') expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
+      if (id !== 'homeTin' && id !== 'wallPlaster')
+        expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
   });
 
   it('refuses nothing and stays within the 24-mesh cap', () => {
@@ -420,7 +423,8 @@ describe("look: 'home' (H8 crop dressing)", () => {
       expect((on.userData.stats as HouseDecorStats).refused, f.name).toBe(0);
       expect(counts(on).canopy ?? 0).toBe(2 * kindsOf(on, 'banana').length);
       for (const id of addedBy(on, off))
-        if (id !== 'homeTin') expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
+        if (id !== 'homeTin' && id !== 'wallPlaster')
+          expect(LOW_HIDDEN_DECOR, id).toContain('decor_' + id);
     }
     expect(hangs).toBeGreaterThan(0);
     expect(bananas).toBeGreaterThan(0);

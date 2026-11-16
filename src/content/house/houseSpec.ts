@@ -22,6 +22,8 @@ export interface HouseSpec {
   takeoff: Face[];
   /** Zipline pole on the roof (anchor, see poleAnchor). */
   pole: boolean;
+  /** Face the pole stands against (default 2, +z). Segmented layouts turn it with the house (ADR 0015). */
+  poleFace?: Face;
   /** 1.2 m (not vaultable) parapet sides. Disjoint from `takeoff`. */
   tall: Face[];
   /**
@@ -318,9 +320,11 @@ export function stairsAxis(f: Face): number {
   return AXIS_ALONG_NEG_T[f];
 }
 
-/** Roof anchor of a pole house: 2.6 m over the deck, 2.5 m in from the +z (uphill) edge. */
+/** Roof anchor of a pole house: 2.6 m over the deck, 2.5 m in from the pole face (default +z, uphill). */
 export function poleAnchor(h: HouseSpec): [number, number, number] {
-  return [round6(h.cx), round6(deckY(h) + HK.poleHeight), round6(h.cz + HK.half - HK.poleIn)];
+  const n = FACE_N[h.poleFace ?? 2];
+  const d = HK.half - HK.poleIn;
+  return [round6(h.cx + n[0] * d), round6(deckY(h) + HK.poleHeight), round6(h.cz + n[1] * d)];
 }
 
 // ---- windows --------------------------------------------------------------------------------

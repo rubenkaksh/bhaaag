@@ -33,6 +33,8 @@ export interface PlacedEdge {
   stairsFoot?: P3;
   zone?: P3;
   anchor?: P3;
+  /** Quarter turns (0..3) of the segment this edge was placed in; 0 / absent on unsegmented levels. */
+  rot?: number;
 }
 
 export interface PlacedLevel {
@@ -44,6 +46,35 @@ export interface PlacedLevel {
   profile: [number, number][];
   goalProp: P3;
   level: LevelJson;
+  /** Segmented levels only (ADR 0015): quarter turns of the segment holding the goal house. */
+  goalRot?: number;
+  /** Segmented levels only: view-only ground height field that follows the road polyline. */
+  field?: (x: number, z: number) => { h: number; d: number };
+}
+
+/** Optional inputs that turn `layout` into one segment of a segmented level (ADR 0015). */
+interface SegOpt {
+  gy: (z: number) => number;
+  /** Pre-placed start house, in this segment's local frame (the previous segment's last house). */
+  start: HouseSpec;
+  /** Houses and patches of earlier segments, in this segment's local frame. */
+  ext: HouseSpec[];
+  extPatches: Patch[];
+  /** Plan rectangles earlier segments claimed (their hazard strips); new houses and patches stay out. */
+  blocked: Patch[];
+  last: boolean;
+  /** Id of the house handed to the next segment (-1 on the last one); its finishing is left to that segment. */
+  handoff: number;
+  decoys: number;
+  idBase: number;
+}
+
+interface Layout {
+  houses: Map<number, HouseSpec>;
+  props: PropSpec[];
+  patches: Patch[];
+  edges: PlacedEdge[];
+  hayPos: P3 | null;
 }
 
 function mulberry32(seed: number): () => number {
@@ -128,10 +159,14 @@ function newHouse(id: number, cx: number, cz: number, g: number, storeys: 1 | 2)
   };
 }
 
-function attempt(g: GraphLevel, seed: number): PlacedLevel {
+function layout(g: GraphLevel, seed: number, opt?: SegOpt): Layout {
   const rng = mulberry32(seed);
   const prof = g.profile;
-  const gy = (z: number): number => groundAt(prof, z);
+  const gy = opt !== undefined ? opt.gy : (z: number): number => groundAt(prof, z);
+  const extH = opt !== undefined ? opt.ext : [];
+  const extP = opt !== undefined ? opt.extPatches : [];
+  const blocked = opt !== undefined ? opt.blocked : [];
+  const handoff = opt !== undefined ? opt.handoff : -1;
   const houses = new Map<number, HouseSpec>();
   const props: PropSpec[] = [];
   const patches: Patch[] = [];
@@ -149,10 +184,15 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
     for (const o of all())
       if (o.id !== ignore && o.id !== h.id && overlapsHouse(h, o)) return false;
     for (const p of patches) if (rectHitsHouse(p, h, -0.01)) return false;
+    for (const o of extH) if (overlapsHouse(h, o)) return false;
+    for (const p of extP) if (rectHitsHouse(p, h, -0.01)) return false;
+    for (const r of blocked) if (rectHitsHouse(r, h, -0.01)) return false;
+    for (const r of blocked) for (const p of patches) if (rectsHit(r, p)) return false;
     return true;
   };
 
-  const start = newHouse(g.start, 0, 0, gy(0), rollStoreys(g.start));
+  const start =
+    opt !== undefined ? opt.start : newHouse(g.start, 0, 0, gy(0), rollStoreys(g.start));
   houses.set(g.start, start);
 
   const placed = new Set<number>([g.start]);
@@ -323,6 +363,7 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
       if (via === 'tramp') {
         if (deckY(b) > b.groundY + HK.trampTop + 4.1 + 2.05 - 0.3) throw new Fail('tramp too high');
         if (dy > 2.8) throw new Fail('tramp uphill too big');
+        if (opt !== undefined && deckA - (patch.y + HK.trampTop) > 8) throw new Fail('tramp drop');
         patches.push(patch);
         props.push({ kind: 'tramp', x: a.cx, z: a.cz - HALF - 2.5, groundY: patch.y, yaw: 0 });
         b.takeoff = [];
@@ -396,7 +437,7 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
 
   // chord clearance against every other house
   for (const c of chords) {
-    for (const h of all()) {
+    for (const h of all().concat(extH)) {
       if (h.id === c.a || h.id === c.b) continue;
       const top = deckY(h) + 1.2 + 0.3;
       const min: P3 = [h.cx - HALF - 0.3, h.groundY - HK.bodyBelow, h.cz - HALF - 0.3];
@@ -409,40 +450,45 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
     }
   }
 
-  // goal: hay on a patch below the goal house
-  const goalH = houses.get(g.goal) as HouseSpec;
-  const gp: Patch = {
-    x0: round6(goalH.cx - 4),
-    x1: round6(goalH.cx + 4),
-    z0: round6(goalH.cz - HALF - 5),
-    z1: round6(goalH.cz - HALF),
-    y: round6(gy(goalH.cz - HALF - 5)),
-  };
-  const hayPos: P3 = [goalH.cx, gp.y + HK.hayTop, goalH.cz - HALF - 1.6];
-  goalH.takeoff = goalH.takeoff.filter((f) => f !== 3);
-  goalH.takeoff.push(3);
-  if (goalH.party[3]) throw new Fail('goal downhill face is party');
-  for (const h of all())
-    if (h.id !== goalH.id && rectHitsHouse(gp, h, -0.01)) throw new Fail('goal patch hit');
-  for (const p of patches) if (rectsHit(gp, p)) throw new Fail('goal patch overlap');
-  patches.push(gp);
-  props.push({ kind: 'hay', x: hayPos[0], z: hayPos[2], groundY: gp.y, yaw: 0 });
-  edges.push({
-    a: goalH.id,
-    b: 0,
-    kind: 'gap',
-    via: 'cushion',
-    up: false,
-    takeoff: [goalH.cx, deckY(goalH), goalH.cz - 3.5],
-    landing: hayPos,
-    prop: hayPos,
-  });
+  // goal: hay on a patch below the goal house (the last segment only, when segmented)
+  let hayOut: P3 | null = null;
+  if (opt === undefined || opt.last) {
+    const goalH = houses.get(g.goal) as HouseSpec;
+    const gp: Patch = {
+      x0: round6(goalH.cx - 4),
+      x1: round6(goalH.cx + 4),
+      z0: round6(goalH.cz - HALF - 5),
+      z1: round6(goalH.cz - HALF),
+      y: round6(gy(goalH.cz - HALF - 5)),
+    };
+    const hayPos: P3 = [goalH.cx, gp.y + HK.hayTop, goalH.cz - HALF - 1.6];
+    goalH.takeoff = goalH.takeoff.filter((f) => f !== 3);
+    goalH.takeoff.push(3);
+    if (goalH.party[3]) throw new Fail('goal downhill face is party');
+    for (const h of all().concat(extH))
+      if (h.id !== goalH.id && rectHitsHouse(gp, h, -0.01)) throw new Fail('goal patch hit');
+    for (const p of patches.concat(extP, blocked))
+      if (rectsHit(gp, p)) throw new Fail('goal patch overlap');
+    patches.push(gp);
+    props.push({ kind: 'hay', x: hayPos[0], z: hayPos[2], groundY: gp.y, yaw: 0 });
+    edges.push({
+      a: goalH.id,
+      b: 0,
+      kind: 'gap',
+      via: 'cushion',
+      up: false,
+      takeoff: [goalH.cx, deckY(goalH), goalH.cz - 3.5],
+      landing: hayPos,
+      prop: hayPos,
+    });
+    hayOut = hayPos;
+  }
 
   // decoys: extra houses touching placed ones (x sides), away from patches and chords
   const route = new Set(placed);
-  const base = all();
-  let nextId = 100;
-  let want = g.decoys;
+  const base = all().filter((h) => h.id !== handoff);
+  let nextId = opt !== undefined ? opt.idBase : 100;
+  let want = opt !== undefined ? opt.decoys : g.decoys;
   for (let guard = 0; guard < 200 && want > 0; guard++) {
     const host = base[Math.floor(rng() * base.length)];
     const sign = rng() < 0.5 ? 1 : -1;
@@ -471,6 +517,7 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
 
   // balconies: random on free uphill faces of 2-storey houses that nothing uses
   for (const h of all()) {
+    if (h.id === handoff) continue;
     if (h.storeys === 2 && h.balcony === -1 && h.id >= 100 && !h.party[2] && rng() < 0.5) {
       const r: Patch = {
         x0: h.cx - 1.5,
@@ -480,8 +527,8 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
         y: 0,
       };
       let ok = true;
-      for (const o of all()) if (o.id !== h.id && rectHitsHouse(r, o, 0.2)) ok = false;
-      for (const p of patches) if (rectsHit(r, p)) ok = false;
+      for (const o of all().concat(extH)) if (o.id !== h.id && rectHitsHouse(r, o, 0.2)) ok = false;
+      for (const p of patches.concat(extP)) if (rectsHit(r, p)) ok = false;
       if (ok) h.balcony = 2;
     }
   }
@@ -490,6 +537,7 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
   // where nothing else stands (no house, patch, stairs, balcony, takeoff or run-out gap on that face).
   // Deterministic, no rng draw, so adding them does not reshuffle the seeded layout.
   for (const h of all()) {
+    if (h.id === handoff) continue;
     if (h.id < 100 || h.party[3] || h.balcony === 3 || h.takeoff.indexOf(3) >= 0) continue;
     if (h.stairs !== null && h.stairs.face === 3) continue;
     const foot: Patch = {
@@ -500,8 +548,8 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
       y: 0,
     };
     let ok = true;
-    for (const o of all()) if (o.id !== h.id && rectHitsHouse(foot, o, 0)) ok = false;
-    for (const p of patches) if (rectsHit(foot, p)) ok = false;
+    for (const o of all().concat(extH)) if (o.id !== h.id && rectHitsHouse(foot, o, 0)) ok = false;
+    for (const p of patches.concat(extP)) if (rectsHit(foot, p)) ok = false;
     if (ok) h.awnings.push(3);
   }
 
@@ -509,6 +557,7 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
   // hillside: not party, takeoff, balcony, stairs or run-out faces (review M1 belt and braces; the
   // sim also refuses a vault that ends in a lethal drop).
   for (const h of all()) {
+    if (h.id === handoff) continue;
     for (let f = 0; f < 4; f++) {
       if (h.party[f] || h.takeoff.indexOf(f as Face) >= 0 || h.balcony === f) continue;
       if (h.stairs !== null && h.stairs.face === f) continue;
@@ -518,6 +567,17 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
     }
   }
 
+  return { houses, props, patches, edges, hayPos: hayOut };
+}
+
+/** Unsegmented level: the v1 path, byte-identical since placer v1 froze (ADR 0013). */
+function attempt(g: GraphLevel, seed: number): PlacedLevel {
+  const L = layout(g, seed);
+  const { houses, props, patches, edges } = L;
+  const prof = g.profile;
+  const gy = (z: number): number => groundAt(prof, z);
+  const all = (): HouseSpec[] => Array.from(houses.values());
+  const hayPos = L.hayPos as P3;
   // emit
   const draft = newDraft();
   const ordered = all().sort((p, q) => p.id - q.id);
@@ -592,8 +652,406 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
   };
 }
 
+// ---------------------------------------------------------------------------------------------
+// Segmented layout (ADR 0015). Each run is placed by `layout` in its own local frame (downhill =
+// -z, exactly like v1), then turned by whole quarter turns and moved onto the road polyline before
+// anything is emitted. The core only ever sees finished world-frame boxes.
+
+const FACE_ROT: readonly Face[] = [2, 3, 1, 0]; // face after one quarter turn (x, z) -> (-z, x)
+const HAZARD_MARGIN = 5; // m of hazard beyond the houses' sides
+const HAZARD_UP = 14; // m of hazard behind the first house
+const HAZARD_DOWN = 30; // m of hazard past the last house
+
+function rotXZ(x: number, z: number, k: number): [number, number] {
+  let a = x;
+  let b = z;
+  for (let i = 0; i < k; i++) {
+    const t = a;
+    a = -b;
+    b = t;
+  }
+  return [a, b];
+}
+function rotFace(f: Face, k: number): Face {
+  let r = f;
+  for (let i = 0; i < k; i++) r = FACE_ROT[r];
+  return r;
+}
+/** Quarter turns that take the local downhill (-z) onto a heading (bearing, degrees). */
+function turnsOf(heading: number): number {
+  return ((((180 - heading) / 90) % 4) + 4) % 4;
+}
+
+interface Frame {
+  k: number;
+  ox: number;
+  oz: number;
+}
+function toWorldXZ(f: Frame, x: number, z: number): [number, number] {
+  const [a, b] = rotXZ(x, z, f.k);
+  return [round6(a + f.ox), round6(b + f.oz)];
+}
+function toLocalXZ(f: Frame, x: number, z: number): [number, number] {
+  const [a, b] = rotXZ(x - f.ox, z - f.oz, (4 - f.k) % 4);
+  return [round6(a), round6(b)];
+}
+function toWorldP3(f: Frame, p: P3): P3 {
+  const [x, z] = toWorldXZ(f, p[0], p[2]);
+  return [x, p[1], z];
+}
+type MapXZ = (x: number, z: number) => [number, number];
+function turnRect(r: Patch, map: MapXZ): Patch {
+  const a = map(r.x0, r.z0);
+  const b = map(r.x1, r.z1);
+  return {
+    x0: Math.min(a[0], b[0]),
+    x1: Math.max(a[0], b[0]),
+    z0: Math.min(a[1], b[1]),
+    z1: Math.max(a[1], b[1]),
+    y: r.y,
+  };
+}
+/** Re-express a spec through a point map and a face map (positions and every per-face field). */
+function moveSpec(h: HouseSpec, map: MapXZ, kf: number): HouseSpec {
+  const [cx, cz] = map(h.cx, h.cz);
+  const party: [boolean, boolean, boolean, boolean] = [false, false, false, false];
+  for (let f = 0; f < 4; f++) party[rotFace(f as Face, kf)] = h.party[f];
+  const rf = (f: Face): Face => rotFace(f, kf);
+  return {
+    ...h,
+    cx,
+    cz,
+    party,
+    balcony: h.balcony === -1 ? -1 : rf(h.balcony),
+    stairs: h.stairs === null ? null : { face: rf(h.stairs.face), to: h.stairs.to },
+    poleFace: h.pole ? rf(h.poleFace ?? 2) : h.poleFace,
+    awnings: h.awnings.map(rf),
+    takeoff: h.takeoff.map(rf),
+    tall: h.tall.map(rf),
+    runout: (h.runout ?? []).map((r) => ({ ...r, face: rf(r.face) })),
+  };
+}
+
+interface SegRec {
+  frame: Frame;
+  /** Path coordinate of the run's local z = 0 (the profile is indexed by it). */
+  zOff: number;
+  /** Ids of the houses this run placed, the handed-over last one included. */
+  own: Set<number>;
+  /** Plan box of the run's houses and patches, local frame. */
+  box: Patch;
+  first: boolean;
+  last: boolean;
+}
+
+function segGround(prof: [number, number][], zOff: number): (z: number) => number {
+  return (z: number): number => groundAt(prof, z + zOff);
+}
+
+function placeSegmentedOnce(g: GraphLevel, base: number): PlacedLevel {
+  const segs = g.segments as NonNullable<GraphLevel['segments']>;
+  const prof = g.profile;
+  const world = new Map<number, HouseSpec>();
+  const props: PropSpec[] = [];
+  const patches: Patch[] = [];
+  const edges: PlacedEdge[] = [];
+  const recs: SegRec[] = [];
+  let hay: P3 | null = null;
+  let goalRot = 0;
+
+  for (let i = 0; i < segs.length; i++) {
+    const sg = segs[i];
+    const last = i === segs.length - 1;
+    const ids = new Set(sg.nodes);
+    const sub: GraphLevel = {
+      ...g,
+      nodes: g.nodes.filter((n) => ids.has(n.id)),
+      edges: g.edges.filter((e) => ids.has(e.a) && ids.has(e.b)),
+      start: sg.nodes[0],
+      goal: sg.nodes[sg.nodes.length - 1],
+      segments: undefined,
+    };
+    const k = turnsOf(sg.heading);
+    let frame: Frame = { k, ox: 0, oz: 0 };
+    let zOff = 0;
+    if (i > 0) {
+      const h = world.get(sg.nodes[0]) as HouseSpec;
+      const pf = recs[i - 1];
+      frame = { k, ox: h.cx, oz: h.cz };
+      zOff = pf.zOff + toLocalXZ(pf.frame, h.cx, h.cz)[1];
+    }
+    const gyLocal = segGround(prof, zOff);
+    const decoys = Math.floor(g.decoys / segs.length) + (i === 0 ? g.decoys % segs.length : 0);
+    const loc: MapXZ = (x, z) => toLocalXZ(frame, x, z);
+    const back = (4 - k) % 4;
+    let L: Layout | null = null;
+    let lastErr = '';
+    for (let t = 0; t < 64 && L === null; t++) {
+      let start: HouseSpec;
+      if (i > 0) start = moveSpec(world.get(sg.nodes[0]) as HouseSpec, loc, back);
+      else {
+        const r = mulberry32(base + t + 7777);
+        const def = g.nodes.find((n) => n.id === sg.nodes[0])?.storeys;
+        start = newHouse(sg.nodes[0], 0, 0, gyLocal(0), def ?? (r() < 0.5 ? 1 : 2));
+      }
+      const opt: SegOpt = {
+        gy: gyLocal,
+        start,
+        ext: Array.from(world.values())
+          .filter((h) => h.id !== sg.nodes[0])
+          .map((h) => moveSpec(h, loc, back)),
+        extPatches: patches.map((p) => turnRect(p, loc)),
+        blocked: recs.map((r) =>
+          turnRect(
+            turnRect(r.box, (x, z) => toWorldXZ(r.frame, x, z)),
+            loc,
+          ),
+        ),
+        last,
+        handoff: last ? -1 : sg.nodes[sg.nodes.length - 1],
+        decoys,
+        idBase: 100 + i * 50,
+      };
+      try {
+        L = layout(sub, base + i * 1000 + t, opt);
+      } catch (err) {
+        if (!(err instanceof Fail)) throw err;
+        lastErr = err.message;
+      }
+    }
+    if (L === null) throw new Fail('segment ' + i + ': ' + lastErr);
+
+    // into the world frame
+    const wmap: MapXZ = (x, z) => toWorldXZ(frame, x, z);
+    const own = new Set<number>();
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let z0 = Infinity;
+    let z1 = -Infinity;
+    for (const h of L.houses.values()) {
+      own.add(h.id);
+      x0 = Math.min(x0, h.cx - HALF);
+      x1 = Math.max(x1, h.cx + HALF);
+      z0 = Math.min(z0, h.cz - HALF);
+      z1 = Math.max(z1, h.cz + HALF);
+      world.set(h.id, moveSpec(h, wmap, k));
+    }
+    for (const p of L.patches) {
+      x0 = Math.min(x0, p.x0);
+      x1 = Math.max(x1, p.x1);
+      z0 = Math.min(z0, p.z0);
+      z1 = Math.max(z1, p.z1);
+      patches.push(turnRect(p, wmap));
+    }
+    for (const p of L.props) {
+      const [x, z] = wmap(p.x, p.z);
+      props.push({ ...p, x, z, yaw: round6(p.yaw - (k * Math.PI) / 2) });
+    }
+    for (const e of L.edges) {
+      const pt = (v: P3 | undefined): P3 | undefined => (v === undefined ? v : toWorldP3(frame, v));
+      edges.push({
+        ...e,
+        takeoff: toWorldP3(frame, e.takeoff),
+        landing: toWorldP3(frame, e.landing),
+        prop: pt(e.prop),
+        stairsFoot: pt(e.stairsFoot),
+        zone: pt(e.zone),
+        anchor: pt(e.anchor),
+        rot: k,
+      });
+    }
+    if (L.hayPos !== null) {
+      hay = toWorldP3(frame, L.hayPos);
+      goalRot = k;
+    }
+    recs.push({ frame, zOff, own, box: { x0, x1, z0, z1, y: 0 }, first: i === 0, last });
+  }
+
+  // emit
+  const draft = newDraft();
+  const ordered = Array.from(world.values()).sort((p, q) => p.id - q.id);
+  for (const h of ordered) emitHouse(h, draft);
+  for (const p of props) emitProp(p, draft);
+  for (const p of patches) {
+    draft.solids.push({ min: [p.x0, p.y - 1, p.z0], max: [p.x1, p.y, p.z1] });
+    draft.style.push(0);
+  }
+
+  // hazards: per run, 1 m bands in the run's own frame (top = the drawn ground there), cut around
+  // houses of other runs and lowered under every patch (any run's), then turned into world boxes.
+  const hazards: { min: P3; max: P3 }[] = [];
+  const strips: { r: SegRec; xa: number; xb: number; za: number; zb: number }[] = [];
+  for (const r of recs) {
+    const back = (4 - r.frame.k) % 4;
+    const lm = ordered
+      .filter((h) => r.own.has(h.id))
+      .map((h) => moveSpec(h, (x, z) => toLocalXZ(r.frame, x, z), back));
+    strips.push({
+      r,
+      xa: Math.min(...lm.map((h) => h.cx)) - HALF - HAZARD_MARGIN,
+      xb: Math.max(...lm.map((h) => h.cx)) + HALF + HAZARD_MARGIN,
+      za: Math.min(...lm.map((h) => h.cz)) - (r.last ? HAZARD_DOWN : HALF),
+      zb: Math.max(...lm.map((h) => h.cz)) + (r.first ? HAZARD_UP : HALF),
+    });
+  }
+  // A later run owns the ground where strips overlap: it is lower, so a hero crossing it (a rope
+  // chord) is never inside an earlier run's higher hazard.
+  for (let ri = 0; ri < recs.length; ri++) {
+    const r = recs[ri];
+    const gyL = segGround(prof, r.zOff);
+    const loc: MapXZ = (x, z) => toLocalXZ(r.frame, x, z);
+    const back = (4 - r.frame.k) % 4;
+    const foreign = ordered.filter((h) => !r.own.has(h.id)).map((h) => moveSpec(h, loc, back));
+    const lp = patches.map((p) => turnRect(p, loc));
+    const { xa, xb, za: zBot, zb: zTop } = strips[ri];
+    const later = strips
+      .slice(ri + 1)
+      .map((st) =>
+        turnRect({ x0: st.xa, x1: st.xb, z0: st.za, z1: st.zb, y: 0 }, (x, z) =>
+          loc(...toWorldXZ(st.r.frame, x, z)),
+        ),
+      );
+    const bands = Math.ceil((zTop - zBot) / HAZARD_BAND);
+    for (let b = 0; b < bands; b++) {
+      const z = zTop - b * HAZARD_BAND;
+      const zl = z - HAZARD_BAND;
+      let top = Math.max(gyL(z), gyL(zl)) - 0.05;
+      for (const p of lp)
+        if (p.z1 > zl && p.z0 < z && p.x1 > xa && p.x0 < xb) top = Math.min(top, p.y - 0.5);
+      let spans: [number, number][] = [[xa, xb]];
+      const cuts: [number, number][] = [];
+      for (const h of foreign) {
+        if (h.cz + HALF + 0.5 <= zl || h.cz - HALF - 0.5 >= z) continue;
+        cuts.push([h.cx - HALF - 0.5, h.cx + HALF + 0.5]);
+      }
+      for (const q of later) if (q.z1 > zl && q.z0 < z) cuts.push([q.x0, q.x1]);
+      for (const [c0, c1] of cuts) {
+        const next: [number, number][] = [];
+        for (const [a, e] of spans) {
+          if (c1 <= a || c0 >= e) next.push([a, e]);
+          else {
+            if (c0 > a) next.push([a, c0]);
+            if (c1 < e) next.push([c1, e]);
+          }
+        }
+        spans = next;
+      }
+      for (const [a, e] of spans) {
+        const c0 = toWorldXZ(r.frame, a, zl);
+        const c1 = toWorldXZ(r.frame, e, z);
+        hazards.push({
+          min: [Math.min(c0[0], c1[0]), round6(top - 8), Math.min(c0[1], c1[1])],
+          max: [Math.max(c0[0], c1[0]), round6(top), Math.max(c0[1], c1[1])],
+        });
+      }
+    }
+  }
+
+  // a house cut out of every strip still stands on ground: slab under its footprint
+  for (const h of ordered) {
+    const covered = hazards.some(
+      (z) => h.cx >= z.min[0] && h.cx <= z.max[0] && h.cz >= z.min[2] && h.cz <= z.max[2],
+    );
+    if (covered) continue;
+    const top = round6(h.groundY - 0.05);
+    hazards.push({
+      min: [h.cx - HALF, round6(top - 8), h.cz - HALF],
+      max: [h.cx + HALF, top, h.cz + HALF],
+    });
+  }
+
+  const lines: { zone: { min: P3; max: P3 }; anchor: number }[] = [];
+  for (const pe of edges) {
+    if (pe.kind === 'zip' && pe.zone !== undefined) {
+      const bh = world.get(pe.b) as HouseSpec;
+      const zc = pe.zone;
+      lines.push({
+        zone: {
+          min: [zc[0] - 1.5, zc[1], zc[2] - 1.5],
+          max: [zc[0] + 1.5, zc[1] + 0.05, zc[2] + 1.5],
+        },
+        anchor: draft.poleAnchorIds[bh.id],
+      });
+    }
+  }
+
+  const sp = world.get(g.start) as HouseSpec;
+  const spawnXZ = toWorldXZ(recs[0].frame, -2.8, 0); // the first run starts at its local origin
+  const hp = hay as P3;
+  const minY = Math.min(...hazards.map((h) => h.min[1]));
+  const level: LevelJson = {
+    version: 1,
+    spawn: [spawnXZ[0], round6(deckY(sp)), spawnXZ[1]],
+    spawnYaw: round6((segs[0].heading * Math.PI) / 180),
+    killPlaneY: round6(minY - 20),
+    solids: draft.solids,
+    ramps: draft.ramps,
+    anchors: draft.anchors,
+    goal: {
+      min: [hp[0] - 1.2, round6(hp[1] - 0.5), hp[2] - 1.2],
+      max: [hp[0] + 1.2, round6(hp[1] + 3), hp[2] + 1.2],
+    },
+    style: draft.style,
+    lineOnly: 1,
+    climb: 1,
+    parkour: 1,
+    lines,
+    tramps: draft.tramps,
+    cushions: draft.cushions,
+    hazards,
+  };
+
+  // view-only ground: each run's own profile, blended by distance to the run's hazard strip
+  const field = (x: number, z: number): { h: number; d: number } => {
+    for (const h of ordered)
+      if (Math.abs(x - h.cx) <= HALF && Math.abs(z - h.cz) <= HALF) return { h: h.groundY, d: 0 };
+    let sw = 0;
+    let sh = 0;
+    let dm = Infinity;
+    for (const st of strips) {
+      const [lx, lz] = toLocalXZ(st.r.frame, x, z);
+      const d = Math.hypot(
+        Math.max(st.xa - lx, 0, lx - st.xb),
+        Math.max(st.za - lz, 0, lz - st.zb),
+      );
+      const w = 1 / (d ** 8 + 1e-6);
+      sw += w;
+      sh += w * groundAt(prof, lz + st.r.zOff);
+      dm = Math.min(dm, d);
+    }
+    return { h: sh / sw, d: dm };
+  };
+
+  return {
+    seed: base,
+    houses: ordered,
+    props,
+    patches,
+    edges,
+    profile: prof,
+    goalProp: hp,
+    level,
+    goalRot,
+    field,
+  };
+}
+
+function placeSegmented(g: GraphLevel): PlacedLevel {
+  let last = '';
+  for (let j = 0; j < 24; j++) {
+    try {
+      return placeSegmentedOnce(g, g.seed + j * 104729);
+    } catch (err) {
+      if (!(err instanceof Fail)) throw err;
+      last = err.message;
+    }
+  }
+  throw new Error('graph ' + g.id + ': no seed for the segmented layout (' + last + ')');
+}
+
 /** Place a graph level. Tries seed .. seed+63 and returns the first that satisfies every rule. */
 export function placeGraph(g: GraphLevel): PlacedLevel {
+  if (g.segments !== undefined) return placeSegmented(g);
   let last = '';
   for (let k = 0; k < 64; k++) {
     try {

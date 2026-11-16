@@ -69,6 +69,16 @@ export function setTerrainProfile(profile: [number, number][] | null): void {
   profileNow = profile;
 }
 
+// Segmented graph levels (ADR 0015): the ground follows the road polyline. field(x, z) gives the
+// run's own ground height and the plan distance to the nearest run; null = the straight hill.
+type GroundField = (x: number, z: number) => { h: number; d: number };
+let fieldNow: GroundField | null = null;
+
+/** Sets (or clears with null) the view-only ground field of a segmented graph level. */
+export function setTerrainField(f: GroundField | null): void {
+  fieldNow = f;
+}
+
 function profileY(p: [number, number][], z: number): number {
   const n = p.length;
   if (z >= p[0][0]) return p[0][1] + ((z - p[0][0]) * (p[1][1] - p[0][1])) / (p[1][0] - p[0][0]);
@@ -98,6 +108,13 @@ function wobble(x: number, z: number): number {
 
 /** Height of the visible ground at (x, z). Equals planeY(z) for |x| <= HILL_HALF_X. */
 export function terrainY(x: number, z: number): number {
+  if (fieldNow !== null) {
+    const f = fieldNow(x, z);
+    const w = smooth(0, 18, f.d);
+    if (w <= 0) return f.h;
+    const out = f.d;
+    return f.h + w * (0.0014 * out * out + 0.05 * out + 3.2 * wobble(x, z) * smooth(0, 60, out));
+  }
   // Centre-line profile: the plane, then a valley floor, then the far wall rising.
   let base = planeY(z);
   if (z < valleyZNow) {

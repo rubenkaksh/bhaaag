@@ -16,6 +16,14 @@ const edge = z.object({
   via: z.enum(['jump', 'tramp', 'cushion', 'boxes', 'stairs']).optional(),
 });
 
+/** One straight run of the road (ADR 0015). Nodes are placed in this run's local frame, then turned to `heading`. */
+const segment = z.object({
+  /** Bearing of the run's downhill direction, degrees: 0 = +z, 90 = +x, 180 = -z (the unsegmented layout), 270 = -x. */
+  heading: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+  /** Node ids in order. The first is the run's start; it is also the previous run's last node (the bend house). */
+  nodes: z.array(z.number().int()).min(2),
+});
+
 export const graphLevel = z
   .object({
     format: z.literal('bhaaag-graph'),
@@ -30,6 +38,8 @@ export const graphLevel = z
     goal: z.number().int(),
     decoys: z.number().int().min(0).max(12),
     profile: z.array(z.tuple([z.number(), z.number()])).min(2),
+    /** Optional (ADR 0015). Absent = the straight v1 layout. */
+    segments: z.array(segment).min(2).optional(),
   })
   .superRefine((g, ctx) => {
     const bad = (message: string): void => ctx.addIssue({ code: 'custom', message });
@@ -62,6 +72,28 @@ export const graphLevel = z
       }
     }
     if (!seen.has(g.goal)) bad('goal not reachable from start');
+    if (g.segments !== undefined) {
+      const segs = g.segments;
+      const owner = new Map<number, number>();
+      segs.forEach((sg, i) => {
+        for (const id of sg.nodes) {
+          if (!ids.has(id)) bad('segment ' + i + ' unknown node ' + id);
+          const prev = owner.get(id);
+          const shared =
+            i > 0 && id === sg.nodes[0] && id === segs[i - 1].nodes[segs[i - 1].nodes.length - 1];
+          if (prev !== undefined && !shared) bad('node ' + id + ' in two segments');
+          if (prev === undefined) owner.set(id, i);
+        }
+      });
+      for (const id of ids) if (!owner.has(id)) bad('node ' + id + ' in no segment');
+      if (segs[0].nodes[0] !== g.start) bad('first segment must start at start');
+      if (segs[segs.length - 1].nodes[segs[segs.length - 1].nodes.length - 1] !== g.goal)
+        bad('last segment must end at goal');
+      for (const e of g.edges) {
+        const home = segs.some((sg) => sg.nodes.includes(e.a) && sg.nodes.includes(e.b));
+        if (!home) bad('edge ' + e.a + '-' + e.b + ' crosses segments');
+      }
+    }
     for (let i = 1; i < g.profile.length; i++) {
       if (!(g.profile[i][0] < g.profile[i - 1][0])) bad('profile z must decrease');
       if (g.profile[i][1] > g.profile[i - 1][1]) bad('profile must not rise');
