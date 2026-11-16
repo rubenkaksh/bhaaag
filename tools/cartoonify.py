@@ -143,6 +143,7 @@ def main() -> None:
     p.add_argument("--stretch", action="store_true", help="tile: squash a non-square box to the square tile")
     p.add_argument("--mirror", action="store_true", help="tile: mirror 2x2 instead of the cross-fade (stripe tiles)")
     p.add_argument("--stripes", action="store_true", help="tile: average the rows, keep vertical ribs only")
+    p.add_argument("--flat-sigma", dest="flat_sigma", type=float, default=0.0, help="tile: lighting-flatten blur px (default size/4); smaller removes the half-shift cross on blotchy plaster")
     p.add_argument("--sat", type=float, default=0.55)
     p.add_argument("--ink", type=float, default=0.3)
     p.add_argument("--grey", default="")
@@ -167,7 +168,7 @@ def main() -> None:
             q = np.asarray(half, dtype=np.float64)
             top = np.concatenate([q, q[:, ::-1]], axis=1)
             img = Image.fromarray(np.concatenate([top, top[::-1]], axis=0).astype(np.uint8))
-        flat = flatten(np.asarray(img, dtype=np.float64), args.size / 4)
+        flat = flatten(np.asarray(img, dtype=np.float64), args.flat_sigma or args.size / 4)
         rgb = style(Image.fromarray(np.clip(seamless(flat) + 0.5, 0, 255).astype(np.uint8)), pal, args, True)
     elif args.mode == "atlas":
         n = len(args.box)

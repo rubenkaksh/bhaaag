@@ -35,6 +35,10 @@ export const TEXTURE_MANIFEST: readonly TextureEntry[] = [
   { file: 'tin.jpg', tiers: RICH },
   { file: 'straw.jpg', tiers: RICH },
   { file: 'horizon.webp', tiers: RICH },
+  { file: 'roof_home.jpg', tiers: RICH },
+  { file: 'facade.jpg', tiers: RICH },
+  { file: 'roof_home_n.jpg', tiers: HIGH },
+  { file: 'facade_n.jpg', tiers: HIGH },
   { file: 'tin_n.jpg', tiers: HIGH },
   { file: 'straw_n.jpg', tiers: HIGH },
 ];
