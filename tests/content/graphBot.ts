@@ -151,6 +151,18 @@ class Bot {
   }
 }
 
+/** Quarter turns (x, z) -> (-z, x), k times: a segment's local frame to the world (ADR 0015). */
+function rot(x: number, z: number, k: number): [number, number] {
+  let a = x;
+  let b = z;
+  for (let i = 0; i < k; i++) {
+    const t = a;
+    a = -b;
+    b = t;
+  }
+  return [a, b];
+}
+
 function houseOf(p: PlacedLevel, id: number): HouseSpec {
   return p.houses.find((h) => h.id === id) as HouseSpec;
 }
@@ -172,12 +184,13 @@ function runEdge(bot: Bot, e: PlacedEdge, a: HouseSpec, b: HouseSpec): string {
   const done = (): boolean => bot.onDeck(b);
   const fail = (what: string): string =>
     `${what}: dead=${s.dead}/${s.deadCause} at ${s.px.toFixed(1)},${s.py.toFixed(1)},${s.pz.toFixed(1)}`;
+  const k = e.rot ?? 0;
   if (e.kind === 'touch') {
     const up = deckB - deckY(a) > 0.3;
-    // walk toward b's centre; when climbing, jump once close to the wall
-    const wallDx = Math.abs(b.cx - a.cx) > 4 ? Math.sign(b.cx - a.cx) : 0;
-    const wallX = a.cx + wallDx * 4;
-    const wallZ = wallDx === 0 ? a.cz - 4 : a.cz;
+    // walk toward b's centre; when climbing, jump once close to the wall (a's local frame)
+    const [bdx, bdz] = rot(b.cx - a.cx, b.cz - a.cz, (4 - k) % 4);
+    const wallDx = Math.abs(bdx) > 4 ? Math.sign(bdx) : 0;
+    void bdz;
     let jumped = 0;
     let lateLeft = bot.late;
     for (let i = 0; i < EDGE_TICKS && s.dead === 0; i++) {
@@ -185,7 +198,8 @@ function runEdge(bot: Bot, e: PlacedEdge, a: HouseSpec, b: HouseSpec): string {
       const f = new InputFrame();
       bot.aim(b.cx + jx, b.cz + jz);
       f.moveY = AXIS_MAX;
-      const dWall = wallDx !== 0 ? Math.abs(wallX - s.px) : Math.abs(wallZ - s.pz);
+      const [rx, rz] = rot(s.px - a.cx, s.pz - a.cz, (4 - k) % 4);
+      const dWall = wallDx !== 0 ? Math.abs(wallDx * 4 - rx) : Math.abs(-4 - rz);
       if (up && s.grounded === 1 && dWall < 1.3) {
         if (lateLeft > 0) lateLeft--;
         else if (bot.spam ? i % 4 === 0 : jumped < 1 || i % 40 === 0) {
@@ -221,7 +235,8 @@ function runEdge(bot: Bot, e: PlacedEdge, a: HouseSpec, b: HouseSpec): string {
   // gap edges: leave a's roof edge slowly, steer to the prop
   const prop = e.prop as [number, number, number];
   const tk = e.takeoff;
-  if (!bot.walk(tk[0], tk[2] + 1.5, 0.4, 0.7, EDGE_TICKS / 3)) return fail('gap walk');
+  const [bx, bz] = rot(0, 1.5, k);
+  if (!bot.walk(tk[0] + bx, tk[2] + bz, 0.4, 0.7, EDGE_TICKS / 3)) return fail('gap walk');
   bot.idle(bot.late);
   const isTramp = e.via === 'tramp';
   const bounced = (): boolean => (bot.events & HERO_EV_BOUNCE) !== 0;
@@ -262,10 +277,11 @@ function runEdge(bot: Bot, e: PlacedEdge, a: HouseSpec, b: HouseSpec): string {
   if (s.dead !== 0) return fail('cushion fall');
   // stairs: foot, then up to the roof
   const foot = e.stairsFoot as [number, number, number];
-  const fx = b.cx - 5;
-  const fz = foot[2];
-  if (!bot.walk(fx, fz, 0.4, 0.7, 600)) return fail('to stairs foot');
-  if (!bot.walk(b.cx - 0.5, fz, 0.5, 0.7, 600)) return fail('stairs climb');
+  const fzl = rot(foot[0] - b.cx, foot[2] - b.cz, (4 - k) % 4)[1];
+  const [fx, fz] = rot(-5, fzl, k);
+  if (!bot.walk(b.cx + fx, b.cz + fz, 0.4, 0.7, 600)) return fail('to stairs foot');
+  const [cx2, cz2] = rot(-0.5, fzl, k);
+  if (!bot.walk(b.cx + cx2, b.cz + cz2, 0.5, 0.7, 600)) return fail('stairs climb');
   bot.walk(b.cx, b.cz, 1.0, 0.7, 300);
   if (done()) return '';
   return fail('stairs end');
@@ -295,7 +311,8 @@ function leap(bot: Bot, p: PlacedLevel, goalHouse: HouseSpec): string {
   const hay = p.goalProp;
   const gx = hay[0] + bot.jx;
   const gz = hay[2] + bot.jz;
-  if (!bot.walk(goalHouse.cx, goalHouse.cz - 2, 0.5, 0.7, 600)) return 'leap walk';
+  const [lx, lz] = rot(0, -2, p.goalRot ?? 0);
+  if (!bot.walk(goalHouse.cx + lx, goalHouse.cz + lz, 0.5, 0.7, 600)) return 'leap walk';
   bot.idle(bot.late);
   const goal = bot.w.goal;
   for (let i = 0; i < 600 && s.dead === 0; i++) {
