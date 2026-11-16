@@ -41,6 +41,7 @@ const POLE = '#4a3424';
 // look 'home' (home-assets handoff H4+): flat tints only, no textures. None of them is the gold
 // affordance, cream (safe) or terracotta (danger); tests/adapters/palette.test.ts checks.
 const HOME_TIN = '#8c949a'; // desaturated corrugated tin / tarp
+const HOME_CLAY = '#8b6a58'; // worn clay tile: a dull brown, well clear of the terracotta danger colour
 const HOME_STRAW = '#b8975a'; // straw bands on a hay stack
 const HOME_TANK = ['#26282c', '#2e6b47']; // black and green plastic drums (as the v1 tanks)
 
@@ -211,18 +212,35 @@ function dressHouse(
     c(BRICK),
     h.id,
   );
-  o.box(
-    'wallPlaster',
-    'body',
-    h.cx - k,
-    g + HK.plinth,
-    h.cz - k,
-    h.cx + k,
-    deck,
-    h.cz + k,
-    plaster,
-    h.id,
-  );
+  if (home && h.storeys === 2) {
+    // look 'home' facade tile is one storey tall: stack two wall pieces split at the storey band,
+    // so the tile never stretches (T323). One decor box for the whole body, as before.
+    const y0 = g + HK.plinth;
+    const mid = g + HK.balconyTop - 0.2;
+    const ok1 = o.kit.add('wallPlaster', h.cx, y0, h.cz, 2 * k, mid - y0, 2 * k, 0, plaster);
+    const ok2 = o.kit.add('wallPlaster', h.cx, mid, h.cz, 2 * k, deck - mid, 2 * k, 0, plaster);
+    if (ok1 && ok2) {
+      o.boxes.push({
+        kind: 'body',
+        min: [h.cx - k, y0, h.cz - k],
+        max: [h.cx + k, deck, h.cz + k],
+        house: h.id,
+      });
+    }
+  } else {
+    o.box(
+      'wallPlaster',
+      'body',
+      h.cx - k,
+      g + HK.plinth,
+      h.cz - k,
+      h.cx + k,
+      deck,
+      h.cz + k,
+      plaster,
+      h.id,
+    );
+  }
 
   // Storey band at the first-floor line and a cornice at the roof edge.
   const band = k + 0.15;
@@ -652,6 +670,11 @@ function dressProp(o: Out, p: PropSpec, home: boolean): void {
         p.yaw,
         c(CREAM),
       );
+      // look 'home': a clay-tile eave band under the cream cap (the walkable top stays cream)
+      if (home) {
+        const e = HK.shedSize + 0.2;
+        o.kit.add('roof', p.x, g + HK.shedTop - cap - 0.2, p.z, e, 0.2, e, p.yaw, c(HOME_CLAY));
+      }
       o.boxes.push({ kind: 'shed', min: [r.x0, g, r.z0], max: [r.x1, g + HK.shedTop, r.z1] });
       return;
     }
