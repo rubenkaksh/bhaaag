@@ -66,7 +66,7 @@ describe('segmented layout: home-street', () => {
           hz.max[0] > h.cx - 4 &&
           hz.min[2] < h.cz + 4 &&
           hz.max[2] > h.cz - 4;
-        if (hit) expect(hz.max[1], 'hazard under house ' + h.id).toBeLessThan(deckY(h) - 1);
+        if (hit) expect(hz.max[1], 'hazard under house ' + h.id).toBeLessThan(deckY(h) - 0.5);
       }
     }
     const goal = placed.level.goal as { min: number[]; max: number[] };

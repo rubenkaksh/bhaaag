@@ -24,7 +24,7 @@ import { buildStrategyFeatures, minSolidZ } from './strategyView';
 import { buildHouseDecor } from './decor/houseV2';
 import { buildHorizonCard } from './horizonCard';
 import type { HouseSpec, PropSpec } from '../../content/house/houseSpec';
-import { setTerrainExtent, setTerrainProfile } from './terrain';
+import { setTerrainExtent, setTerrainField, setTerrainProfile } from './terrain';
 import { tileNormal, tileTexture } from './tileTexture';
 
 // Palette: desaturated warm world, three-colour language on top (gold interactive,
@@ -245,6 +245,8 @@ export type BuildLevelOpts = {
     look?: 'home';
     /** Walkable ground patches: cut out of the drawn gully. */
     patches?: GullyPatch[];
+    /** Segmented layouts: view-only ground along the road polyline (ADR 0015). */
+    field?: (x: number, z: number) => { h: number; d: number };
   };
 };
 
@@ -253,6 +255,7 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
   const scenery = opts.scenery !== false && opts.floorY === undefined;
   const strategy = world.lineOnly === 1;
   setTerrainProfile(opts.graph === undefined ? null : opts.graph.profile);
+  setTerrainField(opts.graph?.field ?? null);
   if (scenery) setTerrainExtent(strategy ? minSolidZ(world) : null);
   const g = new Group();
   g.name = 'level';

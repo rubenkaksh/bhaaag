@@ -188,9 +188,8 @@ function runEdge(bot: Bot, e: PlacedEdge, a: HouseSpec, b: HouseSpec): string {
   if (e.kind === 'touch') {
     const up = deckB - deckY(a) > 0.3;
     // walk toward b's centre; when climbing, jump once close to the wall (a's local frame)
-    const [bdx, bdz] = rot(b.cx - a.cx, b.cz - a.cz, (4 - k) % 4);
+    const [bdx] = rot(b.cx - a.cx, b.cz - a.cz, (4 - k) % 4);
     const wallDx = Math.abs(bdx) > 4 ? Math.sign(bdx) : 0;
-    void bdz;
     let jumped = 0;
     let lateLeft = bot.late;
     for (let i = 0; i < EDGE_TICKS && s.dead === 0; i++) {

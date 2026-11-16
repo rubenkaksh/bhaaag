@@ -947,6 +947,19 @@ function placeSegmentedOnce(g: GraphLevel, base: number): PlacedLevel {
     }
   }
 
+  // a house cut out of every strip still stands on ground: slab under its footprint
+  for (const h of ordered) {
+    const covered = hazards.some(
+      (z) => h.cx >= z.min[0] && h.cx <= z.max[0] && h.cz >= z.min[2] && h.cz <= z.max[2],
+    );
+    if (covered) continue;
+    const top = round6(h.groundY - 0.05);
+    hazards.push({
+      min: [h.cx - HALF, round6(top - 8), h.cz - HALF],
+      max: [h.cx + HALF, top, h.cz + HALF],
+    });
+  }
+
   const lines: { zone: { min: P3; max: P3 }; anchor: number }[] = [];
   for (const pe of edges) {
     if (pe.kind === 'zip' && pe.zone !== undefined) {
@@ -990,6 +1003,8 @@ function placeSegmentedOnce(g: GraphLevel, base: number): PlacedLevel {
 
   // view-only ground: each run's own profile, blended by distance to the run's hazard strip
   const field = (x: number, z: number): { h: number; d: number } => {
+    for (const h of ordered)
+      if (Math.abs(x - h.cx) <= HALF && Math.abs(z - h.cz) <= HALF) return { h: h.groundY, d: 0 };
     let sw = 0;
     let sh = 0;
     let dm = Infinity;
@@ -999,7 +1014,7 @@ function placeSegmentedOnce(g: GraphLevel, base: number): PlacedLevel {
         Math.max(st.xa - lx, 0, lx - st.xb),
         Math.max(st.za - lz, 0, lz - st.zb),
       );
-      const w = 1 / (d * d * d * d + 1e-4);
+      const w = 1 / (d ** 8 + 1e-6);
       sw += w;
       sh += w * groundAt(prof, lz + st.r.zOff);
       dm = Math.min(dm, d);

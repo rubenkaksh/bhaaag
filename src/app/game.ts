@@ -236,6 +236,7 @@ export function startGame(
                   seed: placed.seed,
                   look: graphEntry(graphIdOf(mode))?.look,
                   patches: placed.patches,
+                  field: placed.field,
                 },
           floorY: village !== undefined && isVillage ? village.VILLAGE_CLOUD_TOP_Y : undefined,
         })
