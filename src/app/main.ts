@@ -1,6 +1,7 @@
 import { startGame } from './game';
 import { bestLabel, readBest } from './modes/mode';
-import { classicLevels, playKey } from './modes/levels';
+import { classicLevels } from './modes/levels';
+import { resolvePlayKey } from './modes/registry';
 import { compileShipped } from '../content/builder/shipped';
 import { readLocalBuilderLevel } from '../content/builder/store';
 import type { GameHandle } from './game';
@@ -34,7 +35,7 @@ const orientation = createOrientation(document.body);
 const lobby = createLobby(document.body, {
   orientation,
   getBestLabel: (sel) => {
-    const key = playKey(sel, classicLevels(true));
+    const key = resolvePlayKey(sel, classicLevels(true));
     return bestLabel(key, readBest(key));
   },
   onPlay: (sel) => play(sel),
@@ -55,7 +56,7 @@ function play(sel: Selection): void {
   lobby.hide();
   requestImmersive();
   if (orientation.pref() !== 'auto') orientation.setPref(orientation.pref()); // retry the lock inside this tap
-  const key = playKey(sel, classicLevels(true));
+  const key = resolvePlayKey(sel, classicLevels(true));
   const id = sel.mode === 'chase' ? 'chase' : sel.level;
   if (game !== null && runningId !== id) {
     game.destroy();

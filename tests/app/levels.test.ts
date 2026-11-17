@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_LEVEL,
   LEVEL_KEY,
-  MODES,
   MODE_STORE_KEY,
   classicLevels,
   legacyLevel,
@@ -10,6 +9,7 @@ import {
   playKey,
   saveSelection,
 } from '../../src/app/modes/levels';
+import { MODE_IDS } from '../../src/app/modes/registry';
 import { GAME_MODES } from '../../src/app/modes/mode';
 
 function memStore(init: Record<string, string> = {}) {
@@ -23,12 +23,14 @@ const q = (s: string) => new URLSearchParams(s);
 
 describe('two modes (ADR 0016)', () => {
   it('exposes exactly Classic and Dragon Chase', () => {
-    expect(MODES).toEqual(['classic', 'chase']);
+    expect(MODE_IDS).toEqual(['classic', 'chase']);
   });
   it('every Classic level maps to a known play key, and Home Street, Nagarkot, Valley are there', () => {
     const levels = classicLevels(true);
     const ids = levels.map((l) => l.id);
-    expect(ids).toEqual(expect.arrayContaining(['l1', 'home-street', 'nagarkot', 'valley-1', 'village', 'builder']));
+    expect(ids).toEqual(
+      expect.arrayContaining(['l1', 'home-street', 'nagarkot', 'valley-1', 'village', 'builder']),
+    );
     for (const l of levels) expect(GAME_MODES).toContain(l.key);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -60,11 +62,16 @@ describe('two modes (ADR 0016)', () => {
       level: 'home-street',
     });
     expect(loadSelection(q('level=builder'), levels, memStore()).level).toBe(DEFAULT_LEVEL);
-    expect(loadSelection(q('level=builder'), classicLevels(true), memStore()).level).toBe('builder');
+    expect(loadSelection(q('level=builder'), classicLevels(true), memStore()).level).toBe(
+      'builder',
+    );
   });
   it('saveSelection round-trips', () => {
     const s = memStore();
     saveSelection({ mode: 'chase', level: 'home-street' }, s);
-    expect(loadSelection(q(''), classicLevels(false), s)).toEqual({ mode: 'chase', level: 'home-street' });
+    expect(loadSelection(q(''), classicLevels(false), s)).toEqual({
+      mode: 'chase',
+      level: 'home-street',
+    });
   });
 });
