@@ -50,6 +50,7 @@ export class HeroState {
   rollT = 0; // seconds of roll left
   landLockT = 0; // reserved: seconds of landing lock (time-cost landings)
   chainT = 0; // seconds left in the post-landing chain window
+  sprintM = 0; // metres run at >= 0.98 x run on the ground without a stop (ADR 0018)
   deadCause = 0;
   eventBits = 0;
   hookCd = 0; // seconds until the hook may fire again
@@ -100,6 +101,7 @@ export function copyHeroState(dst: HeroState, src: HeroState): void {
   dst.rollT = src.rollT;
   dst.landLockT = src.landLockT;
   dst.chainT = src.chainT;
+  dst.sprintM = src.sprintM;
   dst.deadCause = src.deadCause;
   dst.eventBits = src.eventBits;
   dst.hookCd = src.hookCd;

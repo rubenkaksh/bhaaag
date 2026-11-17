@@ -16,6 +16,8 @@ A mode may override only what is listed in `MODE_OVERRIDES` (same file) and in t
 | `camera.zipYawDeg / zipYawMinDiagDeg / zipYawEase` | 45 / 20 / 0.06 | same helper |
 | `camera.smooth`, `armRelease`, `fovSpeed` (damping) | see config | `updateCamera`, all modes |
 | `hero.airSteer / airSteerCap` | 14 / 6 | `core/sim.ts`, mode-blind |
+| `hero.sprintSpeed / sprintStreakM / sprintAccel` (ADR 0018) | 11 / 11.9 / 8 | `core/sim.ts` grounded non-slip branch only; sprintSpeed <= run disables it |
+| `hero.sprintCadence / sprintFov` (ADR 0018) | 0.2 / 6 | render only: `heroPose.ts` cycle rate, `cameraRig.ts` fov boost |
 | `tramp.airSteer / airSteerCap` | 12 / 6 | `core/sim.ts`, mode-blind |
 | `vault.*` (minSpeed 2.5, maxH 1.1, maxDepth 0.7, sec 0.28, keep 0.9, coneDeg 45, clearH 0.1) (ADR 0013) | see config | `core/sim.ts`, global; acts only through `World.parkour` |
 | `slide.*` (minSpeed 7, sec 0.6, height 1.0, decel 4, minKeep 2) (ADR 0013) | see config | `core/sim.ts`, global; acts only through `World.parkour` |
@@ -28,7 +30,7 @@ A mode may override only what is listed in `MODE_OVERRIDES` (same file) and in t
 
 | Item | Global default | Override | Why |
 | --- | --- | --- | --- |
-| Config keys (`MODE_OVERRIDES`) | n/a | none in any mode | nothing is mode-specific today |
+| `hero.sprintSpeed` (ADR 0018) | 11 | `chase`: 6 (= `hero.run`, sprint off) | Dragon Chase keeps its tuned run pace; every other mode sprints |
 | Camera tilt `?tilt=N` | `camera.tiltDeg` 20 | debug URL param, all modes | debugging only; no per-mode tilt any more |
 | `chase.startGap` | 36 | `?dragonGap=N` debug param in chase | debug aid, chase-only key |
 | HINT button | shown | hidden in strategy | `world.lineOnly`: no free aim, nothing to hint |

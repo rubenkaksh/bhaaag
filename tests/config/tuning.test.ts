@@ -75,6 +75,11 @@ const schema = z.strictObject({
     friction: num,
     airSteer: num,
     airSteerCap: num,
+    sprintSpeed: num,
+    sprintStreakM: num,
+    sprintAccel: num,
+    sprintCadence: num,
+    sprintFov: num,
   }),
   camera: z.strictObject({
     dist: num,
