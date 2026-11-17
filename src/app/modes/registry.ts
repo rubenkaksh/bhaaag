@@ -90,3 +90,25 @@ export const resolvePlayKey = (
   sel: Selection,
   levels: readonly LevelEntry[] = classicLevels(true),
 ): GameMode => defOf(sel.mode).playKey(sel, levels);
+
+/** Storage key of the best value for a play key, through its mode def (existing keys unchanged). */
+export const bestKeyFor = (key: GameMode): string => defOf(key).bestKey(key);
+
+/** Stored best for a play key; 0 = none (also when storage is blocked). */
+export function loadBest(key: GameMode, store?: Pick<Storage, 'getItem'>): number {
+  try {
+    const raw = store?.getItem(bestKeyFor(key));
+    const v = raw === null || raw === undefined ? 0 : Number(raw);
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function saveBest(key: GameMode, v: number, store?: Pick<Storage, 'setItem'>): void {
+  try {
+    store?.setItem(bestKeyFor(key), String(v));
+  } catch {
+    // Blocked storage: the best just is not kept.
+  }
+}

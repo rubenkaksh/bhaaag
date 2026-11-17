@@ -105,7 +105,11 @@ import { DustPuff } from '../adapters/render/dustPuff';
 import { GameLoop } from './loop';
 import { framingFor } from '../adapters/render/framing';
 import { MODE_INFO, graphIdOf, isGraphMode, readBest, writeBest } from './modes/mode';
-import { rulesForKey } from './modes/registry';
+import { loadBest, rulesForKey } from './modes/registry';
+import { RunClock } from './runClock';
+import { finishRun } from './finish';
+import { createLocalLeaderboard } from './leaderboard';
+import type { LeaderboardPort } from './leaderboard';
 import { graphInfo } from '../content/graph/info';
 import type { GraphAssets } from './graphAssets';
 import type { GameMode } from './modes/mode';
@@ -188,6 +192,8 @@ export function startGame(
   levelOverride?: LevelJson,
   /** Graph levels only: the lazy graph chunk (graphAssets.ts). */
   graph?: GraphAssets,
+  /** Finish-time board (T339); defaults to the local-storage port. */
+  leaderboard: LeaderboardPort = createLocalLeaderboard(),
 ): GameHandle {
   const cfg = resolveCfg(mode);
   let camCfg = cfg.camera;
@@ -332,7 +338,7 @@ export function startGame(
   let panT = 0;
   let panSkip = false;
   let deadT = 0;
-  let runT = 0;
+  const clock = new RunClock(cfg.fixedHz);
   let nextRouteIndex = 0;
   let anyInput = false;
   let brakeWas = false;
@@ -355,7 +361,14 @@ export function startGame(
   let aimId = NO_ANCHOR;
   let jsMs = 0;
   let stepMs = 0;
-  let best = readBest(mode);
+  const bestStore = (() => {
+    try {
+      return typeof localStorage === 'undefined' ? undefined : localStorage;
+    } catch {
+      return undefined;
+    }
+  })();
+  let best = loadBest(mode, bestStore);
 
   function resetHero(): void {
     copyHeroState(cur, newHeroState());
@@ -530,7 +543,7 @@ export function startGame(
     resetHero();
     phase = 'play';
     deadT = 0;
-    runT = 0;
+    clock.reset();
     nextRouteIndex = 0;
     anyInput = false;
     animEv = 0;
@@ -644,7 +657,7 @@ export function startGame(
       if ((cur.eventBits & HERO_EV_HOOKED) !== 0 || cur.mode === HERO_ATTACHED)
         tapAnchor = NO_ANCHOR;
       if (cs !== null) chaseStep(cs, cur, world, cfg);
-      runT += stepDt;
+      clock.tick(frame);
 
       const ev = cur.eventBits;
       if ((ev & HERO_EV_LANDED) !== 0) {
@@ -696,12 +709,9 @@ export function startGame(
         aabbContainsPoint(world.goal, cur.px, cur.py, cur.pz)
       ) {
         phase = 'won';
-        const res = rulesForKey(mode).onFinish(runT, best);
-        if (res.record) {
-          best = res.best;
-          writeBest(mode, best);
-        }
-        hudUi.showWin(runT, best);
+        const res = finishRun(mode, clock, best, leaderboard, bestStore);
+        best = res.best;
+        hudUi.showWin(res.seconds, best);
         hudUi.pulseTimer();
       }
       updateReticle();
@@ -1141,7 +1151,7 @@ export function startGame(
       renderChase(nowSec, frameDt);
     } else if (level !== null) {
       updateLevelView(level, nowSec, nextRouteIndex, hintId);
-      hudUi.setTime(runT);
+      hudUi.setTime(clock.seconds);
       hudUi.setHop(nextRouteIndex, world.route.length);
       hudUi.setAltitude(altitudeFraction(cur.py, world.spawn.y, hasGoal ? goalCy : world.spawn.y));
     }
