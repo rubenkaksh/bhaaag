@@ -55,3 +55,9 @@ From `CLAUDE.md` and `docs/lean-scope.md`:
 Amendment 2026-11-17 (two modes, owner decided; `docs/adr/0016-two-modes.md`):
 - The game has exactly TWO modes: Classic and Dragon Chase. Home Street, Valley Run, Nagarkot Run, Cloud Village, the original descent and builder levels are Classic **levels** (one level row in the lobby, Classic only), not modes. The "no level select" and "no fifth mode" non-goals are lifted only in this form.
 - Builder levels (`?builder`, `content/builders/*.builder.json`) may ship; the owner supplies them. No new level content is added by this amendment.
+
+Amendment 2026-11-17b (owner approved, NOT FROZEN: expect iteration; queue T334-T343):
+- Modes stay flexible behind a plug-in interface (T341). Classic and Dragon Chase are the visible modes and both run on the new level (Home Street houses on the Nagarkot Run graph, spiral layout); every other mode is hidden, not deleted. This overrides the "exactly two modes" wording above only where it implies deleting modes.
+- One new level is added (T336/T337). The "no multi-level content" non-goal is relaxed for it.
+- Classic is a time mode with a leaderboard for the shortest time (T339). Friends, Google/Facebook login and per-mode leaderboards run on Supabase with static hosting kept (T338). Login stays optional; anonymous play keeps working. This relaxes the "no per-level progression" non-goal for best times only.
+- New movement: sprint after 7 full-speed steps and sprint jumps (T334); runnable sloped roofs while balance is held (T335, waits for the owner's house reference). A gyroscope camera is a spike only (T343).
