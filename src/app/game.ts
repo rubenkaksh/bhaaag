@@ -41,6 +41,7 @@ import { STRATEGY_SEED, generateStrategyLevel } from '../content/strategy/gen';
 import { DesktopInput } from '../adapters/input/desktop';
 import { TouchInput, type ActionMode } from '../adapters/input/touch';
 import { Sfx } from '../adapters/audio/sfx';
+import { GyroLook } from '../adapters/input/gyroLook';
 import { CameraRig, updateCamera } from '../adapters/render/cameraRig';
 import { chaseRigYaw, tickYawOffsets } from '../adapters/render/cameraYaw';
 import type { YawOffsets } from '../adapters/render/cameraYaw';
@@ -307,6 +308,8 @@ export function startGame(
     const frame = newInputFrame();
   const coarse = window.matchMedia('(pointer: coarse)').matches;
   const input = coarse ? new TouchInput(root) : new DesktopInput(canvas);
+const gyro = new GyroLook(); // spike T343: render-only look offset, touch only
+if (coarse) gyro.mount(root);
 
   // Camera poses for render interpolation: cur advances once per fixed step,
   // onRender lerps prev -> cur with alpha so the camera moves at the same
@@ -415,11 +418,12 @@ export function startGame(
       cur.dead !== 0,
       camCfg,
     );
+    gyro.update();
     updateCamera(
       curRig,
       feet,
-      base + yawOff.zip + yawOff.side,
-      cur.camPitch - camTilt + (front ? 0.14 : 0),
+      base + yawOff.zip + yawOff.side + gyro.yaw,
+      cur.camPitch - camTilt + (front ? 0.14 : 0) + gyro.pitch,
       speed,
       world.solids,
       camCfg,
