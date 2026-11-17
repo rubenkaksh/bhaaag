@@ -1,0 +1,371 @@
+[
+  {
+    "viewport": "desktop",
+    "tier": "low",
+    "spawn": {
+      "calls": 20,
+      "triangles": 21652,
+      "shadowCasters": 0,
+      "pixelRatio": 1,
+      "width": 1920,
+      "height": 1080,
+      "textures": 4,
+      "geometries": 25,
+      "programs": 13,
+      "jsMs": 0.11905407294854312
+    },
+    "run": {
+      "calls": 29,
+      "triangles": 21856,
+      "shadowCasters": 0,
+      "pixelRatio": 1,
+      "width": 1920,
+      "height": 1080,
+      "textures": 4,
+      "geometries": 29,
+      "programs": 16,
+      "jsMs": 0.16509800544785136
+    },
+    "throttled": {
+      "calls": 32,
+      "triangles": 21908,
+      "shadowCasters": 0,
+      "pixelRatio": 1,
+      "width": 1920,
+      "height": 1080,
+      "textures": 4,
+      "geometries": 29,
+      "programs": 16,
+      "jsMs": 0.3982684933706278
+    },
+    "problems": []
+  },
+  {
+    "viewport": "desktop",
+    "tier": "medium",
+    "spawn": {
+      "calls": 42,
+      "triangles": 66768,
+      "shadowCasters": 8,
+      "pixelRatio": 1,
+      "width": 1920,
+      "height": 1080,
+      "textures": 6,
+      "geometries": 31,
+      "programs": 22,
+      "jsMs": 0.11214327541518701
+    },
+    "run": {
+      "calls": 45,
+      "triangles": 66884,
+      "shadowCasters": 8,
+      "pixelRatio": 1,
+      "width": 1920,
+      "height": 1080,
+      "textures": 6,
+      "geometries": 34,
+      "programs": 24,
+      "jsMs": 0.16257252980333486
+    },
+    "throttled": {
+      "calls": 47,
+      "triangles": 66920,
+      "shadowCasters": 8,
+      "pixelRatio": 1,
+      "width": 1920,
+      "height": 1080,
+      "textures": 6,
+      "geometries": 34,
+      "programs": 24,
+      "jsMs": 0.5820462217278224
+    },
+    "problems": []
+  },
+  {
+    "viewport": "desktop",
+    "tier": "high",
+    "spawn": {
+      "calls": 52,
+      "triangles": 92814,
+      "shadowCasters": 8,
+      "pixelRatio": 1,
+      "width": 1920,
+      "height": 1080,
+      "textures": 19,
+      "geometries": 30,
+      "programs": 41,
+      "jsMs": 0.1336852053753555
+    },
+    "run": {
+      "calls": 61,
+      "triangles": 93070,
+      "shadowCasters": 8,
+      "pixelRatio": 1,
+      "width": 1920,
+      "height": 1080,
+      "textures": 19,
+      "geometries": 35,
+      "programs": 47,
+      "jsMs": 0.22920086455270855
+    },
+    "throttled": {
+      "calls": 61,
+      "triangles": 93070,
+      "shadowCasters": 8,
+      "pixelRatio": 1,
+      "width": 1920,
+      "height": 1080,
+      "textures": 19,
+      "geometries": 35,
+      "programs": 47,
+      "jsMs": 0.63932639865322
+    },
+    "problems": []
+  },
+  {
+    "viewport": "phoneL",
+    "tier": "low",
+    "spawn": {
+      "calls": 20,
+      "triangles": 21652,
+      "shadowCasters": 0,
+      "pixelRatio": 1,
+      "width": 844,
+      "height": 390,
+      "textures": 4,
+      "geometries": 25,
+      "programs": 13,
+      "jsMs": 0.09539930672818385
+    },
+    "run": {
+      "calls": 32,
+      "triangles": 21908,
+      "shadowCasters": 0,
+      "pixelRatio": 1,
+      "width": 844,
+      "height": 390,
+      "textures": 4,
+      "geometries": 29,
+      "programs": 16,
+      "jsMs": 0.13809131507210365
+    },
+    "throttled": {
+      "calls": 32,
+      "triangles": 21908,
+      "shadowCasters": 0,
+      "pixelRatio": 1,
+      "width": 844,
+      "height": 390,
+      "textures": 4,
+      "geometries": 29,
+      "programs": 16,
+      "jsMs": 0.45714937517690396
+    },
+    "problems": []
+  },
+  {
+    "viewport": "phoneL",
+    "tier": "medium",
+    "spawn": {
+      "calls": 27,
+      "triangles": 66280,
+      "shadowCasters": 8,
+      "pixelRatio": 1.25,
+      "width": 844,
+      "height": 390,
+      "textures": 6,
+      "geometries": 27,
+      "programs": 18,
+      "jsMs": 0.1144013472078611
+    },
+    "run": {
+      "calls": 40,
+      "triangles": 66548,
+      "shadowCasters": 8,
+      "pixelRatio": 1.25,
+      "width": 844,
+      "height": 390,
+      "textures": 6,
+      "geometries": 31,
+      "programs": 21,
+      "jsMs": 0.2569936137725507
+    },
+    "throttled": {
+      "calls": 32,
+      "triangles": 26516,
+      "shadowCasters": 0,
+      "pixelRatio": 1,
+      "width": 844,
+      "height": 390,
+      "textures": 6,
+      "geometries": 31,
+      "programs": 33,
+      "jsMs": 0.6307164670888433
+    },
+    "problems": []
+  },
+  {
+    "viewport": "phoneL",
+    "tier": "high",
+    "spawn": {
+      "calls": 30,
+      "triangles": 92452,
+      "shadowCasters": 8,
+      "pixelRatio": 1.5,
+      "width": 844,
+      "height": 390,
+      "textures": 6,
+      "geometries": 27,
+      "programs": 18,
+      "jsMs": 0.11760062548654776
+    },
+    "run": {
+      "calls": 42,
+      "triangles": 92708,
+      "shadowCasters": 8,
+      "pixelRatio": 1.5,
+      "width": 844,
+      "height": 390,
+      "textures": 6,
+      "geometries": 31,
+      "programs": 21,
+      "jsMs": 0.28478322599266426
+    },
+    "throttled": {
+      "calls": 42,
+      "triangles": 92708,
+      "shadowCasters": 8,
+      "pixelRatio": 1.5,
+      "width": 844,
+      "height": 390,
+      "textures": 6,
+      "geometries": 31,
+      "programs": 21,
+      "jsMs": 0.9911048933109936
+    },
+    "problems": []
+  },
+  {
+    "viewport": "phoneP",
+    "tier": "low",
+    "spawn": {
+      "calls": 26,
+      "triangles": 21724,
+      "shadowCasters": 0,
+      "pixelRatio": 1,
+      "width": 390,
+      "height": 844,
+      "textures": 4,
+      "geometries": 25,
+      "programs": 13,
+      "jsMs": 0.10705990262387037
+    },
+    "run": {
+      "calls": 31,
+      "triangles": 21884,
+      "shadowCasters": 0,
+      "pixelRatio": 1,
+      "width": 390,
+      "height": 844,
+      "textures": 4,
+      "geometries": 28,
+      "programs": 15,
+      "jsMs": 0.1501447061096487
+    },
+    "throttled": {
+      "calls": 31,
+      "triangles": 21884,
+      "shadowCasters": 0,
+      "pixelRatio": 1,
+      "width": 390,
+      "height": 844,
+      "textures": 4,
+      "geometries": 28,
+      "programs": 15,
+      "jsMs": 0.35479613294716805
+    },
+    "problems": []
+  },
+  {
+    "viewport": "phoneP",
+    "tier": "medium",
+    "spawn": {
+      "calls": 27,
+      "triangles": 66280,
+      "shadowCasters": 8,
+      "pixelRatio": 1.25,
+      "width": 390,
+      "height": 844,
+      "textures": 6,
+      "geometries": 27,
+      "programs": 18,
+      "jsMs": 0.1310652223093302
+    },
+    "run": {
+      "calls": 39,
+      "triangles": 66524,
+      "shadowCasters": 8,
+      "pixelRatio": 1.25,
+      "width": 390,
+      "height": 844,
+      "textures": 6,
+      "geometries": 30,
+      "programs": 20,
+      "jsMs": 0.24344878037414105
+    },
+    "throttled": {
+      "calls": 31,
+      "triangles": 26492,
+      "shadowCasters": 0,
+      "pixelRatio": 1,
+      "width": 390,
+      "height": 844,
+      "textures": 6,
+      "geometries": 30,
+      "programs": 32,
+      "jsMs": 0.6519063543147559
+    },
+    "problems": []
+  },
+  {
+    "viewport": "phoneP",
+    "tier": "high",
+    "spawn": {
+      "calls": 30,
+      "triangles": 92452,
+      "shadowCasters": 8,
+      "pixelRatio": 1.5,
+      "width": 390,
+      "height": 844,
+      "textures": 6,
+      "geometries": 27,
+      "programs": 18,
+      "jsMs": 0.15099487419293034
+    },
+    "run": {
+      "calls": 41,
+      "triangles": 92684,
+      "shadowCasters": 8,
+      "pixelRatio": 1.5,
+      "width": 390,
+      "height": 844,
+      "textures": 6,
+      "geometries": 30,
+      "programs": 20,
+      "jsMs": 0.2834816666128204
+    },
+    "throttled": {
+      "calls": 41,
+      "triangles": 92684,
+      "shadowCasters": 8,
+      "pixelRatio": 1.5,
+      "width": 390,
+      "height": 844,
+      "textures": 6,
+      "geometries": 30,
+      "programs": 20,
+      "jsMs": 0.9502207726287333
+    },
+    "problems": []
+  }
+]
