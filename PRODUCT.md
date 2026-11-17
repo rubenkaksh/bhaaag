@@ -61,3 +61,11 @@ Amendment 2026-11-17b (owner approved, NOT FROZEN: expect iteration; queue T334-
 - One new level is added (T336/T337). The "no multi-level content" non-goal is relaxed for it.
 - Classic is a time mode with a leaderboard for the shortest time (T339). Friends, Google/Facebook login and per-mode leaderboards run on Supabase with static hosting kept (T338). Login stays optional; anonymous play keeps working. This relaxes the "no per-level progression" non-goal for best times only.
 - New movement: sprint after 7 full-speed steps and sprint jumps (T334); runnable sloped roofs while balance is held (T335, waits for the owner's house reference). A gyroscope camera is a spike only (T343).
+
+Amendment 2026-11-17f (owner decisions 2026-11-17e, replaces the 17b wording "spiral layout" and "both run on the new level"):
+- Exactly one new Classic level: Home Street houses (1 or 2 storeys) on a re-derived Nagarkot Run maze graph, no spiral. Other levels and modes are hidden behind the mode registry (one flag re-enables), not deleted.
+- Dragon Chase stays on the endless rows unchanged.
+- Classic on this level is fixed-line; the "free-aim in the maze is out" non-goal is kept for it.
+- Leaderboard time is (finish tick minus first-user-input tick) / 60, not replay traces; trust-the-client with server bounds.
+- Success: a first-time player finishes the level in under 2 minutes per run and retries instantly.
+- Budget: initial chunk frozen at the T333 baseline (264,521 B gz, one file) until T345 lazy-loads hidden modes to <= 215 KB gz.
