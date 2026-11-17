@@ -21,6 +21,7 @@ import {
   windowSlots,
 } from '../../../content/house/houseSpec';
 import type { Face, HouseSpec, Opening, PropSpec, Rect } from '../../../content/house/houseSpec';
+import { DOOR_HALF_W, doorwayBoxes } from '../doorway';
 
 const WIN_D = 0.118; // window depth unit (same as kit v1): sticks out 1.6 x this
 const SHUTTERS_PER_HOUSE = 5; // kit cap is 6 per house; keep the 90 % margin
@@ -399,33 +400,15 @@ function dressHouse(
     cropDress(o, h, seed);
   }
 
-  // Zipline pole: a post and a short crossbar at the anchor.
+  // Zipline pole: an open doorway (two side posts, lintel at the anchor) so the hero lands and
+  // runs through it. The rope arrives along the pole face normal.
   if (h.pole) {
     const a = poleAnchor(h);
-    o.box(
-      'trim',
-      'pole',
-      a[0] - 0.08,
-      deck,
-      a[2] - 0.08,
-      a[0] + 0.08,
-      a[1],
-      a[2] + 0.08,
-      c(POLE),
-      h.id,
-    );
-    o.box(
-      'trim',
-      'pole',
-      a[0] - 0.6,
-      a[1] - 0.1,
-      a[2] - 0.05,
-      a[0] + 0.6,
-      a[1],
-      a[2] + 0.05,
-      c(POLE),
-      h.id,
-    );
+    const n = faceNormal(h.poleFace ?? 2);
+    const col = c(POLE);
+    for (const b of doorwayBoxes(a[0], a[2], deck, a[1], n[0], n[1], DOOR_HALF_W, 0.16)) {
+      o.box('trim', 'pole', b[0], b[1], b[2], b[3], b[4], b[5], col, h.id);
+    }
   }
 }
 
