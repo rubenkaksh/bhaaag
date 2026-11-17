@@ -65,6 +65,7 @@ export { copyHeroState } from './hero';
 
 const SKIN = 1e-4; // gap kept from walls after a sweep, metres
 const DEG2RAD = Math.PI / 180;
+const SPRINT_KEEP = 0.98; // fraction of hero.run that counts toward the sprint streak (ADR 0018)
 const MIN_FACE_SPEED = 0.1; // below this horizontal speed yaw is left alone
 const NO_GROUND = -1e30;
 
@@ -946,6 +947,7 @@ export function step(s: HeroState, input: InputFrame, world: World, cfg: Tuning)
   else if (s.mode === HERO_VAULT) vaultStep(s, cfg, dt);
   else moveFree(s, input, world, cfg, dt);
   if (s.slideT > 0 && s.grounded !== 1) s.slideT = 0;
+  if (s.grounded !== 1 || s.mode !== HERO_GROUNDED) s.sprintM = 0; // rope, hang, vault, air
 
   if (s.dead === 0 && s.py < world.killPlaneY) killHero(s, DEAD_FELL);
   if (s.dead === 0 && world.hazards.length > 0 && hazardAt(world, s.px, s.py, s.pz) >= 0)
@@ -1013,8 +1015,8 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   }
   const sy = Math.sin(s.camYaw);
   const cy = Math.cos(s.camYaw);
-  const wantX = (my * sy + mx * cy) * cfg.hero.run;
-  const wantZ = (my * cy - mx * sy) * cfg.hero.run;
+  let wantX = (my * sy + mx * cy) * cfg.hero.run;
+  let wantZ = (my * cy - mx * sy) * cfg.hero.run;
 
   const pk = world.parkour === 1;
   if (s.grounded === 1) {
@@ -1045,8 +1047,10 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   // Horizontal velocity.
   if (slip >= 0) {
     s.slideT = 0;
+    s.sprintM = 0;
     slideVelocity(s, cfg, wantX, wantZ, mag, dt);
   } else if (s.grounded === 1 && s.slideT > 0) {
+    s.sprintM = 0;
     // Landing slide (ADR 0013): no steering, constant decel. The slide runs on past slide.sec
     // while a low ceiling is overhead.
     const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
@@ -1065,7 +1069,19 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
     s.slideT -= dt;
     if (s.slideT <= 0) s.slideT = headBlocked(world, s, cfg) ? dt : 0;
   } else if (s.grounded === 1) {
+    // Sprint (ADR 0018): run on without stopping for sprintStreakM metres and the want speed
+    // ramps from run to sprintSpeed. Off when sprintSpeed <= run.
+    const sprintOn = cfg.hero.sprintSpeed > cfg.hero.run;
+    const sp0 = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+    if (sprintOn && mag > 0 && sp0 >= SPRINT_KEEP * cfg.hero.run) s.sprintM += sp0 * dt;
+    else s.sprintM = 0;
+    const sprinting = sprintOn && s.sprintM >= cfg.hero.sprintStreakM;
     if (mag > 0) {
+      if (sprinting) {
+        const k = cfg.hero.sprintSpeed / cfg.hero.run;
+        wantX *= k;
+        wantZ *= k;
+      }
       const dx = wantX - s.vx;
       const dz = wantZ - s.vz;
       const dl = Math.sqrt(dx * dx + dz * dz);
@@ -1073,7 +1089,10 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
       const wantSq = wantX * wantX + wantZ * wantZ;
       const carrying =
         s.chainT > 0 && s.vx * s.vx + s.vz * s.vz > wantSq && s.vx * wantX + s.vz * wantZ > 0;
-      const maxD = (carrying ? cfg.landing.skidDecel : cfg.hero.accel) * dt;
+      // The ramp up to sprint speed is gentle; steering and braking keep the normal accel.
+      const ramp = sprinting && s.vx * wantX + s.vz * wantZ > 0 && sp0 < cfg.hero.sprintSpeed;
+      const maxD =
+        (carrying ? cfg.landing.skidDecel : ramp ? cfg.hero.sprintAccel : cfg.hero.accel) * dt;
       if (dl <= maxD) {
         s.vx = wantX;
         s.vz = wantZ;
@@ -1095,6 +1114,7 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
       }
     }
   } else {
+    s.sprintM = 0; // airborne
     const k = 1 - cfg.physics.airDrag * dt;
     s.vx *= k;
     s.vz *= k;
@@ -1168,7 +1188,10 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
       solidX = hitSolid;
     }
   }
-  if (hitX) s.vx = 0;
+  if (hitX) {
+    s.vx = 0;
+    s.sprintM = 0; // wall
+  }
   s.px += mvx;
   // Ramps carry no sweep geometry: reject the axis move when the ramp surface at the
   // new footprint is more than stepUp above the feet (wall rule, finding 5).
@@ -1204,7 +1227,10 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
       solidZ = hitSolid;
     }
   }
-  if (hitZ) s.vz = 0;
+  if (hitZ) {
+    s.vz = 0;
+    s.sprintM = 0; // wall
+  }
   s.pz += mvz;
   if (rampBarrierHeightAt(world, s.px, s.pz, r) > s.py + cfg.hero.stepUp) {
     s.pz = oldPz;

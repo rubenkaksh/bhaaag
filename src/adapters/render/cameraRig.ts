@@ -42,12 +42,13 @@ export function updateCamera(
   boxes: AABB[],
   cfg: CameraCfg,
   out?: SweepHit,
+  fovBoost = 0, // extra fov degrees (sprint), added to the speed-driven fov
 ): void {
   const hit = out === undefined ? scratchHit : out;
   const speedFrac = clamp(heroSpeed / cfg.fovSpeed, 0, 1);
   let pitchWanted = pitch - cfg.downhillBias * DEG * speedFrac;
   pitchWanted = clamp(pitchWanted, cfg.pitchMin * DEG, cfg.pitchMax * DEG);
-  const fovWanted = cfg.fov + (cfg.fovMax - cfg.fov) * speedFrac;
+  const fovWanted = cfg.fov + (cfg.fovMax - cfg.fov) * speedFrac + fovBoost;
 
   if (rig.initialized === 0) {
     rig.initialized = 1;

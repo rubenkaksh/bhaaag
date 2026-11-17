@@ -9,10 +9,10 @@ import type { GameMode } from './modes/mode';
 
 export type TuningOverride = { [K in keyof Tuning]?: Partial<Tuning[K]> };
 
-/** Explicit per-mode overrides of global tuning keys. Empty: no mode overrides any key today. */
+/** Explicit per-mode overrides of global tuning keys. Today only Dragon Chase differs: sprint off (sprintSpeed = run, ADR 0018). */
 export const MODE_OVERRIDES: Record<GameMode, TuningOverride> = {
   classic: {},
-  chase: {},
+  chase: { hero: { sprintSpeed: 6 } },
   strategy: {},
   village: {},
   'g:valley-1': {},

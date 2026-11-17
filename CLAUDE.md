@@ -19,7 +19,7 @@ Full spec: `docs/zipline-plan.md` (read the relevant section before each milesto
 - ~~Never a dead end: a validator CLI runs the real sim over every survivable state. It runs in CI and blocks deploys.~~ DROPPED by lean-scope item 2 (one hand-checked level).
 - Health: one-hit death. No pips. Wall impact above `vCling` kills (default 7.5 m/s, range 7-8); below it the hero clings. Rough landings only cost time.
 - Hand-brake: hold REEL while Attached (~10 m/s² decel, no new button). It is the skill answer to "too low".
-- Momentum carry: landing turns horizontal speed into run speed (cap ~8 m/s), a roll keeps it; firing within 0.4 s of landing seeds `v0` from it. Aiming works at full speed while moving.
+- Momentum carry: landing turns horizontal speed into run speed (cap `carryCap`, 12 m/s; sprint tops out at 11, ADR 0018), a roll keeps it; firing within 0.4 s of landing seeds `v0` from it. Aiming works at full speed while moving.
 - Orientation: portrait and landscape both playable (decided 2026-11-10); no rotate overlay. Supersedes the 2026-11-05 landscape-first decision.
 - Touch scheme: tap-to-aim on an anchor, one contextual action button (Hook, Mantle/Brake), JUMP (ignored on the rope); release is DROP, a swipe down.
 - Cloud Village: fourth mode, one hand-placed level (amendment 2026-11-12, `docs/lean-scope.md`).

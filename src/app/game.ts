@@ -304,7 +304,7 @@ export function startGame(
 
   const prev = newHeroState();
   const cur = newHeroState();
-    const frame = newInputFrame();
+  const frame = newInputFrame();
   const coarse = window.matchMedia('(pointer: coarse)').matches;
   const input = coarse ? new TouchInput(root) : new DesktopInput(canvas);
 
@@ -380,6 +380,7 @@ export function startGame(
     copyHeroState(prev, cur);
   }
 
+  let sprintK = 0; // 0..1 render-only sprint look (cadence, fov): grounded speed between run and sprintSpeed
   function tickCamera(): void {
     feet.x = cur.px;
     feet.y = cur.py;
@@ -401,6 +402,13 @@ export function startGame(
       feet.z += heroView.mantleOz;
     }
     const speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
+    sprintK =
+      cur.grounded === 1
+        ? Math.min(
+            1,
+            Math.max(0, (speed - cfg.hero.run) / (cfg.hero.sprintSpeed - cfg.hero.run || 1)),
+          )
+        : 0;
     // One camera path for every mode: base rig yaw, then the shared auto yaw offsets (zip + side look).
     // Chase frontPov 0 (default) is the behind view, same rig as classic (r = PI - c), looking
     // downhill along the run; frontPov 1 is the old camera ahead of the hero, tilted up the slope.
@@ -423,6 +431,8 @@ export function startGame(
       speed,
       world.solids,
       camCfg,
+      undefined,
+      sprintK * cfg.hero.sprintFov,
     );
     if (ovK > 0) applyOverview(base);
   }
@@ -1059,6 +1069,7 @@ export function startGame(
     hv.brake = cur.mode === HERO_ATTACHED && (frame.buttons & BTN_REEL) !== 0;
     hv.rolling = cur.rollT > 0;
     hv.sliding = cur.slideT > 0;
+    hv.sprint = sprintK * cfg.hero.sprintCadence;
     hv.events = animEv;
     hv.ropeLen = cur.hook.len;
     hv.impact = animImpact;
