@@ -2,7 +2,7 @@
 // ledge top in one tick; this keeps the drawn hero at the old spot and eases it to the sim
 // position: first up (hands pull, 0..65 % of the climb), then forward over the edge (35..100 %).
 // No three imports, node-testable. The sim end state is untouched.
-export const MANTLE_SEC = 0.5; // keep equal to heroPose MANTLE_END
+export const MANTLE_SEC = 0.75; // keep equal to heroPose MANTLE_END (0.5 s read as a snap in playtest)
 const MAX_JUMP = 4; // m; a larger gap is a respawn or teleport, never blended
 
 function smooth(a: number, b: number, v: number): number {
