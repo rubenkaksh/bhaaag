@@ -17,6 +17,15 @@ export function formatTime(sec: number): string {
   return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1);
 }
 
+/** Run time as s.cc (m:ss.cc from one minute), 0.00 before the first input (T339). */
+export function formatRunTime(sec: number): string {
+  const t = Math.max(0, Math.floor(sec * 100 + 1e-6) / 100);
+  if (t < 60) return t.toFixed(2);
+  const m = Math.floor(t / 60);
+  const s = t - m * 60;
+  return m + ':' + (s < 10 ? '0' : '') + s.toFixed(2);
+}
+
 // DOM HUD: timer, one-time hint, aim reticle, death toast, win overlay and the
 // contextual touch action label. Everything is created here; no index.html markup needed.
 export class Hud {
@@ -142,7 +151,7 @@ export class Hud {
   }
 
   setTime(sec: number): void {
-    const t = formatTime(sec);
+    const t = formatRunTime(sec);
     if (t === this.timerText) return;
     this.timerText = t;
     this.timerText_.textContent = t;
@@ -262,8 +271,8 @@ export class Hud {
   }
 
   showWin(time: number, best: number): void {
-    this.winTime.textContent = 'Time ' + formatTime(time);
-    this.winBest.textContent = 'Best ' + formatTime(best);
+    this.winTime.textContent = 'Time ' + formatRunTime(time);
+    this.winBest.textContent = 'Best ' + formatRunTime(best);
     this.win.classList.remove('off');
   }
 
