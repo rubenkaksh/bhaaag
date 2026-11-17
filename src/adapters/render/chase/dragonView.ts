@@ -22,7 +22,6 @@
 import {
   BufferAttribute,
   BufferGeometry,
-  CatmullRomCurve3,
   Color,
   ConeGeometry,
   CylinderGeometry,
@@ -36,7 +35,6 @@ import {
   PerspectiveCamera,
   Quaternion,
   SphereGeometry,
-  TubeGeometry,
   Vector3,
 } from 'three';
 import type { Material } from 'three';
@@ -92,13 +90,16 @@ export const DRAGON_TIERS: Record<GraphicsTier, TierSpec> = {
 
 const GOLD = new Color('#d89b34');
 const GOLD_DARK = new Color('#9c5f1a');
+const SKIN = new Color('#d4623a');
+const SKIN_LIGHT = new Color('#e58354');
+const SKIN_DARK = new Color('#a93a24');
+const HORN = new Color('#ecd2a0');
 const CREAM = new Color('#f2dcaa');
 const IVORY = new Color('#f1e3bd');
-const ANTLER = new Color('#e2c588');
 const MOUTH = new Color('#3e0c08');
 const TONGUE = new Color('#a3302a');
 const FLAME = new Color('#f0a43a');
-const EYE = new Color('#ffb02e');
+const EYE = new Color('#ff6a14');
 const PUPIL = new Color('#2a0800');
 const CLOUD_TOP = new Color('#f6efe2');
 const CLOUD_LOW = new Color('#e4a85a');
@@ -245,43 +246,39 @@ function v3(x: number, y: number, z: number): Vector3 {
   return new Vector3(x, y, z);
 }
 
+/**
+ * Head, local frame: +z back down the neck, -z the snout, +y up. Chunky clay-toy sculpt (terracotta
+ * skin, two thick cream horns, heavy brows, blocky snout, closed mouth with two fangs).
+ */
 function buildSkull(seg: number): BufferGeometry {
   const p: Part[] = [];
   for (let k = 0; k < 2; k++) {
     const sg = k === 0 ? -1 : 1;
-    // antlers: a main beam sweeping up and back, two tines
-    const a0 = v3(sg * 1.2, 2.0, 1.3);
-    const a1 = v3(sg * 2.5, 3.3, 2.3);
-    const a2 = v3(sg * 3.75, 4.4, 3.6);
-    limb(p, seg, ANTLER, a0, a1, 0.42, 0.32);
-    limb(p, seg, ANTLER, a1, a2, 0.32, 0.1);
-    limb(p, seg, ANTLER, a1, v3(sg * 2.0, 4.25, 1.7), 0.22, 0.07);
-    limb(p, seg, ANTLER, v3(sg * 3.12, 3.85, 2.95), v3(sg * 3.7, 3.3, 2.0), 0.18, 0.06);
-    ellipsoid(p, seg, ANTLER, a1.x, a1.y, a1.z, 0.34, 0.34, 0.34);
+    // horns: thick, short, curving up and back
+    const h0 = v3(sg * 1.5, 2.2, 1.0);
+    const h1 = v3(sg * 2.1, 3.6, 1.9);
+    const h2 = v3(sg * 2.3, 4.7, 3.3);
+    ellipsoid(p, seg, SKIN_DARK, h0.x, h0.y - 0.1, h0.z, 0.85, 0.7, 0.85); // horn socket
+    limb(p, seg, HORN, h0, h1, 0.62, 0.45);
+    limb(p, seg, HORN, h1, h2, 0.45, 0.1);
+    ellipsoid(p, seg, HORN, h1.x, h1.y, h1.z, 0.45, 0.45, 0.45);
   }
-  ellipsoid(p, seg, GOLD, 0, 0.7, 0.9, 2.5, 2.1, 2.6); // cranium
+  ellipsoid(p, seg, SKIN, 0, 0.7, 0.8, 2.7, 2.3, 2.6); // cranium
+  ellipsoid(p, seg, SKIN_LIGHT, 0, 2.0, 0.2, 0.9, 0.5, 1.4); // forehead boss
   for (let k = 0; k < 2; k++) {
     const sg = k === 0 ? -1 : 1;
-    ellipsoid(p, seg, GOLD, sg * 1.85, -0.35, -0.3, 1.0, 1.1, 1.35); // jowls
-    ellipsoid(p, seg, GOLD_DARK, sg * 1.3, 1.6, -1.2, 1.05, 0.42, 1.1, sg * 0.32); // angry brows
+    ellipsoid(p, seg, SKIN_LIGHT, sg * 1.95, -0.3, -0.4, 1.25, 1.15, 1.6); // cheeks
+    ellipsoid(p, seg, SKIN_DARK, sg * 1.35, 1.85, -1.3, 1.45, 0.62, 1.15, sg * 0.28); // heavy brows
+    spike(p, seg, SKIN_DARK, v3(sg * 2.8, 0.1, 0.9), v3(sg * 1, 0.1, 0.9), 1.5, 0.55); // cheek frills
   }
   ellipsoid(p, seg, MOUTH, 0, -1.0, -2.2, 1.15, 0.8, 2.3); // throat / palate
-  ellipsoid(p, seg, GOLD, 0, 0.05, -2.6, 1.45, 0.85, 2.5); // snout
-  ellipsoid(p, seg, CREAM, 0, 0.55, -4.75, 1.15, 0.55, 0.65); // nose pad
-  const down = v3(0, -1, -0.15);
+  ellipsoid(p, seg, SKIN, 0, 0.0, -2.9, 1.75, 1.0, 2.5); // snout
+  ellipsoid(p, seg, SKIN_LIGHT, 0, 0.35, -5.0, 1.45, 0.85, 1.0); // nose bulb
+  const down = v3(0, -1, -0.1);
   for (let k = 0; k < 2; k++) {
     const sg = k === 0 ? -1 : 1;
-    ellipsoid(p, seg, MOUTH, sg * 0.5, 0.62, -5.3, 0.22, 0.16, 0.12); // nostrils
-    spike(p, seg, IVORY, v3(sg * 0.95, -0.55, -4.3), down, 1.1, 0.22); // fangs
-    spike(p, seg, IVORY, v3(sg * 1.15, -0.5, -3.4), down, 0.55, 0.15);
-    // whiskers: long curling barbels from the snout
-    const curve = new CatmullRomCurve3([
-      v3(sg * 1.2, 0.1, -4.4),
-      v3(sg * 2.6, -0.6, -4.2),
-      v3(sg * 3.6, -1.6, -2.8),
-      v3(sg * 3.9, -2.8, -0.8),
-    ]);
-    p.push({ geo: new TubeGeometry(curve, Math.max(8, seg), 0.12, 4, false), color: CREAM });
+    ellipsoid(p, seg, MOUTH, sg * 0.62, 0.5, -5.85, 0.3, 0.22, 0.14); // nostrils
+    spike(p, seg, IVORY, v3(sg * 1.05, -0.7, -4.4), down, 1.0, 0.27); // fangs
   }
   return mergeParts(p);
 }
@@ -289,17 +286,14 @@ function buildSkull(seg: number): BufferGeometry {
 /** Lower jaw, local to its hinge (rotation.x < 0 opens it). */
 function buildJaw(seg: number): BufferGeometry {
   const p: Part[] = [];
-  ellipsoid(p, seg, GOLD, 0, -0.45, -2.9, 1.25, 0.45, 2.4);
-  ellipsoid(p, seg, CREAM, 0, -0.6, -4.9, 0.8, 0.4, 0.5); // chin
-  ellipsoid(p, seg, TONGUE, 0, -0.05, -2.8, 0.65, 0.18, 1.7);
+  ellipsoid(p, seg, SKIN, 0, -0.5, -2.9, 1.4, 0.55, 2.4);
+  ellipsoid(p, seg, SKIN_LIGHT, 0, -0.65, -5.0, 0.9, 0.45, 0.6); // chin
+  ellipsoid(p, seg, TONGUE, 0, -0.05, -2.8, 0.7, 0.18, 1.7);
   const up = v3(0, 1, -0.1);
-  const beard = v3(0, -1, 0.35);
   for (let k = 0; k < 2; k++) {
     const sg = k === 0 ? -1 : 1;
-    spike(p, seg, IVORY, v3(sg * 0.85, -0.1, -4.6), up, 0.8, 0.18);
-    spike(p, seg, FLAME, v3(sg * 0.6, -0.75, -3.9), beard, 2.6, 0.35);
+    spike(p, seg, IVORY, v3(sg * 0.8, -0.1, -4.6), up, 0.6, 0.16);
   }
-  spike(p, seg, FLAME, v3(0, -0.8, -4.2), beard, 3.0, 0.42);
   return mergeParts(p);
 }
 
@@ -307,8 +301,8 @@ function buildEyes(seg: number): BufferGeometry {
   const p: Part[] = [];
   for (let k = 0; k < 2; k++) {
     const sg = k === 0 ? -1 : 1;
-    ellipsoid(p, seg, EYE, sg * 1.5, 1.05, -1.6, 0.45, 0.4, 0.4);
-    ellipsoid(p, seg, PUPIL, sg * 1.62, 1.05, -1.95, 0.07, 0.3, 0.08);
+    ellipsoid(p, seg, EYE, sg * 1.7, 1.0, -1.85, 0.68, 0.64, 0.55);
+    ellipsoid(p, seg, PUPIL, sg * 1.82, 1.0, -2.3, 0.26, 0.28, 0.12);
   }
   return mergeParts(p);
 }
@@ -343,8 +337,8 @@ export class DragonView {
     fog: false,
   });
   private readonly maneMat = new MeshLambertMaterial({
-    color: FLAME,
-    emissive: '#b8520c',
+    color: '#d4553a',
+    emissive: '#8a2c14',
     fog: false,
   });
   private readonly eyeMat = new MeshBasicMaterial({
@@ -615,8 +609,8 @@ export class DragonView {
       this.maneData[o + 4] = this.q.y;
       this.maneData[o + 5] = this.q.z;
       this.maneData[o + 6] = this.q.w;
-      this.maneData[o + 7] = 2.4 + rand() * 1.5 - (Math.sin(phi) < -0.5 ? 0.8 : 0);
-      this.maneData[o + 8] = 0.5 + rand() * 0.25;
+      this.maneData[o + 7] = 1.5 + rand() * 0.9 - (Math.sin(phi) < -0.5 ? 0.5 : 0);
+      this.maneData[o + 8] = 0.75 + rand() * 0.25;
       this.maneData[o + 9] = rand() * Math.PI * 2;
     }
     const mane = new InstancedMesh(this.coneGeo, this.maneMat, nm);
