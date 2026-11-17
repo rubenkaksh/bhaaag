@@ -3,7 +3,8 @@
 // position: first up (hands pull, 0..65 % of the climb), then forward over the edge (35..100 %).
 // No three imports, node-testable. The sim end state is untouched.
 export const MANTLE_SEC = 0.75; // keep equal to heroPose MANTLE_END (0.5 s read as a snap in playtest)
-const MAX_JUMP = 4; // m; a larger gap is a respawn or teleport, never blended
+/** m; a larger gap is a respawn or teleport, never blended (the camera uses it too). */
+export const MANTLE_MAX_JUMP = 4;
 
 function smooth(a: number, b: number, v: number): number {
   const t = Math.max(0, Math.min(1, (v - a) / (b - a)));
@@ -22,7 +23,7 @@ export class MantleBlend {
 
   /** Begin a climb; (dx, dy, dz) = drawn position minus the new sim position. */
   start(dx: number, dy: number, dz: number): void {
-    if (Math.hypot(dx, dy, dz) > MAX_JUMP || Math.hypot(dx, dy, dz) < 0.05) {
+    if (Math.hypot(dx, dy, dz) > MANTLE_MAX_JUMP || Math.hypot(dx, dy, dz) < 0.05) {
       this.t = -1;
       return;
     }

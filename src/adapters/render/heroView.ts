@@ -23,9 +23,14 @@ export class HeroView {
   readonly input: HeroPoseInput;
   private lastMs = -1;
   private readonly mantle = new MantleBlend();
-  private drawnX = 0;
-  private drawnY = 0;
-  private drawnZ = 0;
+  /** Drawn hero position (sim position + mantle ease); the camera follows it during a climb. */
+  drawnX = 0;
+  drawnY = 0;
+  drawnZ = 0;
+  /** Current mantle ease offset (drawn minus sim position), 0 when not climbing. */
+  mantleOx = 0;
+  mantleOy = 0;
+  mantleOz = 0;
   private hasDrawn = false;
 
   constructor() {
@@ -48,6 +53,9 @@ export class HeroView {
     this.drawnX = rx + this.mantle.ox;
     this.drawnY = ry + this.mantle.oy;
     this.drawnZ = rz + this.mantle.oz;
+    this.mantleOx = this.mantle.ox;
+    this.mantleOy = this.mantle.oy;
+    this.mantleOz = this.mantle.oz;
     this.hasDrawn = true;
     this.group.position.set(this.drawnX, this.drawnY, this.drawnZ);
     let dy = (cur.yaw - prev.yaw) % TWO_PI;

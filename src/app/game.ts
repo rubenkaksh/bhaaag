@@ -55,6 +55,7 @@ import {
 import type { Pt } from '../adapters/render/overviewCam';
 import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
+import { MANTLE_MAX_JUMP } from '../adapters/render/mantleBlend';
 import { LineSnap, cablePoint } from '../adapters/render/lineSnap';
 import { updateLevelView } from '../adapters/render/levelView';
 import type { VillageAssets } from './villageAssets';
@@ -381,6 +382,22 @@ export function startGame(
     feet.x = cur.px;
     feet.y = cur.py;
     feet.z = cur.pz;
+    // Climb: the sim hero teleports to the ledge but the drawn hero eases there over MANTLE_SEC, so the
+    // camera follows the drawn one (on the event tick, the old drawn spot) or the view jumps first.
+    if ((cur.eventBits & HERO_EV_MANTLE) !== 0) {
+      const mx = heroView.drawnX - cur.px;
+      const my = heroView.drawnY - cur.py;
+      const mz = heroView.drawnZ - cur.pz;
+      if (Math.hypot(mx, my, mz) <= MANTLE_MAX_JUMP) {
+        feet.x += mx;
+        feet.y += my;
+        feet.z += mz;
+      }
+    } else {
+      feet.x += heroView.mantleOx;
+      feet.y += heroView.mantleOy;
+      feet.z += heroView.mantleOz;
+    }
     const speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
     // One camera path for every mode: base rig yaw, then the shared auto yaw offsets (zip + side look).
     // Chase frontPov 0 (default) is the behind view, same rig as classic (r = PI - c), looking
