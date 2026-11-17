@@ -21,6 +21,7 @@ import {
   newHeroState,
 } from '../core/hero';
 import {
+  HOOK_ATTACHED,
   HOOK_FLYING,
   HOOK_IDLE,
   NO_ANCHOR,
@@ -54,6 +55,8 @@ import {
 import type { Pt } from '../adapters/render/overviewCam';
 import { pickAnchorAtNdc } from '../adapters/render/tapAim';
 import { HeroView } from '../adapters/render/heroView';
+import { MANTLE_MAX_JUMP } from '../adapters/render/mantleBlend';
+import { LineSnap, cablePoint } from '../adapters/render/lineSnap';
 import { updateLevelView } from '../adapters/render/levelView';
 import type { VillageAssets } from './villageAssets';
 import { createGameScene } from '../adapters/render/scene';
@@ -279,6 +282,9 @@ export function startGame(
   const wpScreen = newWaypointScreen();
   const wpView = new Vector3();
   const ropeView = new RopeView(world.lineOnly === 1);
+  // Fixed lines: the drawn hero rides the drawn cable, not the sim chord (visual only, lineSnap.ts).
+  const lineSnap = new LineSnap();
+  const cableAt: number[] = [0, 0, 0];
   gs.scene.add(ropeView.group);
   const previewView = new AimPreviewView();
   gs.scene.add(previewView.group);
@@ -296,7 +302,7 @@ export function startGame(
 
   const prev = newHeroState();
   const cur = newHeroState();
-  const frame = newInputFrame();
+    const frame = newInputFrame();
   const coarse = window.matchMedia('(pointer: coarse)').matches;
   const input = coarse ? new TouchInput(root) : new DesktopInput(canvas);
 
@@ -376,6 +382,22 @@ export function startGame(
     feet.x = cur.px;
     feet.y = cur.py;
     feet.z = cur.pz;
+    // Climb: the sim hero teleports to the ledge but the drawn hero eases there over MANTLE_SEC, so the
+    // camera follows the drawn one (on the event tick, the old drawn spot) or the view jumps first.
+    if ((cur.eventBits & HERO_EV_MANTLE) !== 0) {
+      const mx = heroView.drawnX - cur.px;
+      const my = heroView.drawnY - cur.py;
+      const mz = heroView.drawnZ - cur.pz;
+      if (Math.hypot(mx, my, mz) <= MANTLE_MAX_JUMP) {
+        feet.x += mx;
+        feet.y += my;
+        feet.z += mz;
+      }
+    } else {
+      feet.x += heroView.mantleOx;
+      feet.y += heroView.mantleOy;
+      feet.z += heroView.mantleOz;
+    }
     const speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
     // One camera path for every mode: base rig yaw, then the shared auto yaw offsets (zip + side look).
     // Chase frontPov 0 (default) is the behind view, same rig as classic (r = PI - c), looking
@@ -988,6 +1010,47 @@ export function startGame(
     chaseHud?.setGap((d.gap - cfg.chase.catchGap) / (cfg.chase.startGap - cfg.chase.catchGap));
   }
 
+  /** Fixed lines: ease the drawn hero onto the drawn cable while attached (sim untouched). */
+  function snapToCable(dt: number): void {
+    if (world.lineOnly !== 1) return;
+    const gp = heroView.group.position;
+    const hk = cur.hook;
+    let on = false;
+    let tx = 0;
+    let ty = 0;
+    let tz = 0;
+    if (cur.dead === 0 && hk.state === HOOK_ATTACHED) {
+      for (let i = 0; i < world.lines.length; i++) {
+        const L = world.lines[i];
+        if (L.anchorId !== hk.anchorId) continue;
+        const z = L.zone;
+        const hy = gp.y + cfg.rope.handToFeet;
+        cablePoint(
+          (z.min.x + z.max.x) / 2,
+          z.max.y + cfg.rope.handToFeet,
+          (z.min.z + z.max.z) / 2,
+          hk.ax,
+          hk.ay,
+          hk.az,
+          gp.x,
+          hy,
+          gp.z,
+          cableAt,
+        );
+        on = true;
+        tx = cableAt[0] - gp.x;
+        ty = cableAt[1] - hy;
+        tz = cableAt[2] - gp.z;
+        break;
+      }
+    }
+    if (cur.dead !== 0) lineSnap.reset();
+    else lineSnap.step(on, tx, ty, tz, dt);
+    gp.x += lineSnap.ox;
+    gp.y += lineSnap.oy;
+    gp.z += lineSnap.oz;
+  }
+
   function onRender(alpha: number, frameDt: number): void {
     const r0 = debug ? performance.now() : 0;
     const hv = heroView.input;
@@ -1000,6 +1063,7 @@ export function startGame(
     hv.win = phase === 'won' ? 1 : 0;
     hv.hookFlying = cur.hook.state === HOOK_FLYING ? 1 : 0;
     heroView.update(prev, cur, alpha, frameDt);
+    snapToCable(frameDt);
 
     // Hand = interpolated feet + handToFeet; rope and rope direction both hang off it.
     const gp = heroView.group.position;

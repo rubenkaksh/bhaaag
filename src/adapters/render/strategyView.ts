@@ -5,6 +5,7 @@ import { BufferGeometry, Color, Float32BufferAttribute, Mesh, MeshLambertMateria
 import type { Object3D } from 'three';
 import type { World } from '../../core/world';
 import { buildFixedRopes } from '../../app/ropePost';
+import { DOOR_HALF_W, doorwayBoxes } from './doorway';
 
 const COLOR_GOLD = '#ffc83a'; // interactive: line zones
 const COLOR_POST = '#4a2c1c';
@@ -74,7 +75,6 @@ export function buildStrategyFeatures(world: World, skipProps = false): Object3D
   const out: Object3D[] = [];
   const zones: Box[] = [];
   const posts: Box[] = [];
-  const h = POST_W / 2;
   for (let i = 0; i < world.lines.length; i++) {
     const L = world.lines[i];
     const z = L.zone;
@@ -83,9 +83,15 @@ export function buildStrategyFeatures(world: World, skipProps = false): Object3D
     const cx = (z.min.x + z.max.x) / 2;
     const cz = (z.min.z + z.max.z) / 2;
     const sy = z.max.y + HAND_Y;
-    posts.push([cx - h, z.max.y, cz - h, cx + h, sy, cz + h]);
-    if (a === undefined) continue;
-    posts.push([a.px - h, a.py - POST_DOWN, a.pz - h, a.px + h, a.py + 0.1, a.pz + h]);
+    // Open doorways at both rope ends (no centre pole where the hero stands or lands).
+    const dx = a === undefined ? 0 : a.px - cx;
+    const dz = a === undefined ? 1 : a.pz - cz;
+    // The launch frame spans the whole pad: the hero may hook from anywhere on it.
+    const padHalf = Math.abs(dz) >= Math.abs(dx) ? (z.max.x - z.min.x) / 2 : (z.max.z - z.min.z) / 2;
+    posts.push(...doorwayBoxes(cx, cz, z.max.y, sy, dx, dz, Math.max(DOOR_HALF_W, padHalf), POST_W));
+    // Graph levels: the landing house draws its own doorway pole (houseV2).
+    if (a === undefined || skipProps) continue;
+    posts.push(...doorwayBoxes(a.px, a.pz, a.py - POST_DOWN, a.py, dx, dz, DOOR_HALF_W, POST_W));
   }
   if (zones.length > 0) out.push(boxesMesh(zones, COLOR_GOLD, 'lineZones', 0.35));
   if (posts.length > 0) out.push(boxesMesh(posts, COLOR_POST, 'linePosts'));
