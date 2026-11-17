@@ -1,9 +1,7 @@
 import { startGame } from './game';
-import { bestLabel, readBest } from './modes/mode';
+import { bestLabel, readBest, isGraphMode } from './modes/mode';
 import { classicLevels } from './modes/levels';
 import { resolvePlayKey } from './modes/registry';
-import { compileShipped } from '../content/builder/shipped';
-import { readLocalBuilderLevel } from '../content/builder/store';
 import type { GameHandle } from './game';
 import type { Selection } from './modes/levels';
 import type { LevelJson } from '../content/load';
@@ -46,10 +44,14 @@ const lobby = createLobby(document.body, {
 });
 // What is running: the selection id (mode + level), so a level switch inside Classic restarts the game.
 let runningId = '';
-function levelOverrideFor(sel: Selection): LevelJson | undefined {
+// Builder levels (local or shipped) compile in a lazy chunk (T345); null = not a builder level or it failed.
+async function levelOverrideFor(sel: Selection): Promise<LevelJson | undefined> {
   const e = classicLevels(true).find((l) => l.id === sel.level);
   if (sel.mode !== 'classic' || e?.builder === undefined) return undefined;
-  const lv = e.builder === 'local' ? readLocalBuilderLevel() : compileShipped(e.id.slice(2));
+  const lv =
+    e.builder === 'local'
+      ? (await import('../content/builder/store')).readLocalBuilderLevel()
+      : (await import('../content/builder/shipped')).compileShipped(e.id.slice(2));
   return lv ?? undefined;
 }
 function play(sel: Selection): void {
@@ -66,20 +68,35 @@ function play(sel: Selection): void {
     game.resume();
     return;
   }
-  if (key !== 'village') {
-    game = startGame(canvas, document.body, key, undefined, levelOverrideFor(sel));
+  const lazy =
+    key === 'village' ||
+    isGraphMode(key) ||
+    classicLevels(true).find((l) => l.id === sel.level)?.builder !== undefined;
+  if (!lazy) {
+    game = startGame(canvas, document.body, key);
     runningId = id;
     return;
   }
-  // Cloud Village: fetch its level and cloud renderer on demand (kept out of the initial chunk).
+  // Cloud Village, graph levels and builder levels: fetch their code and data on demand (kept out of the initial chunk).
   if (starting) return;
   starting = true;
-  void import('./villageAssets')
-    .then(({ village }) => {
+  const prepare = async (): Promise<GameHandle> => {
+    if (key === 'village') {
+      const { village } = await import('./villageAssets');
+      return startGame(canvas, document.body, key, village);
+    }
+    if (isGraphMode(key)) {
+      const { graphAssets } = await import('./graphAssets');
+      return startGame(canvas, document.body, key, undefined, undefined, graphAssets);
+    }
+    return startGame(canvas, document.body, key, undefined, await levelOverrideFor(sel));
+  };
+  void prepare()
+    .then((g) => {
       if (game === null) {
-        game = startGame(canvas, document.body, key, village);
+        game = g;
         runningId = id;
-      }
+      } else g.destroy();
     })
     .catch(() => {
       // Chunk fetch failed (offline): bring the lobby back instead of a black screen.

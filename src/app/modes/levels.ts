@@ -1,7 +1,7 @@
 // Two public modes (ADR 0016): Classic (finite levels) and Dragon Chase (endless). A Classic level is
 // data; `playKey` maps (mode, level) to the internal GameMode that selects tuning, best key and HUD flags.
-import { GRAPH_LEVELS } from '../../content/graph/registry';
-import { shippedBuilderLevels } from '../../content/builder/shipped';
+import { GRAPH_INFO as GRAPH_LEVELS } from '../../content/graph/info';
+import { shippedBuilderMeta } from '../../content/builder/shippedMeta';
 import type { GameMode } from './mode';
 
 /** A lobby mode id; the set of valid ids lives in the registry (registry.ts, ADR 0017). */
@@ -29,7 +29,7 @@ const BASE_LEVELS: readonly LevelEntry[] = [
 /** Classic's levels: the built-in ones, shipped builder levels, then the local builder level when present. */
 export function classicLevels(hasLocalBuilder = false): LevelEntry[] {
   const out: LevelEntry[] = [...BASE_LEVELS];
-  for (const b of shippedBuilderLevels()) {
+  for (const b of shippedBuilderMeta()) {
     out.push({ id: 'b:' + b.id, label: b.name, key: 'strategy', builder: 'shipped' });
   }
   if (hasLocalBuilder) {
