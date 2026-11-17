@@ -109,6 +109,13 @@ Date 2026-11-17. Source: three read-only Haiku Explore passes over this branch (
 - T338: host = GitHub Pages https://rubenkaksh.github.io/bhaaag/ (recorded in PRODUCT.md, CLAUDE.md, session-state, queue T333/T338).
 Open still: replay trace vs PRODUCT.md non-goal; 3-storey/parkour/road-node merge (for Fable); sprint 6 -> 11 above carryCap 12.
 
+## 5c. Owner decisions 2026-11-17c
+
+- T337 reference: `docs/reference/t337-annapurna-trek-map.jpg`: winding trail with a loop, a long curved spur and a short spur (see queue T337 note).
+- Leaderboard time: record an offset at the first user input; time = finish tick minus that offset. Replaces full replay traces (PRODUCT.md non-goal needs a wording amendment).
+- T334: 11 m/s sprint approved; sprint values stay in tuning.json, ready for Supabase remote config as in `workspaces/vidanta/docs/plans/2026-09-27-remote-game-config.md` (defaults equal today, clamped, never blocks, anon key only). Not built yet.
+- Deployment stays manual to https://rubenkaksh.github.io/bhaaag/; no new deploy job (T333 reduced to the chunk-size check).
+
 ## 5. Not verified
 
 dist initial-chunk size; `DEAD_CAUGHT` caller; desktop.ts/touch.ts sample internals; no gates, screenshots or device checks were run.
