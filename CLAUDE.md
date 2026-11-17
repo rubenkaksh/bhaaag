@@ -27,7 +27,7 @@ Full spec: `docs/zipline-plan.md` (read the relevant section before each milesto
 - ~~Preview help: release window shown in L1a/L1b, colour only in L1c.~~ DROPPED by lean-scope item 4 (no L1a/L1b/L1c ladder).
 - Hero: neutral parkour runner (placeholder mannequin).
 - Input: Pointer Events, desktop (pointer lock + WASD) and touch (floating stick, look-drag, buttons) from day one. Engine-agnostic `InputFrame`.
-- Hosting: Cloudflare Pages via GitHub Actions, `*.pages.dev`. Deploy from M0.
+- Hosting: GitHub Pages, live at https://rubenkaksh.github.io/bhaaag/ (legacy mode serving the `gh-pages` branch, vite `--base=/bhaaag/`; GitHub's built-in pages-build-deployment action publishes each gh-pages push; the push itself is still manual, see queue T333). Supersedes the earlier Cloudflare Pages decision (owner 2026-11-17).
 - MVP1 backlog (do NOT build yet): melee combat on balconies/roofs.
 
 ## Portable-core coding rules — DROPPED by lean-scope item 1
@@ -55,4 +55,4 @@ The existing core stays as is (no rewrite). New code may use plain idiomatic Typ
 - `pnpm typecheck`: `tsc --noEmit`, then `tsc --noEmit -p tsconfig.core.json` (core with ES2022 lib only).
 - ~~`pnpm validate:levels`~~ DROPPED (lean-scope item 2).
 - `pnpm format`: Prettier write (docs and md files are ignored).
-- CI order: lint, typecheck, test, build. ~~validate:levels and deploy gates~~ DROPPED (lean-scope items 2-3); Cloudflare Pages hosting itself is unchanged.
+- CI order: lint, typecheck, test, build. ~~validate:levels and deploy gates~~ DROPPED (lean-scope items 2-3); hosting is GitHub Pages (see Locked decisions; the ci.yml Cloudflare deploy job is dormant without secrets).

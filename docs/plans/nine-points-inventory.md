@@ -10,7 +10,7 @@ Date 2026-11-17. Source: three read-only Haiku Explore passes over this branch (
 | T335 | Sloped-roof collider is already built (`Roof` = two slip `Ramp`s, ADR 0002 "Accepted"). "Balance" does not exist anywhere (owner must define). Pitched roofs live in levelView.ts, not houseV2. Roof change breaks golden `tests/golden/roof-slide.trace.json`. ADR 0002 cites tests/content/terrace.test.ts, which does not exist. |
 | T336 | `content/builders/` is empty and the builder compiler has no HouseSpec: the suggested builder JSON is the wrong format. Level schema is `worldSchema` (load.ts:64, not exported); graph schema is `graphLevel` (format.ts:27). Level-graph skill is `.claude/skills/level-graph/SKILL.md` in the repo, not ~/.claude. Shots live at `tools/shots*.mjs` (run `node tools/...`). "Every node >= 1 house" fails for 3 road nodes (house = -1). Nagarkot roofs are 7/11/15 m (3 storeys) but the Home Street kit allows storeys 1|2 only. Nagarkot is parkour 0, Home Street parkour 1. |
 | T337 | Nagarkot edges are derived from geometry (graph.ts `buildEdges`), so bending positions changes edges: "topology unchanged" is not free. Ground height is `planeY(z)` only (gen.ts:40); a spiral needs a new ground model. No overlap or spacing test exists for the generator. |
-| T338 | Hosting facts conflict: CI deploys Cloudflare Pages (ci.yml), sessions say live is gh-pages (`/bhaaag/`). Confirm which. |
+| T338 | RESOLVED 2026-11-17: live host is GitHub Pages, https://rubenkaksh.github.io/bhaaag/ (branch gh-pages, legacy build, checked via the Pages API; ci.yml has no gh-pages job, the push is manual). |
 | T339 | "From first input" does not match code: clock `runT` starts at phase 'play' after the 2.5 s flyover (game.ts:572, 641). `trace` arg collides with PRODUCT.md non-goal "replay traces". Best keys are not per level: Nagarkot, shipped builder levels and "My level" share `bhagdori.best.strategy`. `runT` is a float sum; ms needs an integer tick count. |
 | T340 | Contradicts ADR 0016 and ADR 0010 C2 (dragon stays on straight endless rows). ADR 0017 must supersede both. "Both modes run the level": chase uses its own endless z-rows, not a level, so this is a new sim path. "New level" is not in the repo (T336/T337 unbuilt). "Hide strategy/village" applies to the Classic level row; the mode row is already two. 215 KB initial-chunk check does not exist anywhere (no size script, no CI step). |
 | T341 | Names `modes.ts`; folder has `mode.ts` and `levels.ts` (suggest `registry.ts`). "PlayKey" is the doc name; the type is `GameMode`. "Fake mode plays 10 ticks via startGame" is impossible in Vitest (needs canvas/three); needs a pure seam first. `enabled` is new. |
@@ -93,9 +93,21 @@ Date 2026-11-17. Source: three read-only Haiku Explore passes over this branch (
 3. T336/T337: accept new generator path and decide storeys (3-storey kit vs 2), parkour 0 or 1, and whether road nodes carry houses.
 4. T337: is a changed edge set acceptable, or must edges be fixed data checked against the sim?
 5. T339: per-level best keys (split the shared `strategy` key)? "From first input" or from play start?
-6. T338: which host is live, Cloudflare Pages or gh-pages?
+6. T338: RESOLVED, GitHub Pages (see section 6).
 7. T334: confirm 6 -> 11 and the cap above carryCap 12; is a visible sprint pose required (pose clamp)?
 8. T335: define "balance"; supply house reference.
+
+## 5b. Owner decisions 2026-11-17b (after this inventory; they override the cards)
+
+- T334: add a sprint animation with the higher speed (lift the pose clamp, heroPose.ts:494).
+- T335: backlog, not in this batch.
+- T336: ONE map: Home Street extended with a house for every Nagarkot Run maze node; other levels hidden. Fable clarifies the model merge in phase 3.
+- T337: only a Home Street type angle change, no literal spiral.
+- T339: one level only; per-level keys moot.
+- T340: keep Dragon Chase logic as is, reintegrate into new Classic later; no spiral dragon/ADR 0017 now.
+- T341: do the recommended (registry.ts, GameMode, keep key strings, pure tick seam).
+- T338: host = GitHub Pages https://rubenkaksh.github.io/bhaaag/ (recorded in PRODUCT.md, CLAUDE.md, session-state, queue T333/T338).
+Open still: replay trace vs PRODUCT.md non-goal; 3-storey/parkour/road-node merge (for Fable); sprint 6 -> 11 above carryCap 12.
 
 ## 5. Not verified
 

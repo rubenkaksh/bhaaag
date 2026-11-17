@@ -4,7 +4,7 @@
 
 ## Platform
 
-Web (three.js, Vite). Landscape and portrait on phones; desktop (pointer lock + WASD) and touch from day one. Hosting: Cloudflare Pages.
+Web (three.js, Vite). Landscape and portrait on phones; desktop (pointer lock + WASD) and touch from day one. Hosting: GitHub Pages, https://rubenkaksh.github.io/bhaaag/ (branch gh-pages, base /bhaaag/; owner 2026-11-17).
 
 ## Users
 
