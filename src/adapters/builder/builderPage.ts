@@ -1,4 +1,4 @@
-// Level builder page (ADR 0014), dev only: ?builder. Top-down 2D canvas + a side panel, vanilla DOM.
+// Level builder page (ADR 0014, 0016): ?builder. Top-down 2D canvas + a side panel, vanilla DOM.
 // All rules live in src/content/builder (pure, tested); this file only draws and routes input.
 import { compileLevel, roofHeight, validate } from '../../content/builder/compile';
 import type { Report } from '../../content/builder/compile';
@@ -376,7 +376,7 @@ export function mountBuilder(root: HTMLElement): void {
     try {
       if (!savePlayLevel(compileLevel(hist.present))) throw new Error('storage blocked');
       msg = 'Opened in a new tab.';
-      window.open(location.pathname + '?mode=strategy&level=builder', '_blank');
+      window.open(location.pathname + '?mode=classic&level=builder', '_blank');
     } catch (err) {
       msg = 'Cannot play: ' + (err instanceof Error ? err.message : String(err));
     }
@@ -395,7 +395,7 @@ export function mountBuilder(root: HTMLElement): void {
     const h = sel === -1 ? undefined : houseById(l, sel);
     const r = report;
     panel.innerHTML =
-      `<b>Level builder</b> <span class="note">dev only</span>
+      `<b>Level builder</b> <a href="${location.pathname}" style="color:#c9a227">Back to game</a>
       <h3>Level</h3>
       <input type="text" data-f="id" value="${esc(l.id)}" title="file id: new iteration = new id"> <input type="text" data-f="name" value="${esc(l.name)}">
       <h3>Tool</h3>` +

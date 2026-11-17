@@ -6,8 +6,15 @@ import {
   saveGraphicsTier,
 } from '../render/graphicsTier';
 import type { GraphicsTier } from '../render/graphicsTier';
-import { GAME_MODES, MODE_INFO, loadMode, saveMode } from '../../app/modes/mode';
-import type { GameMode } from '../../app/modes/mode';
+import {
+  MODES,
+  MODE_LABEL,
+  classicLevels,
+  loadSelection,
+  saveSelection,
+} from '../../app/modes/levels';
+import type { LevelEntry, Mode, Selection } from '../../app/modes/levels';
+import { hasLocalBuilderLevel } from '../../content/builder/store';
 import { ORIENT_LABEL, ORIENT_PREFS } from './orientation';
 import type { OrientationControl } from './orientation';
 
@@ -49,9 +56,9 @@ const ART = `<svg id="lobby-art" viewBox="0 0 160 90" preserveAspectRatio="xMidY
 </svg>`;
 
 export type LobbyHandlers = {
-  onPlay: (mode: GameMode) => void;
+  onPlay: (sel: Selection) => void;
   onMenu: () => void;
-  getBestLabel: (mode: GameMode) => string;
+  getBestLabel: (sel: Selection) => string;
   orientation?: OrientationControl; // Auto / Landscape / Portrait switch (touch devices only)
 };
 
@@ -69,10 +76,11 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
     '<div class="head"><h1>Bhaaag</h1><p class="tag">Slide the Kathmandu rooftops at sunset</p></div>' +
     '<div class="mid">' +
     '<div id="lobby-mode" role="radiogroup" aria-label="Game mode">' +
-    GAME_MODES.map(
-      (m) => `<button type="button" role="radio" data-mode="${m}">${MODE_INFO[m].label}</button>`,
+    MODES.map(
+      (m) => `<button type="button" role="radio" data-mode="${m}">${MODE_LABEL[m]}</button>`,
     ).join('') +
     '</div>' +
+    '<div id="lobby-level" role="radiogroup" aria-label="Classic level"></div>' +
     '<button id="lobby-play" type="button">PLAY</button><p id="lobby-best"></p>' +
     '<div id="lobby-gfx" role="radiogroup" aria-label="Graphics quality"><span class="lbl">Graphics</span>' +
     GRAPHICS_TIERS.map(
@@ -146,22 +154,43 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
     }
   }
 
-  // Game mode: saved at once; PLAY / RESUME starts (or switches to) the chosen mode.
+  // Mode (Classic / Dragon Chase) plus Classic's level row: saved at once; PLAY / RESUME starts the choice.
   const modeBtns = lobby.querySelectorAll<HTMLButtonElement>('#lobby-mode button');
-  let mode: GameMode = loadMode(undefined, new URLSearchParams(location.search).get('mode'));
+  const levelRow = lobby.querySelector<HTMLElement>('#lobby-level');
+  if (levelRow === null) throw new Error('lobby markup');
+  const levelEl: HTMLElement = levelRow;
+  let levels: LevelEntry[] = classicLevels(hasLocalBuilderLevel());
+  let sel: Selection = loadSelection(new URLSearchParams(location.search), levels);
+  function renderLevels(): void {
+    levels = classicLevels(hasLocalBuilderLevel());
+    levelEl.innerHTML = levels
+      .map((l) => `<button type="button" role="radio" data-level="${l.id}">${l.label}</button>`)
+      .join('');
+    for (const b of levelEl.querySelectorAll<HTMLButtonElement>('button')) {
+      b.addEventListener('click', () => {
+        sel = { mode: 'classic', level: b.dataset.level ?? sel.level };
+        saveSelection(sel);
+        showMode();
+      });
+    }
+  }
   function showMode(): void {
-    for (const b of modeBtns) b.setAttribute('aria-checked', String(b.dataset.mode === mode));
-    bestEl.textContent = h.getBestLabel(mode);
+    for (const b of modeBtns) b.setAttribute('aria-checked', String(b.dataset.mode === sel.mode));
+    levelEl.style.display = sel.mode === 'classic' ? '' : 'none';
+    for (const b of levelEl.querySelectorAll('button'))
+      b.setAttribute('aria-checked', String(b.dataset.level === sel.level));
+    bestEl.textContent = h.getBestLabel(sel);
   }
   for (const b of modeBtns) {
     b.addEventListener('click', () => {
-      const m = GAME_MODES.find((x) => x === b.dataset.mode);
+      const m = MODES.find((x): x is Mode => x === b.dataset.mode);
       if (m === undefined) return;
-      mode = m;
-      saveMode(m);
+      sel = { mode: m, level: sel.level };
+      saveSelection(sel);
       showMode();
     });
   }
+  renderLevels();
 
   const menu = document.createElement('button');
   menu.id = 'menu-btn';
@@ -176,6 +205,7 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
 
   function show(): void {
     shown = true;
+    renderLevels();
     showMode();
     playBtn.textContent = started ? 'RESUME' : 'PLAY';
     lobby.classList.remove('off');
@@ -191,7 +221,7 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
   }
 
   playBtn.addEventListener('click', () => {
-    h.onPlay(mode);
+    h.onPlay(sel);
   });
   menu.addEventListener('click', () => {
     h.onMenu();

@@ -1,7 +1,11 @@
 import { startGame } from './game';
 import { bestLabel, readBest } from './modes/mode';
+import { classicLevels, playKey } from './modes/levels';
+import { compileShipped } from '../content/builder/shipped';
+import { readLocalBuilderLevel } from '../content/builder/store';
 import type { GameHandle } from './game';
-import type { GameMode } from './modes/mode';
+import type { Selection } from './modes/levels';
+import type { LevelJson } from '../content/load';
 import { createLobby } from '../adapters/ui/lobby';
 import { createOrientation } from '../adapters/ui/orientation';
 
@@ -29,18 +33,31 @@ let starting = false;
 const orientation = createOrientation(document.body);
 const lobby = createLobby(document.body, {
   orientation,
-  getBestLabel: (mode) => bestLabel(mode, readBest(mode)),
-  onPlay: (mode) => play(mode),
+  getBestLabel: (sel) => {
+    const key = playKey(sel, classicLevels(true));
+    return bestLabel(key, readBest(key));
+  },
+  onPlay: (sel) => play(sel),
   onMenu: () => {
     game?.pause();
     lobby.show();
   },
 });
-function play(mode: GameMode): void {
+// What is running: the selection id (mode + level), so a level switch inside Classic restarts the game.
+let runningId = '';
+function levelOverrideFor(sel: Selection): LevelJson | undefined {
+  const e = classicLevels(true).find((l) => l.id === sel.level);
+  if (sel.mode !== 'classic' || e?.builder === undefined) return undefined;
+  const lv = e.builder === 'local' ? readLocalBuilderLevel() : compileShipped(e.id.slice(2));
+  return lv ?? undefined;
+}
+function play(sel: Selection): void {
   lobby.hide();
   requestImmersive();
   if (orientation.pref() !== 'auto') orientation.setPref(orientation.pref()); // retry the lock inside this tap
-  if (game !== null && game.mode !== mode) {
+  const key = playKey(sel, classicLevels(true));
+  const id = sel.mode === 'chase' ? 'chase' : sel.level;
+  if (game !== null && runningId !== id) {
     game.destroy();
     game = null;
   }
@@ -48,8 +65,9 @@ function play(mode: GameMode): void {
     game.resume();
     return;
   }
-  if (mode !== 'village') {
-    game = startGame(canvas, document.body, mode);
+  if (key !== 'village') {
+    game = startGame(canvas, document.body, key, undefined, levelOverrideFor(sel));
+    runningId = id;
     return;
   }
   // Cloud Village: fetch its level and cloud renderer on demand (kept out of the initial chunk).
@@ -57,7 +75,10 @@ function play(mode: GameMode): void {
   starting = true;
   void import('./villageAssets')
     .then(({ village }) => {
-      if (game === null) game = startGame(canvas, document.body, mode, village);
+      if (game === null) {
+        game = startGame(canvas, document.body, key, village);
+        runningId = id;
+      }
     })
     .catch(() => {
       // Chunk fetch failed (offline): bring the lobby back instead of a black screen.
@@ -73,11 +94,12 @@ window.addEventListener('zt-menu', () => {
   lobby.show();
 });
 
-// Dev-only (ADR 0013): ?builder opens the level builder; ?level=builder plays its last compiled level.
+// ?builder opens the level builder (lazy chunk, ADR 0016); ?level=builder / ?level=b:<id> start Classic on
+// that level straight away.
 const q = new URLSearchParams(location.search);
-if (import.meta.env.DEV && q.has('builder')) {
+if (q.has('builder')) {
   lobby.hide();
   void import('../adapters/builder/builderPage').then((m) => m.mountBuilder(document.body));
-} else if (import.meta.env.DEV && q.get('level') === 'builder') {
-  play('strategy');
+} else if (q.get('level') === 'builder' || q.get('level')?.startsWith('b:') === true) {
+  play({ mode: 'classic', level: q.get('level') ?? 'builder' });
 }

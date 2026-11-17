@@ -51,3 +51,7 @@ From `CLAUDE.md` and `docs/lean-scope.md`:
 4. Readable sunlit rooftops; the route is legible (only the next on-route anchor and its pad pulse).
 5. Light on load and on the phone: stock materials, primitives, a small texture set (runtime-loaded cap per tier: Low 150 KB, Medium 300 KB, High 600 KB).
 6. One-hit death, with the hand-brake as the skill answer to "too low".
+
+Amendment 2026-11-17 (two modes, owner decided; `docs/adr/0016-two-modes.md`):
+- The game has exactly TWO modes: Classic and Dragon Chase. Home Street, Valley Run, Nagarkot Run, Cloud Village, the original descent and builder levels are Classic **levels** (one level row in the lobby, Classic only), not modes. The "no level select" and "no fifth mode" non-goals are lifted only in this form.
+- Builder levels (`?builder`, `content/builders/*.builder.json`) may ship; the owner supplies them. No new level content is added by this amendment.
