@@ -74,6 +74,23 @@ const G = T.physics.g;
 const DRAG = T.physics.airDrag;
 const R = T.hero.radius;
 
+// Sprint reach (nagarkot-home, T336a). ASSUMED until T334 merges: swap each for its tuning.hero.sprint* key
+// or the distance measured in docs/adr/0018-sprint.md, then add the test "graph sprint constants == tuning".
+export const SPRINT_SPEED = 11; // m/s; becomes tuning.hero.sprintSpeed
+export const SPRINT_STRIDE_M = 1.7; // run 6 m/s / (2 x runCadence(6) = 3.53 steps/s), heroPose.ts
+export const SPRINT_STREAK_M = 7 * SPRINT_STRIDE_M; // 11.9 m of running before the sprint engages
+export const SPRINT_RAMP_M = 6; // ASSUMED 6 -> 11 m/s speed-up distance
+export const SPRINT_JUMP_VY = T.hero.jump; // sprint-jump take-off speed (T334 may raise it)
+const RUN_UP_M = (T.hero.run * T.hero.run) / (2 * T.hero.accel);
+export const SPRINT_RUNWAY_M = RUN_UP_M + SPRINT_STREAK_M + SPRINT_RAMP_M; // 18.35 m
+export const LEAK_SPEEDS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, SPRINT_SPEED];
+
+/** Optional edge model: extra launches and grab approach speeds (nagarkot-home leak model). Undefined = the frozen rules. */
+export interface EdgeOpts {
+  launches: ReadonlyArray<readonly [number, number]>;
+  grab: readonly number[];
+}
+
 export interface Flight {
   dist: number; // horizontal distance travelled when the feet reach dy
   vLand: number; // downward speed at that moment
@@ -121,12 +138,13 @@ const LAUNCHES: ReadonlyArray<readonly [number, number]> = [
 ];
 
 /** Jump/drop edge A -> B: the gentlest launch that makes the distance decides lethality. */
-export function jumpOk(a: MazeNode, b: MazeNode, rel: Rel): boolean {
+export function jumpOk(a: MazeNode, b: MazeNode, rel: Rel, opts?: EdgeOpts): boolean {
   const dy = b.y - a.y;
   if (dy > STEP_MAX) return false;
   const need = rel.gap + 2 * R + LAND_MARGIN;
-  for (let i = 0; i < LAUNCHES.length; i++) {
-    const f = flight(LAUNCHES[i][0], LAUNCHES[i][1], dy);
+  const L = opts === undefined ? LAUNCHES : LAUNCHES.concat(opts.launches);
+  for (let i = 0; i < L.length; i++) {
+    const f = flight(L[i][0], L[i][1], dy);
     if (f === null || f.dist < need) continue;
     return b.cushion || f.vLand <= T.landing.vyRoll - VLAND_MARGIN;
   }
@@ -190,10 +208,11 @@ function lipFrom(vy0: number, vh: number, lip: number, b: MazeNode, dy: number):
 }
 
 /** Tight edge A -> B: a lip landing the sim allows but the comfort margins of jumpOk/trampOk refuse. */
-export function tightOk(a: MazeNode, b: MazeNode, rel: Rel): boolean {
+export function tightOk(a: MazeNode, b: MazeNode, rel: Rel, opts?: EdgeOpts): boolean {
   const dy = b.y - a.y;
-  for (let i = 0; i < LAUNCHES.length; i++) {
-    if (lipFrom(LAUNCHES[i][0], LAUNCHES[i][1], rel.gap, b, dy)) return true;
+  const L = opts === undefined ? LAUNCHES : LAUNCHES.concat(opts.launches);
+  for (let i = 0; i < L.length; i++) {
+    if (lipFrom(L[i][0], L[i][1], rel.gap, b, dy)) return true;
   }
   if (rel.downhill && padAligned(a, b)) {
     return lipFrom(T.tramp.vUp, T.hero.run * TRAMP_APPROACH, rel.gap + PAD_DEPTH / 2, b, dy);
@@ -202,11 +221,14 @@ export function tightOk(a: MazeNode, b: MazeNode, rel: Rel): boolean {
 }
 
 /** Grab edge A -> B: reach B's wall with its ledge in climb reach, then mantle (ADR 0011). */
-export function grabOk(a: MazeNode, b: MazeNode, rel: Rel): boolean {
+export function grabOk(a: MazeNode, b: MazeNode, rel: Rel, opts?: EdgeOpts): boolean {
   // A balcony covers its roof's uphill face: from uphill you meet the balcony, not the roof wall.
   if (b.kind === NODE_ROOF && b.balc >= 0 && rel.downhill) return false;
   const dy = b.y - a.y;
-  if (grabFrom(T.hero.jump, T.hero.run, rel.gap - R, dy)) return true;
+  const gs = opts === undefined ? [T.hero.run] : opts.grab;
+  for (let i = 0; i < gs.length; i++) {
+    if (grabFrom(T.hero.jump, gs[i], rel.gap - R, dy)) return true;
+  }
   if (rel.downhill && padAligned(a, b)) {
     return grabFrom(T.tramp.vUp, T.hero.run * TRAMP_APPROACH, rel.gap + PAD_DEPTH / 2 - R, dy);
   }
@@ -261,27 +283,27 @@ export function zipOk(a: MazeNode, b: MazeNode, nodes: MazeNode[]): boolean {
 }
 
 /** The move that takes A to B, or -1. One edge per ordered pair; plain moves win over features. */
-export function moveOf(a: MazeNode, b: MazeNode, nodes: MazeNode[]): number {
+export function moveOf(a: MazeNode, b: MazeNode, nodes: MazeNode[], opts?: EdgeOpts): number {
   if (a.id === b.id) return -1;
   if (a.kind === NODE_BALCONY && a.up === b.id) return MOVE_CLIMB;
   const rel = relation(a, b);
   // A balcony hangs on the uphill face: its own house blocks every downhill move off it.
   if (rel !== null && !(a.kind === NODE_BALCONY && rel.downhill)) {
-    if (jumpOk(a, b, rel)) return MOVE_JUMP;
+    if (jumpOk(a, b, rel, opts)) return MOVE_JUMP;
     if (trampOk(a, b, rel)) return MOVE_TRAMP;
-    if (grabOk(a, b, rel)) return MOVE_GRAB;
+    if (grabOk(a, b, rel, opts)) return MOVE_GRAB;
   }
   if (zipOk(a, b, nodes)) return MOVE_ZIP;
-  if (rel !== null && !(a.kind === NODE_BALCONY && rel.downhill) && tightOk(a, b, rel)) return MOVE_TIGHT;
+  if (rel !== null && !(a.kind === NODE_BALCONY && rel.downhill) && tightOk(a, b, rel, opts)) return MOVE_TIGHT;
   return -1;
 }
 
 /** All edges of a node set, recomputed from geometry. */
-export function buildEdges(nodes: MazeNode[]): MazeEdge[] {
+export function buildEdges(nodes: MazeNode[], opts?: EdgeOpts): MazeEdge[] {
   const edges: MazeEdge[] = [];
   for (let i = 0; i < nodes.length; i++) {
     for (let j = 0; j < nodes.length; j++) {
-      const move = moveOf(nodes[i], nodes[j], nodes);
+      const move = moveOf(nodes[i], nodes[j], nodes, opts);
       if (move >= 0) edges.push({ from: nodes[i].id, to: nodes[j].id, move });
     }
   }
@@ -371,4 +393,143 @@ export function analyze(g: MazeGraph): MazeStats {
   const deadEnds: number[] = [];
   for (let i = 0; i < g.n; i++) if (reach[i] && !canFinish[i]) deadEnds.push(i);
   return { reach, canFinish, deadEnds, escapePaths: escapePaths(g), goalReached: reach[g.goal] };
+}
+
+/** Edges a route may be built on: the generator never routes on a grab or a lip landing. */
+export function isRouteMove(move: number): boolean {
+  return move === MOVE_JUMP || move === MOVE_TRAMP || move === MOVE_ZIP || move === MOVE_CLIMB;
+}
+
+/**
+ * Internally node-disjoint start -> goal paths (node-split unit-capacity max flow), counted up to cap.
+ * `free` nodes (start, goal, road terraces) have unlimited capacity: every route must cross a road, so a literal
+ * pair of node-disjoint S-G paths cannot exist; this counts disjoint paths in each section between them.
+ */
+export function nodeDisjointPaths(g: MazeGraph, free: readonly number[], routeOnly: boolean, cap: number = 8): number {
+  const n = g.n;
+  const isFree: boolean[] = new Array<boolean>(n).fill(false);
+  isFree[g.start] = true;
+  isFree[g.goal] = true;
+  for (let i = 0; i < free.length; i++) isFree[free[i]] = true;
+  // Node v is v_in = 2v and v_out = 2v + 1 with a v_in -> v_out arc of capacity 1 (or "infinite").
+  const N = 2 * n;
+  const c = new Int32Array(N * N);
+  for (let v = 0; v < n; v++) c[2 * v * N + 2 * v + 1] = isFree[v] ? 1000 : 1;
+  for (let i = 0; i < g.edges.length; i++) {
+    const e = g.edges[i];
+    if (e.from === e.to || (routeOnly && !isRouteMove(e.move))) continue;
+    c[(2 * e.from + 1) * N + 2 * e.to] = 1000;
+  }
+  const s = 2 * g.start;
+  const t = 2 * g.goal + 1;
+  const prev = new Int32Array(N);
+  let flow = 0;
+  while (flow < cap) {
+    prev.fill(-1);
+    prev[s] = s;
+    const q: number[] = [s];
+    for (let h = 0; h < q.length && prev[t] < 0; h++) {
+      const u = q[h];
+      for (let v = 0; v < N; v++) {
+        if (prev[v] < 0 && c[u * N + v] > 0) {
+          prev[v] = u;
+          q.push(v);
+        }
+      }
+    }
+    if (prev[t] < 0) break;
+    for (let v = t; v !== s; v = prev[v]) {
+      const u = prev[v];
+      c[u * N + v]--;
+      c[v * N + u]++;
+    }
+    flow++;
+  }
+  return flow;
+}
+
+export interface RouteEstimate {
+  metres: number; // horizontal metres of run, flight and rope chord
+  seconds: number;
+  path: number[]; // node ids start .. goal
+}
+
+/** Mean rope speed over a drop: (launch + speed at the end, capped at terminal) / 2. */
+export function meanZipSpeed(drop: number): number {
+  const v1 = Math.min(T.rope.terminal, Math.sqrt(T.rope.launchSpeed * T.rope.launchSpeed + 2 * G * Math.max(0, drop)));
+  return (T.rope.launchSpeed + v1) / 2;
+}
+
+function xOverlapCentre(a: MazeNode, b: MazeNode): number {
+  return (Math.max(a.x0, b.x0) + Math.min(a.x1, b.x1)) / 2;
+}
+
+/**
+ * Shortest start -> goal time over route-grade edges (Dijkstra). Cost of an edge = run from where the hero arrived
+ * on the node to the departure lip, plus the flight gap or rope chord, plus 1 s per climb. Run and flight at
+ * hero.run; the rope at its mean speed. Estimate only: no hesitation, one arrival x per node.
+ */
+export function estimateRoute(g: MazeGraph, nodes: MazeNode[]): RouteEstimate | null {
+  const n = g.n;
+  const dist: number[] = new Array<number>(n).fill(Infinity);
+  const metres: number[] = new Array<number>(n).fill(0);
+  const from: number[] = new Array<number>(n).fill(-1);
+  const arrX: number[] = new Array<number>(n).fill(0);
+  const done: boolean[] = new Array<boolean>(n).fill(false);
+  dist[g.start] = 0;
+  arrX[g.start] = (nodes[g.start].x0 + nodes[g.start].x1) / 2;
+  for (;;) {
+    let u = -1;
+    for (let i = 0; i < n; i++) if (!done[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
+    if (u < 0 || u === g.goal) break;
+    done[u] = true;
+    const a = nodes[u];
+    for (let k = 0; k < g.edges.length; k++) {
+      const e = g.edges[k];
+      if (e.from !== u || !isRouteMove(e.move) || done[e.to]) continue;
+      const b = nodes[e.to];
+      let run = 0;
+      let air = 0;
+      let sec: number;
+      let dep: number;
+      let arrive = arrX[u];
+      if (e.move === MOVE_CLIMB) {
+        sec = 1;
+      } else if (e.move === MOVE_ZIP) {
+        dep = a.zipX;
+        const zc = zoneCentre(a);
+        const an = anchorPos(a, b);
+        const dx = an[0] - zc[0];
+        const dz = an[2] - zc[2];
+        const horiz = Math.sqrt(dx * dx + dz * dz);
+        const drop = zc[1] + T.rope.handToFeet - an[1];
+        const len = Math.sqrt(horiz * horiz + drop * drop);
+        run = Math.abs(dep - arrX[u]) + (a.z1 - a.z0) - PAD_DEPTH / 2;
+        air = len;
+        sec = run / T.hero.run + len / meanZipSpeed(drop);
+        arrive = an[0];
+      } else {
+        const rel = relation(a, b);
+        if (rel === null) continue;
+        dep = e.move === MOVE_TRAMP && a.tramps.length > 0 ? a.tramps[0] : xOverlapCentre(a, b);
+        const along = rel.lateral ? a.x1 - a.x0 : a.z1 - a.z0;
+        run = Math.abs(dep - arrX[u]) + along / 2;
+        air = rel.gap;
+        sec = (run + air) / T.hero.run;
+        arrive = dep;
+      }
+      const d = dist[u] + sec;
+      if (d < dist[e.to]) {
+        dist[e.to] = d;
+        metres[e.to] = metres[u] + run + air;
+        from[e.to] = u;
+        arrX[e.to] = arrive;
+      }
+    }
+  }
+  if (dist[g.goal] === Infinity) return null;
+  const path: number[] = [];
+  for (let v = g.goal; v >= 0; v = from[v]) path.push(v);
+  path.reverse();
+  return { metres: metres[g.goal], seconds: dist[g.goal], path };
 }
