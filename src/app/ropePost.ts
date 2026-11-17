@@ -11,6 +11,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { World } from '../core/world';
+import { SPAN_SAG } from '../adapters/render/lineSnap';
 
 // Carved tie post beside the spawn roof (ADR 0006 section 3). The rope starts at the
 // post, so the first zipline reads as one rope: tie -> hands -> anchor.
@@ -28,7 +29,6 @@ const BAND_DARK = 0.72;
 const SPAN_SEG = 40;
 const SPAN_SIDES = 8;
 const SPAN_RADIUS = 0.06;
-const SPAN_SAG = 0.012;
 const SPAN_GOLD_START = 0.8;
 
 /** Shared mutable tie state: written by buildRopePost, read and updated by RopeView. */
