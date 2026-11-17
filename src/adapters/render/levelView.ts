@@ -23,6 +23,7 @@ import type { GullyPatch } from './gully';
 import { buildStrategyFeatures, minSolidZ } from './strategyView';
 import { buildHouseDecor } from './decor/houseV2';
 import { buildHorizonCard } from './horizonCard';
+import { STYLE_BODY, STYLE_PARAPET } from '../../content/house/houseSpec';
 import type { HouseSpec, PropSpec } from '../../content/house/houseSpec';
 import { setTerrainExtent, setTerrainField, setTerrainProfile } from './terrain';
 import { tileNormal, tileTexture } from './tileTexture';
@@ -265,6 +266,9 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
     for (let i = 0; i < world.solids.length; i++) {
       const s = i < world.style.length ? world.style[i] : 1;
       // the hidden barrier walls (style 5) are never drawn; neither is the kill slab far below
+      // graph levels: the house kit's decor draws every body and parapet at the same coordinates,
+      // so drawing the collider boxes too z-fights the decks and parapets (red-floor glitch)
+      if (opts.graph !== undefined && (s === STYLE_BODY || s === STYLE_PARAPET)) continue;
       if (s === st && s !== STYLE_HIDDEN && world.solids[i].max.y > world.killPlaneY) {
         boxes.push(world.solids[i]);
       }

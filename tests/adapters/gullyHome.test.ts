@@ -65,4 +65,25 @@ describe('gully on segmented Home Street', () => {
       expect(inside, `quad at ${mx},${mz}`).toBe(true);
     }
   });
+
+  it('does not draw collider body/parapet boxes under the decor kit (deck z-fight)', () => {
+    const g = buildLevelMeshes(world, {
+      houseDress: false,
+      graph: {
+        houses: placed.houses,
+        props: placed.props,
+        profile: placed.profile,
+        seed: placed.seed,
+        patches: placed.patches,
+        field: placed.field,
+        look: 'home',
+      },
+    });
+    const hex = g.children
+      .filter((c) => (c as Mesh).isMesh)
+      .map((c) => ((c as Mesh).material as { color?: { getHexString(): string } }).color)
+      .map((c) => c?.getHexString());
+    expect(hex).not.toContain('d9c6aa'); // style 1 body, same boxes as the decor walls
+    expect(hex).not.toContain('a99a88'); // style 4 parapet, same boxes as the decor parapets
+  });
 });
