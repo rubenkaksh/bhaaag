@@ -23,5 +23,5 @@ NEXT: M1-T11 render+wiring (src/adapters/render/{scene,heroView}.ts, src/adapter
 API notes: HeroState starts airborne (set grounded=1 to spawn standing); yaw 0 faces +z in sim, camera rig yaw 0 faces -Z (reconcile in wiring); touch exposes tapPending/tapNdcX/Y; desktop/touch .sample(InputFrame).
 DECISIONS: landscape-first phones (rotate overlay). Cursor + flash off. Route former cursor tasks hunter then hunter-pro. Juniors time out on long briefs: keep briefs ~2KB, SCRIBE_TIMEOUT=900 TRIES=1; fixer ladder Haiku/Sonnet after.
 ADR 0003 (models/animation) delivered by Opus max, status Proposed; 20 tasks A-01..A-20; user step: ADR section 5.2 copy + licence check; hero mesh CC BY 3.0 needs credit; GLBs must ship as hashed ?url imports (public/_headers immutable).
-USER TODOs: Cloudflare secrets CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, var CF_PAGES_PROJECT; accept/reject ADR 0003.
+USER TODOs: (Cloudflare secrets no longer needed: host is GitHub Pages https://rubenkaksh.github.io/bhaaag/, owner 2026-11-17) accept/reject ADR 0003.
 Scratchpad run scripts: scratchpad/run.sh (420s x3) and run2.sh (900s x1) take <brief-id> <agent>.
