@@ -163,7 +163,8 @@
 /* Graphics tier choice (graphics-spec "Implemented tiers"): a small pill row under the best time. */
 #lobby-gfx,
 #lobby-orient,
-#lobby-mode {
+#lobby-mode,
+#lobby-level {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -180,13 +181,15 @@
   text-transform: uppercase;
   color: #ffd35a;
 }
-#lobby-mode {
+#lobby-mode,
+#lobby-level {
   flex-wrap: wrap;
   justify-content: center;
 }
 #lobby-gfx button,
 #lobby-orient button,
-#lobby-mode button {
+#lobby-mode button,
+#lobby-level button {
   padding: 0.25em 0.9em;
   font:
     700 1em/1.2 system-ui,
@@ -200,14 +203,16 @@
 }
 #lobby-gfx button[aria-checked='true'],
 #lobby-orient button[aria-checked='true'],
-#lobby-mode button[aria-checked='true'] {
+#lobby-mode button[aria-checked='true'],
+#lobby-level button[aria-checked='true'] {
   color: #3a2410;
   background: #ffd35a;
   border-color: #ffd35a;
 }
 #lobby-gfx button:focus-visible,
 #lobby-orient button:focus-visible,
-#lobby-mode button:focus-visible {
+#lobby-mode button:focus-visible,
+#lobby-level button:focus-visible {
   outline: 2px solid #fff6e4;
   outline-offset: 2px;
 }
@@ -252,6 +257,7 @@
     gap: 1.2vh;
   }
   #lobby-mode,
+#lobby-level,
   #lobby-gfx,
 #lobby-orient {
     flex-wrap: wrap;
@@ -260,6 +266,7 @@
     gap: 0.4em;
   }
   #lobby-mode button,
+#lobby-level button,
   #lobby-gfx button,
 #lobby-orient button {
     min-height: 44px;
