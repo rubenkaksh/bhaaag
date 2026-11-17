@@ -3,7 +3,7 @@
 // level above a cloud sea, amendment 2026-11-12; timed like Classic).
 // Pure helpers plus localStorage persistence; every storage access is guarded (private mode).
 
-import { GRAPH_LEVELS } from '../../content/graph/registry';
+import { GRAPH_INFO as GRAPH_LEVELS } from '../../content/graph/info';
 
 export type GameMode = 'classic' | 'chase' | 'strategy' | 'village' | `g:${string}`;
 const BASE_MODES = ['classic', 'chase', 'strategy', 'village'] as const;

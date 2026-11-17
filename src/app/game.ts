@@ -106,10 +106,8 @@ import { GameLoop } from './loop';
 import { framingFor } from '../adapters/render/framing';
 import { MODE_INFO, graphIdOf, isGraphMode, readBest, writeBest } from './modes/mode';
 import { rulesForKey } from './modes/registry';
-import { graphEntry, loadGraph } from '../content/graph/registry';
-import { placeGraph } from '../content/graph/place';
-import { PathCam, buildPathGraph } from '../content/graph/pathCamera';
-import { buildForkMarkers } from '../adapters/render/forkMarkers';
+import { graphInfo } from '../content/graph/info';
+import type { GraphAssets } from './graphAssets';
 import type { GameMode } from './modes/mode';
 import { readViewport, watchViewport } from './viewport';
 import { viewportSize } from '../adapters/ui/orientation';
@@ -188,6 +186,8 @@ export function startGame(
   village?: VillageAssets,
   /** A compiled builder level to play in place of the generated Nagarkot one (ADR 0016). */
   levelOverride?: LevelJson,
+  /** Graph levels only: the lazy graph chunk (graphAssets.ts). */
+  graph?: GraphAssets,
 ): GameHandle {
   const cfg = resolveCfg(mode);
   let camCfg = cfg.camera;
@@ -200,13 +200,18 @@ export function startGame(
   const isStrategy = mode === 'strategy';
   const isVillage = mode === 'village';
   const isGraph = isGraphMode(mode);
-  const placed = isGraph ? placeGraph(loadGraph(graphIdOf(mode))) : null;
+  if (isGraph && graph === undefined) throw new Error('graph assets not loaded');
+  const placed =
+    isGraph && graph !== undefined ? graph.placeGraph(graph.loadGraph(graphIdOf(mode))) : null;
   // Opt-in path camera (home-street): heading follows the route; written into the sim camYaw so the stick stays camera-relative.
   const pathGraph =
-    isGraph && placed !== null && graphEntry(graphIdOf(mode))?.pathCamera === true
-      ? buildPathGraph(loadGraph(graphIdOf(mode)), placed.houses)
+    isGraph &&
+    graph !== undefined &&
+    placed !== null &&
+    graphInfo(graphIdOf(mode))?.pathCamera === true
+      ? graph.buildPathGraph(graph.loadGraph(graphIdOf(mode)), placed.houses)
       : null;
-  const pathCam = pathGraph !== null ? new PathCam(pathGraph) : null;
+  const pathCam = pathGraph !== null && graph !== undefined ? new graph.PathCam(pathGraph) : null;
   if (isVillage && village === undefined) throw new Error('village assets not loaded');
   const seedParam = params.get('seed');
   const fixedSeed = seedParam !== null && Number.isFinite(Number(seedParam));
@@ -240,15 +245,15 @@ export function startGame(
                   props: placed.props,
                   profile: placed.profile,
                   seed: placed.seed,
-                  look: graphEntry(graphIdOf(mode))?.look,
+                  look: graphInfo(graphIdOf(mode))?.look,
                   patches: placed.patches,
                   field: placed.field,
                 },
           floorY: village !== undefined && isVillage ? village.VILLAGE_CLOUD_TOP_Y : undefined,
         })
       : null;
-  if (level !== null && pathGraph !== null && placed !== null)
-    level.add(buildForkMarkers(pathGraph, placed.edges));
+  if (level !== null && pathGraph !== null && placed !== null && graph !== undefined)
+    level.add(graph.buildForkMarkers(pathGraph, placed.edges));
   // Chase views: no classic scenery; own rows, endless ground and dragon.
   if (cs !== null) gs.setBlobWorld(world);
   const rowsView = isChase ? new ChaseRowsView(() => gs.refreshFlags()) : null;
