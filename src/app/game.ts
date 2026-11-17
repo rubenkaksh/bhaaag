@@ -105,6 +105,7 @@ import { DustPuff } from '../adapters/render/dustPuff';
 import { GameLoop } from './loop';
 import { framingFor } from '../adapters/render/framing';
 import { MODE_INFO, graphIdOf, isGraphMode, readBest, writeBest } from './modes/mode';
+import { rulesForKey } from './modes/registry';
 import { graphEntry, loadGraph } from '../content/graph/registry';
 import { placeGraph } from '../content/graph/place';
 import { PathCam, buildPathGraph } from '../content/graph/pathCamera';
@@ -304,7 +305,7 @@ export function startGame(
 
   const prev = newHeroState();
   const cur = newHeroState();
-    const frame = newInputFrame();
+  const frame = newInputFrame();
   const coarse = window.matchMedia('(pointer: coarse)').matches;
   const input = coarse ? new TouchInput(root) : new DesktopInput(canvas);
 
@@ -690,8 +691,9 @@ export function startGame(
         aabbContainsPoint(world.goal, cur.px, cur.py, cur.pz)
       ) {
         phase = 'won';
-        if (best === 0 || runT < best) {
-          best = runT;
+        const res = rulesForKey(mode).onFinish(runT, best);
+        if (res.record) {
+          best = res.best;
           writeBest(mode, best);
         }
         hudUi.showWin(runT, best);
@@ -712,9 +714,10 @@ export function startGame(
     overShown = true;
     overAtT = deadT;
     const score = chaseScore(cs, cfg);
-    const isBest = score > best;
+    const res = rulesForKey('chase').onFinish(score, best);
+    const isBest = res.record;
     if (isBest) {
-      best = score;
+      best = res.best;
       writeBest('chase', score);
     }
     chaseHud.showOver(
