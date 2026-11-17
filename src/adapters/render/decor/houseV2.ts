@@ -71,6 +71,12 @@ const TANK_RUN_UP = 3.2; // no tank within this depth of a takeoff, runout or pa
 /** Per-level look. 'home' is the opt-in Kathmandu hill-house dressing; absent keeps v1 output exactly. */
 export interface HouseDecorOptions {
   look?: 'home';
+  /**
+   * Strategy levels whose deck is a bare collider (nagarkot-home): no parapets, rooftop tanks or
+   * flag lines, since the sim has no solid for them and the hero runs straight through. Walls,
+   * windows, balconies' doors and crop dressing stay. Default false (kit levels unchanged).
+   */
+  deckClear?: boolean;
 }
 
 export interface HouseDecorStats {
@@ -192,6 +198,7 @@ function dressHouse(
   seed: number,
   shutterIdx: { n: number },
   home: boolean,
+  deckClear: boolean,
 ): void {
   const rng = mulberry32((h.id * 7919 + seed) >>> 0);
   const g = h.groundY;
@@ -274,7 +281,7 @@ function dressHouse(
   );
 
   // Parapets.
-  for (let f = 0; f < 4; f++) {
+  for (let f = 0; f < (deckClear ? 0 : 4); f++) {
     const segs = parapetSegments(h, f as Face);
     const hgt = parapetHeight(h, f as Face);
     const col = c(hgt > 1 ? TERRACOTTA : CONCRETE);
@@ -395,8 +402,10 @@ function dressHouse(
   }
 
   if (home) {
-    roofTank(o, h, seed);
-    flagLine(o, h, seed);
+    if (!deckClear) {
+      roofTank(o, h, seed);
+      flagLine(o, h, seed);
+    }
     cropDress(o, h, seed);
   }
 
@@ -744,7 +753,7 @@ export function buildHouseDecor(
   let shops = 0;
   let doors = 0;
   for (let i = 0; i < houses.length; i++) {
-    dressHouse(o, houses[i], seed, shutterIdx, home);
+    dressHouse(o, houses[i], seed, shutterIdx, home, opts.deckClear === true);
     windows += windowSlots(houses[i]).length;
     shops += houses[i].awnings.length;
     if (houses[i].balcony !== -1) doors++;

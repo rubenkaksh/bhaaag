@@ -246,6 +246,12 @@ export type BuildLevelOpts = {
     look?: 'home';
     /** Walkable ground patches: cut out of the drawn gully. */
     patches?: GullyPatch[];
+    /**
+     * Strategy levels dressed by the kit (nagarkot-home): also skip these collider solids (the kit
+     * draws the deck and walls at the same coordinates), keep strategyView's own tramps, cushions
+     * and rope posts (they match the colliders), and draw no render-only deck props.
+     */
+    kitSkip?: (solidIndex: number) => boolean;
     /** Segmented layouts: view-only ground along the road polyline (ADR 0015). */
     field?: (x: number, z: number) => { h: number; d: number };
   };
@@ -269,6 +275,7 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
       // graph levels: the house kit's decor draws every body and parapet at the same coordinates,
       // so drawing the collider boxes too z-fights the decks and parapets (red-floor glitch)
       if (opts.graph !== undefined && (s === STYLE_BODY || s === STYLE_PARAPET)) continue;
+      if (opts.graph?.kitSkip !== undefined && opts.graph.kitSkip(i)) continue;
       if (s === st && s !== STYLE_HIDDEN && world.solids[i].max.y > world.killPlaneY) {
         boxes.push(world.solids[i]);
       }
@@ -312,6 +319,7 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
     g.add(
       buildHouseDecor(opts.graph.houses, opts.graph.props, opts.graph.seed, {
         look: opts.graph.look,
+        deckClear: opts.graph.kitSkip !== undefined,
       }),
     );
     if (opts.graph.look === 'home') g.add(buildHorizonCard(opts.graph.houses));
@@ -319,7 +327,7 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
     if (gully !== null) g.add(gully);
   }
   if (strategy) {
-    const feats = buildStrategyFeatures(world, opts.graph !== undefined);
+    const feats = buildStrategyFeatures(world, opts.graph !== undefined && opts.graph.kitSkip === undefined);
     for (let i = 0; i < feats.length; i++) g.add(feats[i]);
   }
   // Cloud Village (floorY) has no pre-tied rope or post: the ziplines are the anchors themselves.
