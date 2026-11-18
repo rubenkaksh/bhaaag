@@ -7,6 +7,8 @@ import type { Selection } from './modes/levels';
 import type { LevelJson } from '../content/load';
 import { createLobby } from '../adapters/ui/lobby';
 import { createOrientation } from '../adapters/ui/orientation';
+import { fetchTuningOverrides, tuningUrlFrom } from '../adapters/config/remoteTuning';
+import { initRemoteTuning } from './tuning';
 
 const gameCanvas = document.getElementById('game');
 if (!(gameCanvas instanceof HTMLCanvasElement)) {
@@ -44,6 +46,23 @@ const lobby = createLobby(document.body, {
 });
 // What is running: the selection id (mode + level), so a level switch inside Classic restarts the game.
 let runningId = '';
+// Remote tuning (docs/config-scope.md, "Remote overrides"): fetched once at boot while the lobby shows.
+// A PLAY tapped before it settles waits for it (at most the fetch timeout), so the sim always reads
+// the remote values. Never rejects: any failure leaves the baked-in defaults.
+const tuningWarn = (message: string): void => console.warn(`[tuning] ${message}`);
+let tuningSettled = false;
+let pendingPlay: Selection | null = null;
+void (async () => {
+  const url = tuningUrlFrom(location.search, import.meta.env.VITE_TUNING_URL);
+  initRemoteTuning(url === null ? undefined : await fetchTuningOverrides(url), tuningWarn);
+})()
+  .catch(() => initRemoteTuning(undefined))
+  .finally(() => {
+    tuningSettled = true;
+    const waiting = pendingPlay;
+    pendingPlay = null;
+    if (waiting !== null) play(waiting);
+  });
 // Builder levels (local or shipped) compile in a lazy chunk (T345); null = not a builder level or it failed.
 async function levelOverrideFor(sel: Selection): Promise<LevelJson | undefined> {
   const e = classicLevels(true).find((l) => l.id === sel.level);
@@ -62,6 +81,10 @@ async function levelOverrideFor(sel: Selection): Promise<LevelJson | undefined> 
   return lv ?? undefined;
 }
 function play(sel: Selection): void {
+  if (!tuningSettled) {
+    pendingPlay = sel;
+    return;
+  }
   lobby.hide();
   requestImmersive();
   if (orientation.pref() !== 'auto') orientation.setPref(orientation.pref()); // retry the lock inside this tap

@@ -1,11 +1,17 @@
 // One global tuning source for every mode. resolveCfg(mode) = DEFAULT_TUNING merged with
-// content/config/tuning.json, then MODE_OVERRIDES[mode]. A mode may override ONLY what is listed
+// content/config/tuning.json, then remote overrides (initRemoteTuning, once at boot), then
+// MODE_OVERRIDES[mode]. A mode may override ONLY what is listed
 // in MODE_OVERRIDES (and documented in docs/config-scope.md); the test in
 // tests/config/configScope.test.ts fails on any other per-mode difference.
 import tuningJson from '../../content/config/tuning.json';
 import { DEFAULT_TUNING } from '../core/config';
 import type { Tuning } from '../core/config';
 import type { GameMode } from './modes/mode';
+import { applyTuningOverrides } from './tuningOverrides';
+import type { TuningWarn } from './tuningOverrides';
+
+/** The remote-overridden base, set once at boot by initRemoteTuning; null = baked-in values only. */
+let remoteBase: Tuning | null = null;
 
 export type TuningOverride = { [K in keyof Tuning]?: Partial<Tuning[K]> };
 
@@ -20,7 +26,22 @@ export const MODE_OVERRIDES: Record<GameMode, TuningOverride> = {
   'g:home-street': {},
 };
 
+/**
+ * Applies remote overrides (already fetched and parsed; undefined = none) over the baked-in base.
+ * Call once, before any game starts: later calls are ignored, so one run never changes its tuning.
+ */
+export function initRemoteTuning(overrides: unknown, warn: TuningWarn = () => undefined): void {
+  if (remoteBase !== null) return;
+  remoteBase = applyTuningOverrides(bakedTuning(), overrides, warn);
+}
+
+/** A fresh copy of the base tuning (remote overrides included once initRemoteTuning ran). */
 export function mergeTuning(): Tuning {
+  return structuredClone(remoteBase ?? bakedTuning());
+}
+
+/** DEFAULT_TUNING with content/config/tuning.json on top; no remote overrides. */
+export function bakedTuning(): Tuning {
   const src = tuningJson as unknown as Record<string, Record<string, number>>;
   const out = { ...DEFAULT_TUNING } as unknown as Record<string, Record<string, number>>;
   for (const key of Object.keys(out)) {
