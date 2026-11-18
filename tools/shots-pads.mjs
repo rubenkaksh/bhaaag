@@ -1,4 +1,4 @@
-/* global process, fetch, setTimeout, console */
+/* global process, fetch, setTimeout, console, window */
 // Close-up shots of the redesigned cushion, trampoline and the dive pose at 390x844 (SwiftShader).
 // node tools/shots-pads.mjs  -> art/shots/auto/pads-*.png (gitignored)
 import { chromium } from 'playwright';
