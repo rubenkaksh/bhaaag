@@ -48,4 +48,11 @@ describe('builder hand-off (production path)', () => {
     for (const l of shippedBuilderLevels()) expect(compileShipped(l.id)).not.toBeNull();
     expect(compileShipped('no-such-level')).toBeNull();
   });
+
+  it('rejects a stored level that fails the world schema', () => {
+    // @ts-expect-error minimal Storage stub
+    globalThis.localStorage = new MemStorage();
+    localStorage.setItem('bhaaag.builder.play', JSON.stringify({ solids: 'nope' }));
+    expect(readLocalBuilderLevel()).toBeNull();
+  });
 });

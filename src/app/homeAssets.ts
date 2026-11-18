@@ -14,6 +14,8 @@ export function buildHomePathGraph(s: StrategyLevel): PathGraph {
     id: n.id,
     x: (n.x0 + n.x1) / 2,
     z: (n.z0 + n.z1) / 2,
+    hx: (n.x1 - n.x0) / 2,
+    hz: (n.z1 - n.z0) / 2,
     exits: [],
     from: -1,
   }));

@@ -107,6 +107,8 @@ const schema = z.strictObject({
     sideYawSpeed: num,
     sideYawEase: num,
     sideYawEaseBack: num,
+    pathLookahead: num,
+    pathTurnDeg: num,
     overviewHeight: num,
     overviewPitchDeg: num,
     overviewEase: num,

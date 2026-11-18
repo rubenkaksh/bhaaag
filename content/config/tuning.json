@@ -99,6 +99,8 @@
     "sideYawSpeed": 2.5,
     "sideYawEase": 0.07,
     "sideYawEaseBack": 0.035,
+    "pathLookahead": 30,
+    "pathTurnDeg": 60,
     "overviewHeight": 30,
     "overviewPitchDeg": 65,
     "overviewEase": 0.08,

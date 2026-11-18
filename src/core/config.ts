@@ -111,6 +111,8 @@ export type Tuning = {
     sideYawSpeed: number; // sideways speed that reaches the full offset, m/s
     sideYawEase: number; // per fixed tick ease toward a larger side-look target
     sideYawEaseBack: number; // per fixed tick ease back toward 0 (slower = smoother return)
+    pathLookahead: number; // path camera (nagarkot-home): aim this many m ahead along the route so corners turn early; 0 = off
+    pathTurnDeg: number; // path camera turn speed, deg/s
     overviewHeight: number; // hold-MAP view: minimum camera height above the framed centre, m
     overviewPitchDeg: number; // hold-MAP pitch down, deg (steep oblique)
     overviewEase: number; // per fixed tick ease of the overview blend (0..1) in and out
@@ -311,6 +313,8 @@ export const DEFAULT_TUNING: Tuning = {
     sideYawSpeed: 2.5,
     sideYawEase: 0.07,
     sideYawEaseBack: 0.035,
+    pathLookahead: 30,
+    pathTurnDeg: 60,
     overviewHeight: 30,
     overviewPitchDeg: 65,
     overviewEase: 0.08,

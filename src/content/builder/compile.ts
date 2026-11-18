@@ -23,7 +23,7 @@ import {
 } from '../strategy/graph';
 import type { BuilderEdge, BuilderHouse, BuilderLevel } from './format';
 import { HOUSE_HALF, STOREY_HEIGHT, TOUCH_EPS } from './format';
-import { overlaps } from './model';
+import { houseById, overlaps } from './model';
 
 // Geometry shared with the generator's emitter (kept numerically identical, gen.ts is frozen).
 const ZONE_OFF = 2; // zip zone centre, left of the house centre
@@ -233,6 +233,53 @@ export function validate(l: BuilderLevel): Report {
       if (overlaps(l.houses[i], l.houses[j]))
         r.errors.push('houses ' + l.houses[i].id + ' and ' + l.houses[j].id + ' overlap');
     }
+  }
+  for (const h of l.houses) {
+    if (!h.balcony) continue;
+    // Balcony slab sits on the +z side, 2 m deep, full house width.
+    const hit = l.houses.find(
+      (o) =>
+        o.id !== h.id &&
+        Math.abs(o.x - h.x) < 2 * HOUSE_HALF &&
+        o.z - HOUSE_HALF < h.z + HOUSE_HALF + BALCONY_DEPTH &&
+        o.z + HOUSE_HALF > h.z + HOUSE_HALF,
+    );
+    if (hit !== undefined)
+      r.errors.push(
+        'house ' + h.id + ' balcony runs into house ' + hit.id + ' (move it or drop the balcony)',
+      );
+  }
+  for (const e of l.edges) {
+    if (e.kind !== 'gap' || (e.via !== 'boxes' && e.via !== 'stairs')) continue;
+    const ha = houseById(l, e.a);
+    const hb = houseById(l, e.b);
+    if (ha === undefined || hb === undefined) continue;
+    // Steps fill the strip between the two houses; no third house may stand in it.
+    const x0 = Math.min(ha.x, hb.x) - HOUSE_HALF;
+    const x1 = Math.max(ha.x, hb.x) + HOUSE_HALF;
+    const z0 = Math.min(ha.z, hb.z) - HOUSE_HALF;
+    const z1 = Math.max(ha.z, hb.z) + HOUSE_HALF;
+    const third = l.houses.find(
+      (o) =>
+        o.id !== ha.id &&
+        o.id !== hb.id &&
+        o.x + HOUSE_HALF > x0 &&
+        o.x - HOUSE_HALF < x1 &&
+        o.z + HOUSE_HALF > z0 &&
+        o.z - HOUSE_HALF < z1,
+    );
+    if (third !== undefined)
+      r.errors.push(
+        'edge ' +
+          e.a +
+          ' -> ' +
+          e.b +
+          ' (' +
+          e.via +
+          '): house ' +
+          third.id +
+          ' stands in the steps',
+      );
   }
   if (l.houses.length < 2) r.errors.push('need at least 2 houses');
   if (l.start === -1) r.errors.push('no start house');

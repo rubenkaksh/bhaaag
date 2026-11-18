@@ -2,6 +2,7 @@
 // in localStorage and opens ?level=builder (Classic's "My level"). Guarded for blocked storage.
 // Imports nothing from the builder so game.ts pulls in no builder code (dead-code-eliminated in prod).
 import type { LevelJson } from '../load';
+import { loadWorldFromObject } from '../load';
 
 export const PLAY_KEY = 'bhaaag.builder.play';
 
@@ -20,7 +21,9 @@ export function readLocalBuilderLevel(): LevelJson | null {
     const raw = localStorage.getItem(PLAY_KEY);
     if (raw === null) return null;
     const v: unknown = JSON.parse(raw);
-    return typeof v === 'object' && v !== null ? (v as LevelJson) : null;
+    if (typeof v !== 'object' || v === null) return null;
+    loadWorldFromObject(v); // schema check: a stale or corrupt entry must not reach startGame
+    return v as LevelJson;
   } catch {
     return null;
   }
