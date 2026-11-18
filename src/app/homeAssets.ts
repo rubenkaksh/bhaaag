@@ -8,7 +8,9 @@ import type { StrategyLevel } from '../content/strategy/gen';
 
 /** Path camera graph from the maze: node centres, downhill (directed) exits, first predecessor. */
 export function buildHomePathGraph(s: StrategyLevel): PathGraph {
-  const nodes: PathNode[] = s.nodes.map((n) => ({
+  // headings come from the bent world positions; "downhill" is decided on the straight local frame
+  const wn = s.world?.nodes ?? s.nodes;
+  const nodes: PathNode[] = wn.map((n) => ({
     id: n.id,
     x: (n.x0 + n.x1) / 2,
     z: (n.z0 + n.z1) / 2,
@@ -18,8 +20,16 @@ export function buildHomePathGraph(s: StrategyLevel): PathGraph {
   for (const e of s.graph.edges) {
     const a = nodes[e.from];
     const b = nodes[e.to];
+    const la = s.nodes[e.from];
+    const lb = s.nodes[e.to];
     // only downhill legs are route headings; a sideways step is not
-    if (a === undefined || b === undefined || b.z >= a.z - 1e-6 || a.exits.includes(e.to)) continue;
+    if (
+      a === undefined ||
+      b === undefined ||
+      (lb.z0 + lb.z1) / 2 >= (la.z0 + la.z1) / 2 - 1e-6 ||
+      a.exits.includes(e.to)
+    )
+      continue;
     a.exits.push(e.to);
     if (b.from < 0) b.from = e.from;
   }
@@ -40,6 +50,7 @@ export function loadHome() {
       look: d.look,
       patches: d.patches,
       kitSkip: d.kitSkip,
+      field: d.field,
     },
     pathCam: new PathCam(buildHomePathGraph(s)),
   };

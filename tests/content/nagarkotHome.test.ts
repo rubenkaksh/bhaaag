@@ -31,7 +31,7 @@ describe('nagarkot-home generator', () => {
   });
 
   it('every emitted node surface is a solid top in the level JSON', () => {
-    for (const n of s.nodes) {
+    for (const n of s.world?.nodes ?? s.nodes) {
       const hit = s.level.solids.some(
         (b) =>
           Math.abs(b.max[1] - n.y) < 1e-6 &&
