@@ -10,9 +10,9 @@ covers Hook, Mantle and Brake (release on the rope is DROP) with one thumb targe
 - Left thumb: floating stick. It appears where the thumb lands, moves the hero. Swipe down on
   the right side = Drop.
 - **MAP** button, bottom centre of the HUD (all modes): HOLD to zoom out to a bird's eye view. The camera rises and pulls back
-  to an oblique overview that frames the hero plus the path ahead (next anchors, landing pads, finish), clamped to
+  to an oblique overview that frames the hero plus the nearest `overviewNodes` (15) nodes ahead (next anchors, landing pads, finish; the route and its forks), fitted to the screen's fov and aspect with `overviewMargin`, clamped to
   `camera.overviewMaxExtent` from the hero; release and it eases back to the follow camera (`overviewEase`, in and out).
-  Tunables: `overviewHeight`, `overviewPullBack`, `overviewPitchDeg`, `overviewSpanScale`. Render-only: the sim never changes and the
+  Tunables: `overviewHeight` (minimum), `overviewPitchDeg`, `overviewNodes`, `overviewMargin`. Render-only: the sim never changes and the
   stick still moves relative to the normal follow view. The stick floats as usual and the Drop swipe is never suspended.
   While zoomed out a tap does not aim (tap-to-aim resumes when the view is back).
   **Availability (`overviewAvailable(heroMode)`, `overviewCam.ts`):** grounded on a roof or attached to the rope. Airborne, hanging,

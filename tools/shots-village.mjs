@@ -10,7 +10,9 @@ const label = process.argv[2] ?? 'shot';
 const tilt = process.env.TILT ?? '';
 const port = Number(process.env.PORT ?? 4184);
 mkdirSync('art/shots/auto', { recursive: true });
-const srv = spawn('pnpm', ['exec', 'vite', 'preview', '--port', String(port), '--strictPort'], { stdio: 'ignore' });
+const srv = spawn('pnpm', ['exec', 'vite', 'preview', '--port', String(port), '--strictPort'], {
+  stdio: 'ignore',
+});
 const base = `http://localhost:${port}/`;
 let up = false;
 for (let i = 0; i < 50; i++) {
@@ -28,7 +30,9 @@ if (!up) {
   srv.kill();
   process.exit(1);
 }
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch({
+  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+});
 let errors = 0;
 for (const tier of (process.env.TIERS ?? 'low,medium').split(',')) {
   for (const [name, vp] of [
@@ -47,11 +51,16 @@ for (const tier of (process.env.TIERS ?? 'low,medium').split(',')) {
       errors++;
       console.log(`[${tier}/${name}] page error: ${e.message}`);
     });
-    const shot = (s) => page.screenshot({ path: `art/shots/auto/${label}-village-${tier}-${name}-${s}.png` });
+    const shot = (s) =>
+      page.screenshot({ path: `art/shots/auto/${label}-village-${tier}-${name}-${s}.png` });
     await page.goto(`${base}?mode=village&gfx=${tier}${tilt === '' ? '' : `&tilt=${tilt}`}&debug`);
     await page.waitForTimeout(2000);
     await shot('lobby');
-    await page.getByText('PLAY', { exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+    await page
+      .getByText('PLAY', { exact: true })
+      .first()
+      .click({ timeout: 3000 })
+      .catch(() => {});
     await page.waitForTimeout(3500);
     await shot('spawn');
     await page.waitForTimeout(6000);

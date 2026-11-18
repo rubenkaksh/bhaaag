@@ -27,7 +27,11 @@ describe('segmented layout: home-street', () => {
 
   it('every run really heads where it says (bend house to bend house)', () => {
     for (const sg of segs) {
-      if (sg.nodes.length < 3 && g.edges.some((e) => e.kind === 'touch' && sg.nodes.includes(e.a) && sg.nodes.includes(e.b))) continue; // a lone touch may step sideways
+      if (
+        sg.nodes.length < 3 &&
+        g.edges.some((e) => e.kind === 'touch' && sg.nodes.includes(e.a) && sg.nodes.includes(e.b))
+      )
+        continue; // a lone touch may step sideways
       const a = byId.get(sg.nodes[0]) as HouseSpec;
       const b = byId.get(sg.nodes[sg.nodes.length - 1]) as HouseSpec;
       const bearing = (Math.atan2(b.cx - a.cx, b.cz - a.cz) * 180) / Math.PI;

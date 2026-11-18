@@ -107,12 +107,12 @@ export type Tuning = {
     sideYawSpeed: number; // sideways speed that reaches the full offset, m/s
     sideYawEase: number; // per fixed tick ease toward a larger side-look target
     sideYawEaseBack: number; // per fixed tick ease back toward 0 (slower = smoother return)
-    overviewHeight: number; // hold-MAP bird's eye: camera height above the framed centre, m (before span gain)
-    overviewPullBack: number; // extra metres the overview camera sits back from the framed centre
-    overviewPitchDeg: number; // nominal overview pitch down, deg (sets the base back-off from the height)
+    overviewHeight: number; // hold-MAP view: minimum camera height above the framed centre, m
+    overviewPitchDeg: number; // hold-MAP pitch down, deg (steep oblique)
     overviewEase: number; // per fixed tick ease of the overview blend (0..1) in and out
     overviewMaxExtent: number; // max horizontal reach from the hero that the overview frames, m
-    overviewSpanScale: number; // extra camera height per metre of framed span, so a long run still fits
+    overviewNodes: number; // hold-MAP frames this many nearest nodes ahead (pads, anchors, goal)
+    overviewMargin: number; // hold-MAP framing margin multiplier on the node bounds
     tiltDeg: number; // render-only pitch-down of the view (deg), all modes; ?tilt= overrides for debugging
   };
   validator: {
@@ -303,12 +303,12 @@ export const DEFAULT_TUNING: Tuning = {
     sideYawSpeed: 2.5,
     sideYawEase: 0.07,
     sideYawEaseBack: 0.035,
-    overviewHeight: 45,
-    overviewPullBack: 12,
-    overviewPitchDeg: 60,
+    overviewHeight: 30,
+    overviewPitchDeg: 65,
     overviewEase: 0.08,
     overviewMaxExtent: 120,
-    overviewSpanScale: 0.35,
+    overviewNodes: 15,
+    overviewMargin: 1.3,
     tiltDeg: 20,
   },
   validator: {
