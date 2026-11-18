@@ -85,3 +85,9 @@ export const SPRINT_RUNWAY_M = RUN_UP_M + SPRINT_STREAK_M + SPRINT_RAMP_M; // 18
 - F6 (owner told): >= 2 internally node-disjoint paths in each section S->R1, R1->R2, R2->R3, R3->G; one node-split max flow with unlimited capacity on S, G and the 3 roads; route-grade edges only (jump, tramp, zip, climb). A literal S-G pair cannot exist (roads are cut vertices).
 - F7: pin test records `deadEnds / reachable` (14/118 = 11.9%, 7 branches); threshold = 0.8 x that share, branches >= 6. F9: `estimateRoute` costs run (arrival point to departure lip, road crossings included) + flight/zip chord, route-grade edges only. F10: `SPRINT_JUMP_VY` named. F11: test 1 ignores `id`/`house`.
 - Scope cuts (controller, one 150 min session; review F12 suggested two): (a) no `emitHouse`/tall parapets in T336a: dressing is T336b, so the lateral trap is a per-node ground step, not a 1.2 m parapet, which also removes the F4 parapet-top hole; (b) kit houses are a derived tiling of each node footprint (8 m cells), asserted by the test; (c) the leak model launches at SPRINT_SPEED from every node (no streak semantics needed, T334 risk 1 removed), diagonal pairs not modelled (not verified); (d) F12 split and F8 pole are T336b's.
+
+## Sprint runs and launch gap (2026-11-18, fix-houses-runway)
+- `GenParams.longRows` (home: rows 3, 8, 13, 19): every house in the row is a 4-house terrace, 8 x 32 m, joined by party walls in the dressing. Straight run = 32 m (>= 25 m, enough for the 11.9 m streak plus the 5.45 m ramp).
+- Strict graph: `jumpOk` adds a run-jump at `SPRINT_SPEED` when `along - 2R >= SPRINT_RUNWAY_M` (17.8 m). Only 32 m nodes qualify. Reach figures in the table above (flat 8.86 m, drop 2.8: 13.3 m) apply.
+- `homeValid` adds `routeRuns >= 2` and `sprintGaps >= 1` on the estimated route.
+- Seed 20261142 still the first valid seed from 20261117 (26th try). Route 70.4 s (limit 80), dead ends 12, branches 9, disjoint 2, routeRuns 4, sprintGaps 1.

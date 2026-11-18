@@ -6,13 +6,18 @@
 // What is dressed, and what stays a collider box (never both at the same coordinates):
 //  - every roof node (style 1 body + style 2 deck) -> 1..N joined kit houses; the collider body and
 //    deck are skipped in levelView (`kitSkip`), the kit draws walls, plinth and deck at the same spot;
-//  - balcony slabs, roads, tramps, cushions, zones and rope posts keep their collider look (their
-//    size differs from the kit's, so a kit copy would show an edge the hero cannot stand on);
+//  - a long node (4 x 8 m, the sprint runs) tiles into a terrace of joined houses with party walls and one roofline;
+//  - roof guards: a render-only 0.45 m parapet on every face no route move crosses (the sim has no solid for it, so a
+//    crossed face stays open); cushion roofs get none. Faces turn with the bend;
+//  - a node with a balcony node gets the kit balcony (door, deck, rails) on its uphill face over the collider slab, which
+//    stays drawn: it is 8 m wide, the kit balcony 3 m, and the hero can stand on all of the slab;
+//  - roads, tramps, cushions, zones and rope posts keep their collider look;
 //  - the 1 m hazard bands are not drawn; the stepped terrain follows them and the gully fringe marks
 //    the lethal ground beside each house.
 import type { StrategyLevel } from '../../../content/strategy/gen';
 import { HAZARD_LIP } from '../../../content/strategy/gen';
-import { NODE_ROOF } from '../../../content/strategy/graph';
+import { NODE_ROOF, relation } from '../../../content/strategy/graph';
+import type { MazeNode } from '../../../content/strategy/graph';
 import { HK, deckY } from '../../../content/house/houseSpec';
 import type { Face, HouseSpec, PropSpec } from '../../../content/house/houseSpec';
 import type { GullyPatch } from '../gully';
@@ -47,6 +52,8 @@ export function tileFootprint(
   groundY: number,
   storeys: 1 | 2,
   idBase: number,
+  guard: readonly Face[] = [],
+  balcony: Face | -1 = -1,
 ): HouseSpec[] {
   const cell = 2 * HK.half;
   const nx = Math.max(1, Math.round((x1 - x0) / cell));
@@ -67,12 +74,14 @@ export function tileFootprint(
         groundY,
         storeys,
         party,
-        balcony: -1 as Face | -1,
+        // the balcony hangs on the uphill face of the uphill-most tile only, and only on a 2-storey house
+        balcony: storeys === 2 && balcony !== -1 && !party[balcony] ? balcony : (-1 as Face | -1),
         stairs: null,
         awnings: [],
         takeoff: [],
         pole: false,
         tall: [],
+        guard: guard.slice(),
       });
     }
   }
@@ -114,6 +123,32 @@ function bentField(
   };
 }
 
+// Local-frame face (0 +x, 1 -x, 2 +z uphill, 3 -z downhill) -> world face for a node after the bend (T337 turns local -z into world +x).
+const BEND_FACE: readonly Face[] = [2, 3, 1, 0];
+const OPPOSITE: readonly Face[] = [1, 0, 3, 2];
+
+/** Faces of a local node a route-graph move crosses, leaving it or arriving on it: no guard there. */
+function usedFaces(s: StrategyLevel, id: number): boolean[] {
+  const used = [false, false, false, false];
+  const nodes = s.nodes;
+  const a = nodes[id];
+  for (let k = 0; k < s.graph.edges.length; k++) {
+    const e = s.graph.edges[k];
+    if (e.from !== id && e.to !== id) continue;
+    const from: MazeNode = nodes[e.from];
+    const to: MazeNode = nodes[e.to];
+    const rel = relation(from, to);
+    if (e.from === id && from.zipTo >= 0 && rel === null) used[3] = true; // a line leaves the downhill edge
+    if (rel === null) continue;
+    let f: Face = 3;
+    if (rel.lateral) f = to.x0 >= from.x1 ? 0 : 1;
+    else if (!rel.downhill) f = 2;
+    used[e.from === id ? f : OPPOSITE[f]] = true;
+  }
+  if (a.tramps.length > 0 || a.zipTo >= 0) used[3] = true;
+  return used;
+}
+
 export function dressNagarkotHome(s: StrategyLevel): HomeDressing {
   const houses: HouseSpec[] = [];
   const perNode: number[] = [];
@@ -128,7 +163,14 @@ export function dressNagarkotHome(s: StrategyLevel): HomeDressing {
     const storeys: 1 | 2 = h.h > 4.5 ? 2 : 1;
     // groundY from the deck so the kit deck equals the collider deck exactly
     const groundY = n.y - HK.plinth - HK.storey * storeys;
-    const tiles = tileFootprint(n.x0, n.x1, n.z0, n.z1, groundY, storeys, houses.length);
+    const bent = s.world !== undefined && s.world.tail[i];
+    const guard: Face[] = [];
+    if (!n.cushion) {
+      const used = usedFaces(s, i);
+      for (let f = 0; f < 4; f++) if (!used[f]) guard.push((bent ? BEND_FACE[f] : f) as Face);
+    }
+    const balc: Face | -1 = n.balc >= 0 ? ((bent ? BEND_FACE[2] : 2) as Face) : -1;
+    const tiles = tileFootprint(n.x0, n.x1, n.z0, n.z1, groundY, storeys, houses.length, guard, balc);
     for (let k = 0; k < tiles.length; k++) houses.push(tiles[k]);
     perNode.push(tiles.length);
     // the collider deck slab on this footprint (style 2, same rect, top at n.y)

@@ -190,6 +190,7 @@ export interface GenParams {
   deadMin: number;
   deadMax: number;
   edge: EdgeOpts | undefined; // measure model (undefined = the frozen rules)
+  longRows?: readonly number[]; // row indices built as 4-house terraces (32 m straight runs for the sprint)
 }
 
 export const NAGARKOT_PARAMS: GenParams = {
@@ -244,6 +245,12 @@ export interface House {
   seg: number;
   role: number; // ROLE_*
   drop: number; // ground under this house lies this far below the plane (nagarkot-home terraces; 0 = frozen)
+  len?: number; // joined 8 m houses in a terrace run downhill from the uphill edge (nagarkot-home); unset = 1
+}
+
+/** Downhill (smaller z) edge of a house: a joined terrace of `len` houses runs 8 m each past the uphill one. */
+export function houseZ0(h: House): number {
+  return h.zc - HOUSE_HALF - 2 * HOUSE_HALF * ((h.len ?? 1) - 1);
 }
 
 export interface Road {
@@ -302,6 +309,8 @@ export interface StrategySummary {
   routeDisjoint?: number; // node-disjoint start -> goal paths with the roads uncapped
   routeM?: number; // metres of the shortest route
   routeS?: number; // seconds of the shortest route
+  routeRuns?: number; // route roofs with a straight run of 25 m or more along the move axis (sprint runs)
+  sprintGaps?: number; // route jumps that only a sprint launch from a long run can make
   deadBranches?: number; // weakly connected groups of dead-end nodes (leak model)
   leakPasses?: number;
 }
@@ -425,7 +434,7 @@ export function buildNodes(layout: Layout): NodeIndex {
       house: i,
       x0: x - HOUSE_HALF,
       x1: x + HOUSE_HALF,
-      z0: h.zc - HOUSE_HALF,
+      z0: houseZ0(h),
       z1: h.zc + HOUSE_HALF,
       y: roofY(h),
       cushion: h.cushion,
@@ -780,9 +789,9 @@ export function layoutToLevel(layout: Layout): LevelJson {
     const h = layout.houses[i];
     const x = LANES[h.lane];
     const y = roofY(h);
-    const z0 = h.zc - H;
+    const z0 = houseZ0(h);
     const z1 = h.zc + H;
-    solids.push(bx(x - H, planeY(h.zc) - h.drop - FOOT, z0, x + H, y - SLAB, z1));
+    solids.push(bx(x - H, planeY(z0 + H) - h.drop - FOOT, z0, x + H, y - SLAB, z1));
     style.push(1);
     solids.push(bx(x - H, y - SLAB, z0, x + H, y, z1));
     style.push(2);
@@ -967,7 +976,10 @@ function attemptInner(seed: number): StrategyLevel | null {
         at[lane] = addHouse(lane, zc, pick(rng, heights), row, si, role);
         ids.push(at[lane]);
       }
-      L.rows.push({ kind: ROW_BAND, z0: zc - HOUSE_HALF, z1: zc + HOUSE_HALF, houses: ids, road: -1, seg: si });
+      // A long row: every house in it is a 4-house terrace, so the row's lanes stay aligned (one row, one z extent).
+      const longRow = GP.longRows !== undefined && GP.longRows.indexOf(row) >= 0;
+      if (longRow) for (let i = 0; i < ids.length; i++) L.houses[ids[i]].len = 4;
+      L.rows.push({ kind: ROW_BAND, z0: longRow ? houseZ0(L.houses[ids[0]]) : zc - HOUSE_HALF, z1: zc + HOUSE_HALF, houses: ids, road: -1, seg: si });
 
       if (!link(L, rng, curA, at[eA], heights, fromTower ? TOWER_MIX : seg.mix, false)) return null;
       curA = at[eA];
