@@ -47,7 +47,14 @@ let runningId = '';
 // Builder levels (local or shipped) compile in a lazy chunk (T345); null = not a builder level or it failed.
 async function levelOverrideFor(sel: Selection): Promise<LevelJson | undefined> {
   const e = classicLevels(true).find((l) => l.id === sel.level);
-  if (sel.mode !== 'classic' || e?.builder === undefined) return undefined;
+  if (sel.mode !== 'classic') return undefined;
+  if (e?.builder === undefined) {
+    // Nagarkot Run: the generator is lazy; ?seed= still picks the seed.
+    const { STRATEGY_SEED, generateStrategyLevel } = await import('../content/strategy/gen');
+    const seed = Number(new URLSearchParams(location.search).get('seed'));
+    const has = new URLSearchParams(location.search).has('seed') && Number.isFinite(seed);
+    return generateStrategyLevel(has ? seed | 0 : STRATEGY_SEED);
+  }
   const lv =
     e.builder === 'local'
       ? (await import('../content/builder/store')).readLocalBuilderLevel()
@@ -70,6 +77,8 @@ function play(sel: Selection): void {
   }
   const lazy =
     key === 'village' ||
+    key === 'home' ||
+    key === 'strategy' ||
     isGraphMode(key) ||
     classicLevels(true).find((l) => l.id === sel.level)?.builder !== undefined;
   if (!lazy) {
@@ -84,6 +93,19 @@ function play(sel: Selection): void {
     if (key === 'village') {
       const { village } = await import('./villageAssets');
       return startGame(canvas, document.body, key, village);
+    }
+    if (key === 'home') {
+      const { loadHome } = await import('./homeAssets');
+      return startGame(
+        canvas,
+        document.body,
+        key,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        loadHome(),
+      );
     }
     if (isGraphMode(key)) {
       const { graphAssets } = await import('./graphAssets');

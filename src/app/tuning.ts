@@ -15,6 +15,7 @@ export const MODE_OVERRIDES: Record<GameMode, TuningOverride> = {
   chase: { hero: { sprintSpeed: 6 } },
   strategy: {},
   village: {},
+  home: {},
   'g:valley-1': {},
   'g:home-street': {},
 };

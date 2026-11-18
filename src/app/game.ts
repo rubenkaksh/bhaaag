@@ -37,7 +37,6 @@ import { step } from '../core/sim';
 import { Vec3 } from '../core/math/vec3';
 import { loadWorldFromJson, loadWorldFromObject } from '../content/load';
 import type { LevelJson } from '../content/load';
-import { STRATEGY_SEED, generateStrategyLevel } from '../content/strategy/gen';
 import { DesktopInput } from '../adapters/input/desktop';
 import { TouchInput, type ActionMode } from '../adapters/input/touch';
 import { Sfx } from '../adapters/audio/sfx';
@@ -112,6 +111,7 @@ import { createLocalLeaderboard } from './leaderboard';
 import type { LeaderboardPort } from './leaderboard';
 import { graphInfo } from '../content/graph/info';
 import type { GraphAssets } from './graphAssets';
+import type { HomeBundle } from './homeAssets';
 import type { GameMode } from './modes/mode';
 import { readViewport, watchViewport } from './viewport';
 import { viewportSize } from '../adapters/ui/orientation';
@@ -181,6 +181,12 @@ function copyRig(dst: CameraRig, src: CameraRig): void {
   dst.initialized = src.initialized;
 }
 
+/** The strategy world comes from main.ts (lazy generator chunk, T336c); a missing one is a wiring bug. */
+function strategyLevel(lv: LevelJson | undefined): LevelJson {
+  if (lv === undefined) throw new Error('strategy level not loaded');
+  return lv;
+}
+
 type Phase = 'pan' | 'play' | 'dead' | 'won';
 
 export function startGame(
@@ -194,6 +200,8 @@ export function startGame(
   graph?: GraphAssets,
   /** Finish-time board (T339); defaults to the local-storage port. */
   leaderboard: LeaderboardPort = createLocalLeaderboard(),
+  /** nagarkot-home only: level, kit dressing and path camera from the lazy chunk (homeAssets.ts). */
+  home?: HomeBundle,
 ): GameHandle {
   const cfg = resolveCfg(mode);
   let camCfg = cfg.camera;
@@ -203,7 +211,7 @@ export function startGame(
   const tiltDeg = params.has('tilt') && Number.isFinite(tiltParam) ? tiltParam : cfg.camera.tiltDeg;
   const camTilt = Math.min(Math.max(tiltDeg, 0), 45) * DEG2RAD;
   const isChase = mode === 'chase';
-  const isStrategy = mode === 'strategy';
+  const isStrategy = mode === 'strategy' || home !== undefined;
   const isVillage = mode === 'village';
   const isGraph = isGraphMode(mode);
   if (isGraph && graph === undefined) throw new Error('graph assets not loaded');
@@ -217,7 +225,10 @@ export function startGame(
     graphInfo(graphIdOf(mode))?.pathCamera === true
       ? graph.buildPathGraph(graph.loadGraph(graphIdOf(mode)), placed.houses)
       : null;
-  const pathCam = pathGraph !== null && graph !== undefined ? new graph.PathCam(pathGraph) : null;
+  const pathCam =
+    pathGraph !== null && graph !== undefined
+      ? new graph.PathCam(pathGraph)
+      : (home?.pathCam ?? null);
   if (isVillage && village === undefined) throw new Error('village assets not loaded');
   const seedParam = params.get('seed');
   const fixedSeed = seedParam !== null && Number.isFinite(Number(seedParam));
@@ -232,29 +243,32 @@ export function startGame(
       ? cs.rw.world
       : placed !== null
         ? loadWorldFromObject(placed.level)
-        : isStrategy
-          ? loadWorldFromObject(
-              levelOverride ??
-                generateStrategyLevel(fixedSeed ? Number(seedParam) | 0 : STRATEGY_SEED),
-            )
-          : loadWorldFromJson(village !== undefined && isVillage ? village.villageText : levelText);
+        : home !== undefined
+          ? loadWorldFromObject(home.level)
+          : isStrategy
+            ? loadWorldFromObject(strategyLevel(levelOverride))
+            : loadWorldFromJson(
+                village !== undefined && isVillage ? village.villageText : levelText,
+              );
   const gs = createGameScene(canvas);
   const level: Group | null =
     cs === null
       ? gs.buildWorld(world, {
-          houseDress: placed === null,
+          houseDress: placed === null && home === undefined,
           graph:
-            placed === null
-              ? undefined
-              : {
-                  houses: placed.houses,
-                  props: placed.props,
-                  profile: placed.profile,
-                  seed: placed.seed,
-                  look: graphInfo(graphIdOf(mode))?.look,
-                  patches: placed.patches,
-                  field: placed.field,
-                },
+            home !== undefined
+              ? home.graph
+              : placed === null
+                ? undefined
+                : {
+                    houses: placed.houses,
+                    props: placed.props,
+                    profile: placed.profile,
+                    seed: placed.seed,
+                    look: graphInfo(graphIdOf(mode))?.look,
+                    patches: placed.patches,
+                    field: placed.field,
+                  },
           floorY: village !== undefined && isVillage ? village.VILLAGE_CLOUD_TOP_Y : undefined,
         })
       : null;

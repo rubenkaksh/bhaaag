@@ -10,7 +10,7 @@ import {
   saveSelection,
 } from '../../src/app/modes/levels';
 import { MODE_IDS } from '../../src/app/modes/registry';
-import { GAME_MODES } from '../../src/app/modes/mode';
+import { BEST_KEYS, GAME_MODES } from '../../src/app/modes/mode';
 
 function memStore(init: Record<string, string> = {}) {
   const m = new Map(Object.entries(init));
@@ -41,6 +41,13 @@ describe('two modes (ADR 0016)', () => {
     expect(playKey({ mode: 'classic', level: 'nagarkot' }, levels)).toBe('strategy');
     expect(playKey({ mode: 'classic', level: 'nope' }, levels)).toBe('classic');
   });
+  it('registers nagarkot-home in the Classic row with its own best key', () => {
+    const levels = classicLevels(false);
+    expect(levels.map((l) => l.id)).toContain('nagarkot-home');
+    expect(playKey({ mode: 'classic', level: 'nagarkot-home' }, levels)).toBe('home');
+    expect(BEST_KEYS.home).toBe('bhagdori.best.nagarkot-home');
+  });
+
   it('old ?mode= values become a Classic level', () => {
     expect(legacyLevel('g:home-street')).toBe('home-street');
     expect(legacyLevel('strategy')).toBe('nagarkot');

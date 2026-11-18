@@ -21,12 +21,13 @@ function memStore(init: Record<string, string> = {}) {
 }
 
 describe('game modes', () => {
-  it('lists classic, chase, strategy, village and one entry per graph level', () => {
+  it('lists classic, chase, strategy, village, home and one entry per graph level', () => {
     expect(GAME_MODES).toEqual([
       'classic',
       'chase',
       'strategy',
       'village',
+      'home',
       'g:valley-1',
       'g:home-street',
     ]);
