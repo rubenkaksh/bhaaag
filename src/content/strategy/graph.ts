@@ -29,7 +29,8 @@ export interface MazeNode {
   z0: number; // downhill edge (smaller z)
   z1: number; // uphill edge
   y: number; // standing surface height
-  cushion: boolean; // whole surface is a cushion: any fall is safe
+  cushion: boolean; // has a cushion: a landing on it is safe at any speed (all of the surface unless `pad` is set)
+  pad?: { x0: number; x1: number; z0: number; z1: number }; // nagarkot-home: the cushion is only this rect of the surface
   tramps: number[]; // x centres of tramp pads on the downhill edge strip
   zipTo: number; // node id the zone on the downhill edge lines to, or -1
   zipX: number; // x centre of that zone
@@ -130,6 +131,23 @@ export function relation(a: MazeNode, b: MazeNode): Rel | null {
   return null;
 }
 
+/** Distance range [lo, hi] past b's near lip (along the move) covered by b's cushion pad, or null (whole surface / no pad). */
+export function padSpan(a: MazeNode, b: MazeNode, rel: Rel): [number, number] | null {
+  const p = b.pad;
+  if (!b.cushion || p === undefined) return null;
+  if (rel.lateral) {
+    return b.x0 >= a.x1 ? [p.x0 - b.x0, p.x1 - b.x0] : [b.x1 - p.x1, b.x1 - p.x0];
+  }
+  return rel.downhill ? [b.z1 - p.z1, b.z1 - p.z0] : [p.z0 - b.z0, p.z1 - b.z0];
+}
+
+const PAD_EDGE = 0.3; // a landing centre must be this far inside the pad's edge
+
+/** True when a landing d metres past the near lip is on the pad (centre inside, with a margin). */
+export function onPad(span: readonly [number, number], d: number): boolean {
+  return d >= span[0] + PAD_EDGE && d <= span[1] - PAD_EDGE;
+}
+
 const LAUNCHES: ReadonlyArray<readonly [number, number]> = [
   [0, T.hero.walk], // walk off: gentlest landing
   [0, T.hero.run], // run off
@@ -148,7 +166,13 @@ export function jumpOk(a: MazeNode, b: MazeNode, rel: Rel, opts?: EdgeOpts): boo
   for (let i = 0; i < L.length; i++) {
     const f = flight(L[i][0], L[i][1], dy);
     if (f === null || f.dist < need) continue;
-    return b.cushion || f.vLand <= T.landing.vyRoll - VLAND_MARGIN;
+    const soft = f.vLand <= T.landing.vyRoll - VLAND_MARGIN;
+    if (!b.cushion) return soft;
+    const span = padSpan(a, b, rel);
+    if (span === null) return true;
+    // A pad covers only part of the surface: this launch must land on it (or land softly anyway);
+    // a longer launch may still reach it.
+    if (soft || onPad(span, f.dist - rel.gap)) return true;
   }
   return false;
 }
@@ -170,12 +194,13 @@ export function trampOk(a: MazeNode, b: MazeNode, rel: Rel): boolean {
   if (dy > apex - STEP_MAX) return false;
   const f = flight(vy, T.hero.run * TRAMP_APPROACH, dy);
   if (f === null) return false;
+  const span = padSpan(a, b, rel);
   // Launch from the pad centre, PAD_DEPTH/2 inside the lip; do not fly past the far lip either
   // (a balcony has its house wall as a backstop).
   const lip = rel.gap + PAD_DEPTH / 2;
   if (f.dist < lip + R + LAND_MARGIN) return false;
   if (b.kind !== NODE_BALCONY && f.dist > lip + (b.z1 - b.z0) - R) return false;
-  return b.cushion || f.vLand <= T.landing.vyRoll - VLAND_MARGIN;
+  return landsSafe(b, span, f, lip, T.landing.vyRoll - VLAND_MARGIN);
 }
 
 // State of a launch (vy0, vh) after d metres of horizontal travel: feet height over the launch
@@ -198,26 +223,48 @@ function grabFrom(vy0: number, vh: number, d: number, dy: number): boolean {
   return s[1] >= -(T.climb.vyMax - GRAB_VY_MARGIN);
 }
 
+// A landing `lip` metres from the launch point: safe on the pad (or anywhere on a whole-surface cushion),
+// else only when the falling speed is inside `vSafe`.
+function landsSafe(
+  b: MazeNode,
+  span: readonly [number, number] | null,
+  f: Flight,
+  lip: number,
+  vSafe: number,
+): boolean {
+  if (f.vLand <= vSafe) return true;
+  if (!b.cushion) return false;
+  return span === null || onPad(span, f.dist - lip);
+}
+
 // A launch whose arc is over the far lip when the hero's centre gets there (lip = distance from
 // the launch point to the lip), lands on the platform and survives it.
-function lipFrom(vy0: number, vh: number, lip: number, b: MazeNode, dy: number): boolean {
+function lipFrom(
+  vy0: number,
+  vh: number,
+  lip: number,
+  b: MazeNode,
+  dy: number,
+  span: readonly [number, number] | null,
+): boolean {
   const f = flight(vy0, vh, dy);
   if (f === null || f.dist < lip) return false;
   const s = atDistance(vy0, vh, lip - R);
   if (s === null || s[0] < dy) return false;
   if (b.kind !== NODE_BALCONY && f.dist > lip + (b.z1 - b.z0) - R) return false;
-  return b.cushion || f.vLand <= T.landing.vyRoll; // the sim's own limit: no comfort margin here
+  return landsSafe(b, span, f, lip, T.landing.vyRoll); // the sim's own limit: no comfort margin here
 }
 
 /** Tight edge A -> B: a lip landing the sim allows but the comfort margins of jumpOk/trampOk refuse. */
 export function tightOk(a: MazeNode, b: MazeNode, rel: Rel, opts?: EdgeOpts): boolean {
   const dy = b.y - a.y;
+  const span = padSpan(a, b, rel);
   const L = opts === undefined ? LAUNCHES : LAUNCHES.concat(opts.launches);
   for (let i = 0; i < L.length; i++) {
-    if (lipFrom(L[i][0], L[i][1], rel.gap, b, dy)) return true;
+    if (lipFrom(L[i][0], L[i][1], rel.gap, b, dy, span)) return true;
   }
   if (rel.downhill && padAligned(a, b)) {
-    return lipFrom(T.tramp.vUp, T.hero.run * TRAMP_APPROACH, rel.gap + PAD_DEPTH / 2, b, dy);
+    return lipFrom(T.tramp.vUp, T.hero.run * TRAMP_APPROACH, rel.gap + PAD_DEPTH / 2, b, dy, span);
   }
   return false;
 }
