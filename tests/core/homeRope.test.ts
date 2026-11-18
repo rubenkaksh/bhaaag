@@ -74,7 +74,7 @@ describe('rope.legHazardKill', () => {
     w.killPlaneY = -50;
     const s = new HeroState();
     s.px = 15;
-    s.py = 3;
+    s.py = 12; // 15 m/s at the band: above hazard.killImpact
     s.pz = 0;
     s.mode = HERO_AIRBORNE;
     for (let t = 0; t < 120 && s.dead === 0; t++) step(s, IDLE, w, withFlag(0));
@@ -97,7 +97,11 @@ describe('nagarkot-home road slabs are rigid', () => {
       for (const fx of [0.25, 0.5, 0.75])
         for (const fz of [0.25, 0.5, 0.75])
           for (const h of [0.1, 1, 2.5])
-            for (const [vx, vz] of [[0, 0], [2, 0], [0, -3]]) {
+            for (const [vx, vz] of [
+              [0, 0],
+              [2, 0],
+              [0, -3],
+            ]) {
               const s = new HeroState();
               s.px = b.min.x + (b.max.x - b.min.x) * fx;
               s.pz = b.min.z + (b.max.z - b.min.z) * fz;

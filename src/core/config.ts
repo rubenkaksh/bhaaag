@@ -199,6 +199,14 @@ export type Tuning = {
     autoMantleSec: number; // stick held this long while hanging mantles, s
     stickDot: number; // stick/heading dot needed for the auto moves
   };
+  // Hillside ground (owner 2026-11-18): hazard volumes hold a soft landing instead of killing.
+  hazard: {
+    killImpact: number; // m/s of impact speed above which a hazard landing still kills; 0 = hazards always kill (old rule)
+    groundWalkSpeed: number; // m/s the hero can walk on the hillside (no sprint, no carried momentum)
+    climbHoldSec: number; // s the stick is held into a house wall on the hillside before the climb starts
+    climbSpeed: number; // m/s the hero climbs the wall up to the ledge
+    climbMaxH: number; // tallest ledge above the feet the hillside climb can reach, m
+  };
 };
 
 export const DEFAULT_TUNING: Tuning = {
@@ -386,4 +394,5 @@ export const DEFAULT_TUNING: Tuning = {
   },
   slide: { minSpeed: 7, sec: 0.6, height: 1.0, decel: 4, minKeep: 2 },
   parkour: { airStepUp: 0.5, grabProbe: 0.3, autoMantleSec: 0.25, stickDot: 0.7 },
+  hazard: { killImpact: 10, groundWalkSpeed: 2, climbHoldSec: 0.4, climbSpeed: 2.5, climbMaxH: 14 },
 };
