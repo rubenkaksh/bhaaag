@@ -1,3 +1,5 @@
+/* global fetch, setTimeout, console, document */
+// T336c: scripted touch run on nagarkot-home (390x844, SwiftShader): leaves the start node, prints the debug pos line.
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 const srv = spawn('pnpm', ['exec', 'vite', 'preview', '--port', '4198', '--strictPort'], { stdio: 'ignore' });
