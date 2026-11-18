@@ -22,7 +22,6 @@ import { buildGully } from './gully';
 import type { GullyPatch } from './gully';
 import { buildStrategyFeatures, minSolidZ } from './strategyView';
 import { buildHouseDecor } from './decor/houseV2';
-import { buildHorizonCard } from './horizonCard';
 import { STYLE_BODY, STYLE_PARAPET } from '../../content/house/houseSpec';
 import type { HouseSpec, PropSpec } from '../../content/house/houseSpec';
 import { setTerrainExtent, setTerrainField, setTerrainProfile } from './terrain';
@@ -322,7 +321,6 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
         deckClear: opts.graph.kitSkip !== undefined,
       }),
     );
-    if (opts.graph.look === 'home') g.add(buildHorizonCard(opts.graph.houses));
     const gully = buildGully(world, opts.graph.patches ?? []);
     if (gully !== null) g.add(gully);
   }

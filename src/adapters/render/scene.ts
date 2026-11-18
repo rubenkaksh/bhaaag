@@ -112,11 +112,21 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   scene.add(dust);
   const backdropRoot = new Group();
   backdropRoot.name = 'backdropRoot';
-  // The mountain rings are generated code (~17 KB): loaded lazily to keep the initial chunk small.
+  // Painted plate + ridge cards (render/backdrop.ts, textures built by tools/backdrop-build.mjs):
+  // code and textures load lazily; the sky gradient is the fallback until they arrive.
   const backdropTier = cfg.tier;
-  void import('./backdrop').then((m) => {
-    if (!disposed) backdropRoot.add(m.buildBackdrop(backdropTier));
-  });
+  void import('./backdrop')
+    .then((m) => m.loadBackdrop(backdropTier))
+    .then((g) => {
+      if (disposed) return;
+      backdropRoot.add(g);
+      // the painted plate has its own clouds and sun: drop the low-poly cloud layers
+      for (const n of ['clouds', 'cloudsHigh']) {
+        const o = sky.getObjectByName(n);
+        if (o) o.visible = false;
+      }
+    })
+    .catch(() => {});
   scene.add(backdropRoot);
   const sun = new DirectionalLight(cfg.sun.color, cfg.sun.intensity);
   scene.add(sun);
