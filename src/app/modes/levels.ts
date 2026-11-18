@@ -24,6 +24,7 @@ const BASE_LEVELS: readonly LevelEntry[] = [
   ...GRAPH_LEVELS.map((g): LevelEntry => ({ id: g.id, label: g.label, key: `g:${g.id}` })),
   { id: 'nagarkot', label: 'Nagarkot Run', key: 'strategy' },
   { id: 'village', label: 'Cloud Village', key: 'village' },
+  { id: 'nagarkot-home', label: 'Nagarkot Home', key: 'home' },
 ];
 
 /** Classic's levels: the built-in ones, shipped builder levels, then the local builder level when present. */
