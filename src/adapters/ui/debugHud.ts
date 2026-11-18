@@ -31,9 +31,24 @@ export class DebugHud {
     }
     const speed = Math.sqrt(hero.vx * hero.vx + hero.vz * hero.vz);
     this.el.textContent =
-      'fps ' + this.fps.toFixed(0) + '\n' +
-      'calls ' + calls + '  tris ' + triangles + '\n' +
-      'pos ' + hero.px.toFixed(1) + ' ' + hero.py.toFixed(1) + ' ' + hero.pz.toFixed(1) + '\n' +
-      'speed ' + speed.toFixed(1) + '  grounded ' + hero.grounded;
+      'fps ' +
+      this.fps.toFixed(0) +
+      '\n' +
+      'calls ' +
+      calls +
+      '  tris ' +
+      triangles +
+      '\n' +
+      'pos ' +
+      hero.px.toFixed(1) +
+      ' ' +
+      hero.py.toFixed(1) +
+      ' ' +
+      hero.pz.toFixed(1) +
+      '\n' +
+      'speed ' +
+      speed.toFixed(1) +
+      '  grounded ' +
+      hero.grounded;
   }
 }

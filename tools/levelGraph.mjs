@@ -20,7 +20,11 @@ const seedArg = args.find((a) => a.startsWith('--seed='));
 
 // ---- graph data: { n: [[id, depth, ok, label, x]], e: [[from, to, moveLetter]], sp: [ids], names }
 async function strategyData() {
-  const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
+  const vite = await createServer({
+    server: { middlewareMode: true },
+    appType: 'custom',
+    logLevel: 'silent',
+  });
   try {
     const gen = await vite.ssrLoadModule('/src/content/strategy/gen.ts');
     const s = gen.buildStrategy(seedArg ? Number(seedArg.slice(7)) : undefined);
@@ -52,7 +56,13 @@ async function strategyData() {
     for (let v = goal; v !== null; v = prev.get(v)) sp.unshift(v);
     const n = [...df.keys()].map((id) => {
       const nd = s.nodes[id];
-      return [id, df.get(id), db.has(id) ? 1 : 0, nd.kind === 2 ? 'rd' : (nd.kind === 1 ? 'b' : 'h') + nd.house, Math.round((nd.x0 + nd.x1) / 2)];
+      return [
+        id,
+        df.get(id),
+        db.has(id) ? 1 : 0,
+        nd.kind === 2 ? 'rd' : (nd.kind === 1 ? 'b' : 'h') + nd.house,
+        Math.round((nd.x0 + nd.x1) / 2),
+      ];
     });
     const e = edges
       .filter((x) => df.has(x.from) && df.get(x.to) > df.get(x.from))
@@ -95,14 +105,26 @@ function jsonData(path) {
     n.push([id, from + 1, 0, `decoy${i}`, Math.round(c(P(a), 0))]);
     e.push([from, id, 'z']);
   });
-  return { n, e, sp, title: `${path}: ${anchors.length} anchors, ${route.length} on route`, xScale: 8.2 };
+  return {
+    n,
+    e,
+    sp,
+    title: `${path}: ${anchors.length} anchors, ${route.length} on route`,
+    xScale: 8.2,
+  };
 }
 
 // ---- renderers
 function svg(D) {
-  const W = 680, RH = 21, X0 = 340, TOP = 34;
-  const info = {}, layers = {}, pos = {};
-  for (const [id, d, ok, label, x] of D.n) (info[id] = { d, ok, label, x }, (layers[d] ??= []).push(id));
+  const W = 680,
+    RH = 21,
+    X0 = 340,
+    TOP = 34;
+  const info = {},
+    layers = {},
+    pos = {};
+  for (const [id, d, ok, label, x] of D.n)
+    ((info[id] = { d, ok, label, x }), (layers[d] ??= []).push(id));
   const maxD = Math.max(...D.n.map((r) => r[1]));
   for (const d of Object.keys(layers)) {
     const used = [];
@@ -116,10 +138,14 @@ function svg(D) {
   const spE = new Set(D.sp.slice(1).map((v, i) => `${D.sp[i]}>${v}`));
   const spN = new Set(D.sp);
   const curve = (a, b, c, w, dash, op) => {
-    const [x1, y1] = pos[a], [x2, y2] = pos[b], m = (y1 + y2) / 2;
+    const [x1, y1] = pos[a],
+      [x2, y2] = pos[b],
+      m = (y1 + y2) / 2;
     return `<path d="M${x1} ${y1} C${x1} ${m} ${x2} ${m} ${x2} ${y2}" fill="none" stroke="${c}" stroke-width="${w}"${dash ? ' stroke-dasharray="3 2"' : ''} opacity="${op}"/>`;
   };
-  let grey = '', red = '', green = '';
+  let grey = '',
+    red = '',
+    green = '';
   for (const [a, b] of D.e) {
     if (!pos[a] || !pos[b]) continue;
     if (spE.has(`${a}>${b}`)) green += curve(a, b, '#1d9e75', 3.2, false, 0.95);
@@ -134,9 +160,13 @@ function svg(D) {
     nodes += /^(rd|b)/.test(label)
       ? `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" fill="${fill}" stroke="${stroke}"/>`
       : `<circle cx="${x}" cy="${y}" r="5" fill="${fill}" stroke="${stroke}" stroke-width="1.2"/>`;
-    if (!ok || spN.has(id)) nodes += `<text x="${x + 8}" y="${y + 3}" font-size="9" fill="${ok ? '#222' : '#d03a2c'}">${label}</text>`;
+    if (!ok || spN.has(id))
+      nodes += `<text x="${x + 8}" y="${y + 3}" font-size="9" fill="${ok ? '#222' : '#d03a2c'}">${label}</text>`;
   }
-  const guides = Array.from({ length: Math.floor(maxD / 3) + 1 }, (_, i) => `<text x="4" y="${TOP + i * 3 * RH + 3}" font-size="9" fill="#999">${i * 3}</text>`).join('');
+  const guides = Array.from(
+    { length: Math.floor(maxD / 3) + 1 },
+    (_, i) => `<text x="4" y="${TOP + i * 3 * RH + 3}" font-size="9" fill="#999">${i * 3}</text>`,
+  ).join('');
   const H = TOP + maxD * RH + 30;
   const [gx, gy] = pos[D.sp[D.sp.length - 1]];
   const legend = `<text x="10" y="12" font-size="11" font-weight="500" fill="#222">${D.title.replace(/&/g, '&amp;')}</text>
@@ -152,7 +182,9 @@ function mermaid(D) {
   const seen = new Set();
   const out = ['flowchart TD'];
   for (const [a, b, m] of use) {
-    for (const id of [a, b]) if (!seen.has(id)) (seen.add(id), out.push(`  N${id}["${info[id][3]}"]${info[id][2] ? '' : ':::dead'}`));
+    for (const id of [a, b])
+      if (!seen.has(id))
+        (seen.add(id), out.push(`  N${id}["${info[id][3]}"]${info[id][2] ? '' : ':::dead'}`));
     out.push(`  N${a} -->|${m}| N${b}`);
   }
   out.push('  classDef dead fill:#d03a2c,color:#fff');
@@ -166,5 +198,7 @@ else if (has('--mermaid')) console.log(mermaid(D));
 else {
   const dead = D.n.filter((r) => !r[2]).map((r) => r[3]);
   console.log(D.title);
-  console.log(`shortest route: ${D.sp.length - 1} moves; dead ends: ${dead.length}${dead.length ? ' (' + dead.join(', ') + ')' : ''}`);
+  console.log(
+    `shortest route: ${D.sp.length - 1} moves; dead ends: ${dead.length}${dead.length ? ' (' + dead.join(', ') + ')' : ''}`,
+  );
 }
