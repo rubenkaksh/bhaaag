@@ -361,6 +361,70 @@ function hazardAt(w: World, x: number, y: number, z: number): number {
   return -1;
 }
 
+// Highest hazard top at (x, z) that is at or below yMax (the hillside surface the hero can stand
+// on), or NO_GROUND when none.
+function hazardTopBelow(w: World, x: number, z: number, yMax: number): number {
+  let best = NO_GROUND;
+  for (let i = 0; i < w.hazards.length; i++) {
+    const b = w.hazards[i];
+    if (x < b.min.x || x > b.max.x || z < b.min.z || z > b.max.z) continue;
+    if (b.max.y <= yMax && b.max.y > best) best = b.max.y;
+  }
+  return best;
+}
+
+// True when a hazard volume at (x, z) rises above yMax while reaching below it: a hillside step
+// too tall to walk up (the walking hero treats it as a wall).
+function hazardRises(w: World, x: number, z: number, yMax: number): boolean {
+  for (let i = 0; i < w.hazards.length; i++) {
+    const b = w.hazards[i];
+    if (x < b.min.x || x > b.max.x || z < b.min.z || z > b.max.z) continue;
+    if (b.max.y > yMax && b.min.y < yMax) return true;
+  }
+  return false;
+}
+
+// Feet touched a hazard volume (hazardAt index hi). Hillside rule (cfg.hazard.killImpact > 0): a
+// soft touch puts the hero on the volume's top as slow-walking ground; a hard one (impact speed
+// above killImpact) kills. The rope, a vault and the old rule (killImpact 0) keep the plain kill.
+function hazardContact(s: HeroState, w: World, cfg: Tuning, hi: number): void {
+  const hz = cfg.hazard;
+  if (hz.killImpact <= 0 || s.mode === HERO_ATTACHED || s.mode === HERO_VAULT) {
+    killHero(s, DEAD_HAZARD);
+    return;
+  }
+  if (s.mode === HERO_HANGING) return; // feet in the hillside while hanging a ledge: not lethal
+  const top = w.hazards[hi].max.y;
+  if (s.hill === 1 && s.grounded === 1) {
+    s.py = top; // already walking on it
+    return;
+  }
+  if (-s.vy > hz.killImpact) {
+    killHero(s, DEAD_HAZARD);
+    return;
+  }
+  s.py = top;
+  s.vy = 0;
+  const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+  if (sp > hz.groundWalkSpeed) {
+    const k = hz.groundWalkSpeed / sp;
+    s.vx *= k;
+    s.vz *= k;
+  }
+  s.grounded = 1;
+  s.mode = HERO_GROUNDED;
+  s.hill = 1;
+  s.runOut = 0;
+  s.chainT = 0;
+  s.slideT = 0;
+  s.rollT = 0;
+  s.perfect = 0;
+  s.bounceAir = 0;
+  s.sprintM = 0;
+  s.eventBits |= HERO_EV_LANDED;
+  if (s.hook.state === HOOK_ATTACHED || s.hook.state === HOOK_AT_END) resetHook(s.hook);
+}
+
 // Trampoline contact: the feet are on a tramp slab. Never lethal; the hero leaves the roof
 // again at tramp.vUp (plus jumpBonus when JUMP is held), horizontal speed kept under carryCap.
 function bounceHero(s: HeroState, cfg: Tuning, jumpHeld: boolean): void {
@@ -446,6 +510,7 @@ function landHero(s: HeroState, w: World, cfg: Tuning, jumpHeld: boolean): void 
   s.vy = 0;
   s.grounded = 1;
   s.mode = HERO_GROUNDED;
+  s.hill = 0;
   s.runOut = 0;
   s.chainT = cfg.landing.chainWindowMs / 1000;
   s.eventBits |= HERO_EV_LANDED;
@@ -487,6 +552,7 @@ function releaseHero(s: HeroState, cfg: Tuning, withJump: boolean): void {
   s.mode = HERO_AIRBORNE;
   s.hasLedge = 0;
   s.climbT = 0;
+  s.hillClimb = 0;
   s.hookCd = cfg.release.hookCooldownSec;
   s.eventBits |= HERO_EV_RELEASED;
 }
@@ -647,7 +713,14 @@ function rideStep(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
 // Records the top of solid idx (whose side face scratchHit names) as the held ledge when it is
 // within climb reach above the feet and nothing sits on it within a hero height. The wall
 // normal must be horizontal (a side face). Returns true when a ledge was recorded.
-function recordLedge(s: HeroState, w: World, cfg: Tuning, idx: number): boolean {
+function recordLedge(
+  s: HeroState,
+  w: World,
+  cfg: Tuning,
+  idx: number,
+  reachMin: number,
+  reachMax: number,
+): boolean {
   s.hasLedge = 0;
   if (idx < 0 || scratchHit.ny !== 0) return false;
   const b = w.solids[idx];
@@ -666,7 +739,7 @@ function recordLedge(s: HeroState, w: World, cfg: Tuning, idx: number): boolean 
   const stacked = groundHeight(w, inX, inZ, r, top + LEDGE_STACK_MAX);
   if (stacked > top + SLAB_TOL) top = stacked;
   const dTop = top - s.py;
-  if (dTop < cfg.climb.reachMin || dTop > cfg.climb.reachMax) return false;
+  if (dTop < reachMin || dTop > reachMax) return false;
   // Head room: the highest surface under the stand point up to a hero height above the
   // ledge must be the ledge itself.
   const above = groundHeight(w, inX, inZ, r, top + cfg.hero.height);
@@ -695,14 +768,14 @@ function wallHit(s: HeroState, w: World, cfg: Tuning): void {
   s.vy = 0;
   s.vz = 0;
   s.eventBits |= HERO_EV_CLING;
-  if (w.climb === 1) recordLedge(s, w, cfg, hitSolid);
+  if (w.climb === 1) recordLedge(s, w, cfg, hitSolid, cfg.climb.reachMin, cfg.climb.reachMax);
   resetHook(h);
 }
 
 // Airborne horizontal sweep blocked by solid idx: grab its top when in reach (ADR 0011).
 function tryGrab(s: HeroState, w: World, cfg: Tuning, idx: number): boolean {
   if (s.vy > cfg.climb.vyMax || s.vy < -cfg.climb.vyMax) return false;
-  if (!recordLedge(s, w, cfg, idx)) return false;
+  if (!recordLedge(s, w, cfg, idx, cfg.climb.reachMin, cfg.climb.reachMax)) return false;
   s.mode = HERO_HANGING;
   s.vx = 0;
   s.vy = 0;
@@ -725,6 +798,17 @@ function hangStep(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
     return;
   }
   if (s.hasLedge !== 1) return;
+  if (s.hillClimb === 1) {
+    // Rise to hand reach below the ledge, then mantle on.
+    const target = s.hangLedgeY - 0.5 * (cfg.climb.reachMin + cfg.climb.reachMax);
+    if (s.py < target) {
+      const up = s.py + cfg.hazard.climbSpeed * dt;
+      s.py = up < target ? up : target;
+      return;
+    }
+    mantleHero(s, cfg);
+    return;
+  }
   // Parkour (ADR 0013): the stick held toward the wall also mantles, after a shorter hold.
   const byStick =
     world.parkour === 1 &&
@@ -736,8 +820,12 @@ function hangStep(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   }
   s.climbT += dt;
   if (s.climbT < (byStick ? cfg.parkour.autoMantleSec : cfg.climb.holdSec)) return;
-  // Mantle: stand on the ledge with the whole footprint on the roof, mantleFwd past the
-  // edge, measured from the wall face (the hero hangs a radius short of it).
+  mantleHero(s, cfg);
+}
+
+// Stand on the held ledge with the whole footprint on the roof, mantleFwd past the edge,
+// measured from the wall face (the hero hangs a radius short of it).
+function mantleHero(s: HeroState, cfg: Tuning): void {
   const push = cfg.hero.radius + cfg.climb.mantleFwd;
   if (s.hangNx !== 0) s.px = s.hangWall - s.hangNx * push;
   if (s.hangNz !== 0) s.pz = s.hangWall - s.hangNz * push;
@@ -748,7 +836,35 @@ function hangStep(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   s.hasLedge = 0;
   s.climbT = 0;
   s.chainT = 0;
+  s.hill = 0;
+  s.hillClimb = 0;
   s.eventBits |= HERO_EV_MANTLE;
+}
+
+// Hillside climb (cfg.hazard): the hero holding the stick into a house wall rises along it to the
+// ledge, then mantles by the normal rule. Returns true when a ledge within climbMaxH was found.
+function startHillClimb(
+  s: HeroState,
+  w: World,
+  cfg: Tuning,
+  idx: number,
+  nx: number,
+  nz: number,
+): boolean {
+  scratchHit.nx = nx;
+  scratchHit.ny = 0;
+  scratchHit.nz = nz;
+  if (!recordLedge(s, w, cfg, idx, cfg.hero.stepUp, cfg.hazard.climbMaxH)) return false;
+  s.mode = HERO_HANGING;
+  s.grounded = 0;
+  s.vx = 0;
+  s.vy = 0;
+  s.vz = 0;
+  s.runOut = 0;
+  s.hillClimb = 1;
+  s.hillClimbT = 0;
+  s.yaw = Math.atan2(-nx, -nz);
+  return true;
 }
 
 // Auto-vault in progress (ADR 0013): the hero follows the stored path, no collision (the end
@@ -959,13 +1075,11 @@ export function step(s: HeroState, input: InputFrame, world: World, cfg: Tuning)
   // rope.legHazardKill = 0: riding the rope (mode still ATTACHED after the move) is exempt, so legs
   // dangling through a hazard band or terrain edge do not kill. Everything else keeps the kill.
   const hazardLive = s.mode !== HERO_ATTACHED || cfg.rope.legHazardKill === 1;
-  if (
-    hazardLive &&
-    s.dead === 0 &&
-    world.hazards.length > 0 &&
-    hazardAt(world, s.px, s.py, s.pz) >= 0
-  )
-    killHero(s, DEAD_HAZARD);
+  if (hazardLive && s.dead === 0 && world.hazards.length > 0) {
+    const hi = hazardAt(world, s.px, s.py, s.pz);
+    if (hi >= 0) hazardContact(s, world, cfg, hi);
+  }
+  if (s.mode === HERO_ATTACHED) s.hill = 0;
 }
 
 // Grounded on a slippery slope (frame in the slope scratch): weak steering toward the wanted
@@ -1032,6 +1146,21 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   let wantX = (my * sy + mx * cy) * cfg.hero.run;
   let wantZ = (my * cy - mx * sy) * cfg.hero.run;
 
+  // Hillside (cfg.hazard): slow walking, no sprint, no carried momentum.
+  const hillG = s.hill === 1 && s.grounded === 1;
+  if (hillG) {
+    const cap = cfg.hazard.groundWalkSpeed;
+    if (cap < cfg.hero.run) {
+      wantX *= cap / cfg.hero.run;
+      wantZ *= cap / cfg.hero.run;
+    }
+    const sp = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
+    if (sp > cap) {
+      s.vx *= cap / sp;
+      s.vz *= cap / sp;
+    }
+  }
+
   const pk = world.parkour === 1;
   if (s.grounded === 1) {
     // A slide cannot jump into a low ceiling (parkour).
@@ -1085,7 +1214,7 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   } else if (s.grounded === 1) {
     // Sprint (ADR 0018): run on without stopping for sprintStreakM metres and the want speed
     // ramps from run to sprintSpeed. Off when sprintSpeed <= run.
-    const sprintOn = cfg.hero.sprintSpeed > cfg.hero.run;
+    const sprintOn = cfg.hero.sprintSpeed > cfg.hero.run && !hillG;
     const sp0 = Math.sqrt(s.vx * s.vx + s.vz * s.vz);
     if (sprintOn && mag > 0 && sp0 >= SPRINT_KEEP * cfg.hero.run) s.sprintM += sp0 * dt;
     else s.sprintM = 0;
@@ -1227,7 +1356,10 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   s.px += mvx;
   // Ramps carry no sweep geometry: reject the axis move when the ramp surface at the
   // new footprint is more than stepUp above the feet (wall rule, finding 5).
-  if (rampBarrierHeightAt(world, s.px, s.pz, r) > s.py + cfg.hero.stepUp) {
+  if (
+    rampBarrierHeightAt(world, s.px, s.pz, r) > s.py + cfg.hero.stepUp ||
+    (hillG && hazardRises(world, s.px, s.pz, s.py + cfg.hero.stepUp))
+  ) {
     s.px = oldPx;
     s.vx = 0;
   } else if (
@@ -1264,7 +1396,10 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
     s.sprintM = 0; // wall
   }
   s.pz += mvz;
-  if (rampBarrierHeightAt(world, s.px, s.pz, r) > s.py + cfg.hero.stepUp) {
+  if (
+    rampBarrierHeightAt(world, s.px, s.pz, r) > s.py + cfg.hero.stepUp ||
+    (hillG && hazardRises(world, s.px, s.pz, s.py + cfg.hero.stepUp))
+  ) {
     s.pz = oldPz;
     s.vz = 0;
   } else if (
@@ -1274,6 +1409,29 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
     tryVault(s, world, cfg, solidZ, 0, nzZ > 0 ? 1 : -1, pvx, pvz)
   ) {
     return;
+  }
+
+  // Hillside climb: stick held into a house wall for climbHoldSec starts the climb to its ledge.
+  if (hillG && stickMag >= STICK_MIN) {
+    let cs = -1;
+    let cnx = 0;
+    let cnz = 0;
+    if (hitX && nyX === 0 && solidX >= 0) {
+      cs = solidX;
+      cnx = nxX > 0 ? 1 : -1;
+    } else if (hitZ && nyZ === 0 && solidZ >= 0) {
+      cs = solidZ;
+      cnz = nzZ > 0 ? 1 : -1;
+    }
+    if (cs >= 0 && -(stickDx * cnx + stickDz * cnz) >= cfg.parkour.stickDot) {
+      s.hillClimbT += dt;
+      if (s.hillClimbT >= cfg.hazard.climbHoldSec && startHillClimb(s, world, cfg, cs, cnx, cnz))
+        return;
+    } else {
+      s.hillClimbT = 0;
+    }
+  } else {
+    s.hillClimbT = 0;
   }
 
   // Ledge grab (ADR 0011, climb levels only): in the air, holding the stick toward a wall
@@ -1300,7 +1458,13 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
 
   // Vertical.
   if (s.grounded === 1) {
-    const gh = groundHeight(world, s.px, s.pz, r, s.py + cfg.hero.stepUp);
+    let gh = groundHeight(world, s.px, s.pz, r, s.py + cfg.hero.stepUp);
+    if (s.hill === 1) {
+      // Hillside support: the hazard top under the feet, until a solid at least as high takes over.
+      const ht = hazardTopBelow(world, s.px, s.pz, s.py + cfg.hero.stepUp);
+      if (ht > gh) gh = ht;
+      else if (gh > NO_GROUND) s.hill = 0;
+    }
     if (gh > NO_GROUND && gh >= s.py - cfg.hero.stepUp) {
       s.py = gh;
       s.vy = 0;
