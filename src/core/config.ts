@@ -17,6 +17,7 @@ export type Tuning = {
     handToFeet: number;
     hookSpeed: number;
     brakeDecel: number;
+    legHazardKill: number; // 1: hazard volumes kill the feet while riding the rope; 0: they do not (owner order 2026-11-18)
   };
   aim: {
     magnetDegDesktop: number;
@@ -215,6 +216,7 @@ export const DEFAULT_TUNING: Tuning = {
     handToFeet: 2.0,
     hookSpeed: 320,
     brakeDecel: 10,
+    legHazardKill: 0,
   },
   aim: {
     magnetDegDesktop: 4,

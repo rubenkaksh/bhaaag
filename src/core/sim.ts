@@ -950,7 +950,10 @@ export function step(s: HeroState, input: InputFrame, world: World, cfg: Tuning)
   if (s.grounded !== 1 || s.mode !== HERO_GROUNDED) s.sprintM = 0; // rope, hang, vault, air
 
   if (s.dead === 0 && s.py < world.killPlaneY) killHero(s, DEAD_FELL);
-  if (s.dead === 0 && world.hazards.length > 0 && hazardAt(world, s.px, s.py, s.pz) >= 0)
+  // rope.legHazardKill = 0: riding the rope (mode still ATTACHED after the move) is exempt, so legs
+  // dangling through a hazard band or terrain edge do not kill. Everything else keeps the kill.
+  const hazardLive = s.mode !== HERO_ATTACHED || cfg.rope.legHazardKill === 1;
+  if (hazardLive && s.dead === 0 && world.hazards.length > 0 && hazardAt(world, s.px, s.py, s.pz) >= 0)
     killHero(s, DEAD_HAZARD);
 }
 
