@@ -17,18 +17,31 @@ export interface LevelEntry {
 }
 
 export const LOCAL_BUILDER_ID = 'builder';
-export const DEFAULT_LEVEL = 'l1';
+export const DEFAULT_LEVEL = 'nagarkot-home';
 
-const BASE_LEVELS: readonly LevelEntry[] = [
-  { id: DEFAULT_LEVEL, label: 'Descent', key: 'classic' },
+/**
+ * The one flag (T340, ADR 0016): false = Classic shows only `nagarkot-home`; true re-enables the hidden
+ * legacy levels (l1, graph levels, nagarkot, village, builder levels). Nothing is deleted. With the flag
+ * off, old `?mode=g:...` / `?level=` URLs and saved choices fall back to the default level.
+ */
+export const SHOW_LEGACY_LEVELS = false;
+
+const HOME_LEVEL: LevelEntry = { id: DEFAULT_LEVEL, label: 'Nagarkot Home', key: 'home' };
+
+const LEGACY_LEVELS: readonly LevelEntry[] = [
+  { id: 'l1', label: 'Descent', key: 'classic' },
   ...GRAPH_LEVELS.map((g): LevelEntry => ({ id: g.id, label: g.label, key: `g:${g.id}` })),
   { id: 'nagarkot', label: 'Nagarkot Run', key: 'strategy' },
   { id: 'village', label: 'Cloud Village', key: 'village' },
 ];
 
-/** Classic's levels: the built-in ones, shipped builder levels, then the local builder level when present. */
-export function classicLevels(hasLocalBuilder = false): LevelEntry[] {
-  const out: LevelEntry[] = [...BASE_LEVELS];
+/** Classic's levels: the default level, then (flag on) the legacy ones, shipped builder levels and the local builder level when present. */
+export function classicLevels(
+  hasLocalBuilder = false,
+  showLegacy: boolean = SHOW_LEGACY_LEVELS,
+): LevelEntry[] {
+  if (!showLegacy) return [HOME_LEVEL];
+  const out: LevelEntry[] = [HOME_LEVEL, ...LEGACY_LEVELS];
   for (const b of shippedBuilderMeta()) {
     out.push({ id: 'b:' + b.id, label: b.name, key: 'strategy', builder: 'shipped' });
   }

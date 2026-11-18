@@ -5,8 +5,8 @@
 
 import { GRAPH_INFO as GRAPH_LEVELS } from '../../content/graph/info';
 
-export type GameMode = 'classic' | 'chase' | 'strategy' | 'village' | `g:${string}`;
-const BASE_MODES = ['classic', 'chase', 'strategy', 'village'] as const;
+export type GameMode = 'classic' | 'chase' | 'strategy' | 'village' | 'home' | `g:${string}`;
+const BASE_MODES = ['classic', 'chase', 'strategy', 'village', 'home'] as const;
 /** The four fixed modes, then one `g:<id>` entry per registered graph level (ADR 0013 section 3.5). */
 export const GAME_MODES: readonly GameMode[] = [
   ...BASE_MODES,
@@ -28,12 +28,14 @@ export const MODE_INFO: Record<GameMode, ModeInfo> = {
   chase: { hint: AIM_HINT, hopChip: true },
   strategy: { hint: 'Stand on a gold pad and press Hook', hopChip: false },
   village: { hint: AIM_HINT, hopChip: true },
+  home: { hint: 'Stand on a gold pad and press Hook', hopChip: false },
 };
 export const BEST_KEYS: Record<GameMode, string> = {
   classic: 'bhagdori.best.l1',
   chase: 'bhagdori.best.chase',
   strategy: 'bhagdori.best.strategy',
   village: 'bhagdori.best.village',
+  home: 'bhagdori.best.nagarkot-home',
 };
 for (const g of GRAPH_LEVELS) {
   MODE_INFO[`g:${g.id}`] = { hint: GRAPH_HINT, hopChip: false };

@@ -11,6 +11,7 @@ import { buildNagarkotHome } from '/src/content/strategy/home.ts';
 import { dressNagarkotHome } from '/src/adapters/render/decor/homeDress.ts';
 const s = buildNagarkotHome();
 const d = dressNagarkotHome(s);
+const wn = s.world ? s.world.nodes : s.nodes;
 const world = loadWorldFromObject(s.level);
 const gs = createGameScene(document.getElementById('c'));
 const mode = new URLSearchParams(location.search).get('kit') === '0' ? 'plain' : 'kit';
@@ -27,8 +28,9 @@ window.__h = {
     return gs.frameStats();
   },
   start: [world.spawn.x, world.spawn.y, world.spawn.z],
-  goal: s.nodes[s.graph.goal] ? [s.nodes[s.graph.goal].x0, s.nodes[s.graph.goal].y, s.nodes[s.graph.goal].z0] : null,
-  nodeList: s.nodes.map((n) => ({ k: n.kind, x0: n.x0, x1: n.x1, z0: n.z0, z1: n.z1, y: n.y })),
+  goal: wn[s.graph.goal] ? [wn[s.graph.goal].x0, wn[s.graph.goal].y, wn[s.graph.goal].z0] : null,
+  pivot: s.world ? [wn[s.world.pivotNode].x0, wn[s.world.pivotNode].y, s.world.zr] : null,
+  nodeList: wn.map((n) => ({ k: n.kind, x0: n.x0, x1: n.x1, z0: n.z0, z1: n.z1, y: n.y })),
 };
 window.__ready = true;
 </script></body></html>

@@ -293,7 +293,8 @@ export function moveOf(a: MazeNode, b: MazeNode, nodes: MazeNode[], opts?: EdgeO
     if (grabOk(a, b, rel, opts)) return MOVE_GRAB;
   }
   if (zipOk(a, b, nodes)) return MOVE_ZIP;
-  if (rel !== null && !(a.kind === NODE_BALCONY && rel.downhill) && tightOk(a, b, rel, opts)) return MOVE_TIGHT;
+  if (rel !== null && !(a.kind === NODE_BALCONY && rel.downhill) && tightOk(a, b, rel, opts))
+    return MOVE_TIGHT;
   return -1;
 }
 
@@ -404,7 +405,12 @@ export function isRouteMove(move: number): boolean {
  * `free` nodes (start, goal, road terraces) have unlimited capacity: every route must cross a road, so a literal
  * pair of node-disjoint S-G paths cannot exist; this counts disjoint paths in each section between them.
  */
-export function nodeDisjointPaths(g: MazeGraph, free: readonly number[], routeOnly: boolean, cap: number = 8): number {
+export function nodeDisjointPaths(
+  g: MazeGraph,
+  free: readonly number[],
+  routeOnly: boolean,
+  cap: number = 8,
+): number {
   const n = g.n;
   const isFree: boolean[] = new Array<boolean>(n).fill(false);
   isFree[g.start] = true;
@@ -455,7 +461,10 @@ export interface RouteEstimate {
 
 /** Mean rope speed over a drop: (launch + speed at the end, capped at terminal) / 2. */
 export function meanZipSpeed(drop: number): number {
-  const v1 = Math.min(T.rope.terminal, Math.sqrt(T.rope.launchSpeed * T.rope.launchSpeed + 2 * G * Math.max(0, drop)));
+  const v1 = Math.min(
+    T.rope.terminal,
+    Math.sqrt(T.rope.launchSpeed * T.rope.launchSpeed + 2 * G * Math.max(0, drop)),
+  );
   return (T.rope.launchSpeed + v1) / 2;
 }
 
@@ -468,7 +477,12 @@ function xOverlapCentre(a: MazeNode, b: MazeNode): number {
  * on the node to the departure lip, plus the flight gap or rope chord, plus 1 s per climb. Run and flight at
  * hero.run; the rope at its mean speed. Estimate only: no hesitation, one arrival x per node.
  */
-export function estimateRoute(g: MazeGraph, nodes: MazeNode[]): RouteEstimate | null {
+/** `extra(u, v, arrX, dep)` adds metres of run to an edge (nagarkot-home: the walk round the bend corner). */
+export function estimateRoute(
+  g: MazeGraph,
+  nodes: MazeNode[],
+  extra?: (u: number, v: number, arrX: number, dep: number) => number,
+): RouteEstimate | null {
   const n = g.n;
   const dist: number[] = new Array<number>(n).fill(Infinity);
   const metres: number[] = new Array<number>(n).fill(0);
@@ -479,7 +493,8 @@ export function estimateRoute(g: MazeGraph, nodes: MazeNode[]): RouteEstimate | 
   arrX[g.start] = (nodes[g.start].x0 + nodes[g.start].x1) / 2;
   for (;;) {
     let u = -1;
-    for (let i = 0; i < n; i++) if (!done[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
+    for (let i = 0; i < n; i++)
+      if (!done[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
     if (u < 0 || u === g.goal) break;
     done[u] = true;
     const a = nodes[u];
@@ -512,7 +527,10 @@ export function estimateRoute(g: MazeGraph, nodes: MazeNode[]): RouteEstimate | 
         if (rel === null) continue;
         dep = e.move === MOVE_TRAMP && a.tramps.length > 0 ? a.tramps[0] : xOverlapCentre(a, b);
         const along = rel.lateral ? a.x1 - a.x0 : a.z1 - a.z0;
-        run = Math.abs(dep - arrX[u]) + along / 2;
+        run =
+          Math.abs(dep - arrX[u]) +
+          along / 2 +
+          (extra === undefined ? 0 : extra(u, e.to, arrX[u], dep));
         air = rel.gap;
         sec = (run + air) / T.hero.run;
         arrive = dep;

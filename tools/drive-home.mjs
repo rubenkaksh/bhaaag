@@ -1,0 +1,25 @@
+/* global fetch, setTimeout, console, document */
+// T336c: scripted touch run on nagarkot-home (390x844, SwiftShader): leaves the start node, prints the debug pos line.
+import { chromium } from 'playwright';
+import { spawn } from 'node:child_process';
+const srv = spawn('pnpm', ['exec', 'vite', 'preview', '--port', '4198', '--strictPort'], { stdio: 'ignore' });
+for (let i = 0; i < 50; i++) { try { if ((await fetch('http://localhost:4198/')).ok) break; } catch { await new Promise((r) => setTimeout(r, 200)); } }
+const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+const p = await ctx.newPage();
+await p.goto('http://localhost:4198/?level=nagarkot-home&gfx=low&debug');
+await p.waitForTimeout(3000);
+await p.getByText('PLAY', { exact: true }).first().click().catch(() => {});
+await p.waitForTimeout(9000);
+const cdp = await ctx.newCDPSession(p);
+const t = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1 }] });
+await t('touchStart', 80, 768);
+for (let i = 1; i <= 6; i++) await t('touchMove', 80, 768 - i * 8);
+await p.waitForTimeout(5000);
+await p.screenshot({ path: 'art/shots/auto/t336c-drv-1.png' });
+console.log(await p.evaluate(() => document.body.innerText.match(/pos [^\n]*/)?.[0]));
+await p.waitForTimeout(5000);
+console.log(await p.evaluate(() => document.body.innerText.match(/pos [^\n]*\n[^\n]*/)?.[0]));
+await p.screenshot({ path: 'art/shots/auto/t336c-drv-2.png' });
+await t('touchEnd');
+await b.close(); srv.kill();

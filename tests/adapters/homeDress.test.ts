@@ -11,7 +11,7 @@ import { setTerrainProfile } from '../../src/adapters/render/terrain';
 
 const s = buildNagarkotHome();
 const d = dressNagarkotHome(s);
-const roofs = s.nodes.filter((n) => n.kind === NODE_ROOF);
+const roofs = (s.world?.nodes ?? s.nodes).filter((n) => n.kind === NODE_ROOF);
 
 describe('nagarkot-home dressing', () => {
   it('every roof node gets 1..N kit houses whose deck equals the node deck', () => {

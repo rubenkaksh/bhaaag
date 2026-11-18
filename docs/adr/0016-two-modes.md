@@ -25,6 +25,16 @@ change the public model:
   are unchanged per level (existing localStorage keys keep working).
 - Old URLs keep working: `?mode=g:home-street`, `strategy`, `village` resolve to Classic plus that level.
 
+## Visible set and the legacy flag (T340, 2026-11-18)
+
+The lobby shows only Classic and Dragon Chase, and Classic's level row shows only `nagarkot-home`,
+the default level (best key `bhagdori.best.nagarkot-home`, unchanged). `l1`, `home-street`,
+`valley-1`, `nagarkot`, `village`, the builder levels and their play keys stay in code behind ONE
+flag, `SHOW_LEGACY_LEVELS` in `src/app/modes/levels.ts` (default false); setting it true restores
+the full row and old URLs (`?mode=g:home-street`, `?level=`), and with it false those URLs and saved
+choices fall back to `nagarkot-home`. Classic on `nagarkot-home` is fixed-line, this level only,
+which amends the "free-aim" wording of the Classic bullet above; Dragon Chase is unchanged.
+
 ## Removed
 
 The lobby mode row of six entries (replaced by two plus a level row). The "fifth mode" `strategy`
