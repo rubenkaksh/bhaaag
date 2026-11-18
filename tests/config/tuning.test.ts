@@ -168,6 +168,13 @@ const schema = z.strictObject({
   }),
   slide: z.strictObject({ minSpeed: num, sec: num, height: num, decel: num, minKeep: num }),
   parkour: z.strictObject({ airStepUp: num, grabProbe: num, autoMantleSec: num, stickDot: num }),
+  hazard: z.strictObject({
+    killImpact: num,
+    groundWalkSpeed: num,
+    climbHoldSec: num,
+    climbSpeed: num,
+    climbMaxH: num,
+  }),
 });
 
 describe('tuning.json', () => {

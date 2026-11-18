@@ -78,6 +78,10 @@ export class HeroState {
   vaultVx = 0; // velocity handed back when the vault ends
   vaultVz = 0;
   slideT = 0; // seconds of landing slide left (grounded sub-state, not a mode)
+  // Hillside ground (cfg.hazard): standing on a hazard volume's top instead of dying on it.
+  hill = 0; // 1 while the support is the hillside, not a solid: walk speed capped, no sprint
+  hillClimb = 0; // 1 while climbing a house wall from the hillside (HANGING, feet rising)
+  hillClimbT = 0; // seconds the stick has been held into a wall on the hillside
 }
 
 export function newHeroState(): HeroState {
@@ -127,4 +131,7 @@ export function copyHeroState(dst: HeroState, src: HeroState): void {
   dst.vaultVx = src.vaultVx;
   dst.vaultVz = src.vaultVz;
   dst.slideT = src.slideT;
+  dst.hill = src.hill;
+  dst.hillClimb = src.hillClimb;
+  dst.hillClimbT = src.hillClimbT;
 }
