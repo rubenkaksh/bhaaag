@@ -1,6 +1,6 @@
 // Scripted bot for the Dragon Chase tests: perfect aim at the next route anchor, fires near the
 // downhill edge of the current row ("casual") or releases inside the window ("expert").
-import { DEFAULT_TUNING } from '../../src/core/config';
+import { LEGACY_TUNING as DEFAULT_TUNING } from '../fixtures/legacyFeel';
 import type { Tuning } from '../../src/core/config';
 import { HERO_ATTACHED, HERO_GROUNDED, HeroState } from '../../src/core/hero';
 import { HOOK_ATTACHED, HOOK_IDLE } from '../../src/core/hook';

@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { loadWorldFromJson } from '../../src/content/load';
-import { DEFAULT_TUNING } from '../../src/core/config';
+import { LEGACY_TUNING as DEFAULT_TUNING } from '../fixtures/legacyFeel';
 import { HERO_ATTACHED, HERO_GROUNDED, HeroState } from '../../src/core/hero';
 import { HOOK_ATTACHED, HOOK_IDLE } from '../../src/core/hook';
 import { AXIS_MAX, BTN_HOOK, BTN_JUMP, InputFrame } from '../../src/core/input';

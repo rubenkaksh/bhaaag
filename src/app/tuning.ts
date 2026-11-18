@@ -9,10 +9,10 @@ import type { GameMode } from './modes/mode';
 
 export type TuningOverride = { [K in keyof Tuning]?: Partial<Tuning[K]> };
 
-/** Explicit per-mode overrides of global tuning keys. Today only Dragon Chase differs: sprint off (sprintSpeed = run, ADR 0018). */
+/** Explicit per-mode overrides of global tuning keys. Today only Dragon Chase differs: sprint off (sprintSpeed = run, ADR 0018) and the old abrupt run-up and speed bleed-off (runAccel 40, carryDecay 40). */
 export const MODE_OVERRIDES: Record<GameMode, TuningOverride> = {
   classic: {},
-  chase: { hero: { sprintSpeed: 6 } },
+  chase: { hero: { sprintSpeed: 6, runAccel: 40 }, landing: { carryDecay: 40 } },
   strategy: {},
   village: {},
   home: {},
