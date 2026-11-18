@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TUNING as cfg } from '../../src/core/config';
+import { LEGACY_TUNING as cfg } from '../fixtures/legacyFeel';
 import { cfgWith, NO_DRAGON, runBot } from './chaseBot';
 
 describe('chase bots', () => {

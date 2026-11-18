@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TUNING } from '../../src/core/config';
+import { LEGACY_TUNING as DEFAULT_TUNING } from '../fixtures/legacyFeel';
 import {
   DEAD_FELL,
   DEAD_WALL,

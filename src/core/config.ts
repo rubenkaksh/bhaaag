@@ -52,6 +52,7 @@ export type Tuning = {
     vhStumble: number;
     pad: number;
     carryCap: number;
+    carryDecay: number; // m/s^2 the speed above run falls while the stick is held its way; 0 = keeps the momentum
     rollSec: number;
     chainWindowMs: number;
     edgeGrabH: number;
@@ -77,6 +78,7 @@ export type Tuning = {
     height: number;
     accel: number;
     friction: number;
+    runAccel: number; // m/s^2 the grounded hero speeds up along its heading (a smooth run-up); >= accel = abrupt
     airSteer: number; // m/s^2 the stick turns horizontal velocity while airborne (not after a bounce)
     airSteerCap: number; // horizontal speed it pulls toward at full stick, m/s; faster heroes keep their speed
     // Sprint (ADR 0018). sprintSpeed <= run turns it off. Remote-config shaped: plain numbers, clamp on read.
@@ -109,6 +111,8 @@ export type Tuning = {
     sideYawSpeed: number; // sideways speed that reaches the full offset, m/s
     sideYawEase: number; // per fixed tick ease toward a larger side-look target
     sideYawEaseBack: number; // per fixed tick ease back toward 0 (slower = smoother return)
+    pathLookahead: number; // path camera (nagarkot-home): aim this many m ahead along the route so corners turn early; 0 = off
+    pathTurnDeg: number; // path camera turn speed, deg/s
     overviewHeight: number; // hold-MAP view: minimum camera height above the framed centre, m
     overviewPitchDeg: number; // hold-MAP pitch down, deg (steep oblique)
     overviewEase: number; // per fixed tick ease of the overview blend (0..1) in and out
@@ -251,6 +255,7 @@ export const DEFAULT_TUNING: Tuning = {
     vhStumble: 16,
     pad: 0.5,
     carryCap: 12,
+    carryDecay: 0,
     rollSec: 0.35,
     chainWindowMs: 400,
     edgeGrabH: 0.6,
@@ -276,6 +281,7 @@ export const DEFAULT_TUNING: Tuning = {
     height: 1.8,
     accel: 40,
     friction: 30,
+    runAccel: 14,
     airSteer: 14,
     airSteerCap: 6,
     sprintSpeed: 11,
@@ -307,6 +313,8 @@ export const DEFAULT_TUNING: Tuning = {
     sideYawSpeed: 2.5,
     sideYawEase: 0.07,
     sideYawEaseBack: 0.035,
+    pathLookahead: 30,
+    pathTurnDeg: 60,
     overviewHeight: 30,
     overviewPitchDeg: 65,
     overviewEase: 0.08,

@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import roofSlide from './roof-slide.trace.json?raw';
 import { loadWorldFromObject } from '../../src/content/load';
-import { DEFAULT_TUNING } from '../../src/core/config';
+import { LEGACY_TUNING as DEFAULT_TUNING } from '../fixtures/legacyFeel';
 import { HeroState } from '../../src/core/hero';
 import { InputFrame } from '../../src/core/input';
 import { step } from '../../src/core/sim';

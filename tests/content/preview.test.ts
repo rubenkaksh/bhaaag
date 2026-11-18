@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { loadWorldFromJson } from '../../src/content/load';
-import { DEFAULT_TUNING } from '../../src/core/config';
+import { LEGACY_TUNING as DEFAULT_TUNING } from '../fixtures/legacyFeel';
 import { HERO_GROUNDED, HeroState } from '../../src/core/hero';
 import { AABB } from '../../src/core/math/aabb';
 import { Vec3 } from '../../src/core/math/vec3';

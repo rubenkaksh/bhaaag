@@ -87,6 +87,7 @@ export const HEAD_FRAC = 0.9; // aim ray starts at this fraction of the hero hei
 const LAND_TOL = 2 * SKIN; // feet this close above a surface count as touching it
 const AT_END_PROBE = 0.1; // extra reach past the rope stop when checking for a wall
 const RUNOUT_TOL = 0.05; // launch-surface match tolerance, metres
+const LEDGE_STACK_MAX = 0.5; // a roof slab up to this thick on a wall body counts as the ledge top (m)
 const SLAB_TOL = 0.05; // a tramp/cushion slab counts when its top is this close to the feet
 const STICK_MIN = 0.5; // stick magnitude the automatic parkour moves need
 const AIR_LIFT = 0.002; // feet clearance above a ledge after an airborne step-up, metres
@@ -650,8 +651,6 @@ function recordLedge(s: HeroState, w: World, cfg: Tuning, idx: number): boolean 
   s.hasLedge = 0;
   if (idx < 0 || scratchHit.ny !== 0) return false;
   const b = w.solids[idx];
-  const dTop = b.max.y - s.py;
-  if (dTop < cfg.climb.reachMin || dTop > cfg.climb.reachMax) return false;
   const r = cfg.hero.radius;
   const nx = scratchHit.nx;
   const nz = scratchHit.nz;
@@ -661,12 +660,19 @@ function recordLedge(s: HeroState, w: World, cfg: Tuning, idx: number): boolean 
   const push = r + cfg.climb.mantleFwd;
   const inX = nx !== 0 ? face - nx * push : s.px;
   const inZ = nz !== 0 ? face - nz * push : s.pz;
+  // A thin roof slab stacked on the wall body (nagarkot-home kit roofs) is part of the ledge:
+  // the held top is the slab top, not the body top the hero touches.
+  let top = b.max.y;
+  const stacked = groundHeight(w, inX, inZ, r, top + LEDGE_STACK_MAX);
+  if (stacked > top + SLAB_TOL) top = stacked;
+  const dTop = top - s.py;
+  if (dTop < cfg.climb.reachMin || dTop > cfg.climb.reachMax) return false;
   // Head room: the highest surface under the stand point up to a hero height above the
   // ledge must be the ledge itself.
-  const above = groundHeight(w, inX, inZ, r, b.max.y + cfg.hero.height);
-  if (above > b.max.y + SLAB_TOL) return false;
+  const above = groundHeight(w, inX, inZ, r, top + cfg.hero.height);
+  if (above > top + SLAB_TOL) return false;
   s.hasLedge = 1;
-  s.hangLedgeY = b.max.y;
+  s.hangLedgeY = top;
   s.hangNx = nx;
   s.hangNz = nz;
   s.hangWall = face;
@@ -953,7 +959,12 @@ export function step(s: HeroState, input: InputFrame, world: World, cfg: Tuning)
   // rope.legHazardKill = 0: riding the rope (mode still ATTACHED after the move) is exempt, so legs
   // dangling through a hazard band or terrain edge do not kill. Everything else keeps the kill.
   const hazardLive = s.mode !== HERO_ATTACHED || cfg.rope.legHazardKill === 1;
-  if (hazardLive && s.dead === 0 && world.hazards.length > 0 && hazardAt(world, s.px, s.py, s.pz) >= 0)
+  if (
+    hazardLive &&
+    s.dead === 0 &&
+    world.hazards.length > 0 &&
+    hazardAt(world, s.px, s.py, s.pz) >= 0
+  )
     killHero(s, DEAD_HAZARD);
 }
 
@@ -1085,20 +1096,38 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
         wantX *= k;
         wantZ *= k;
       }
-      const dx = wantX - s.vx;
-      const dz = wantZ - s.vz;
-      const dl = Math.sqrt(dx * dx + dz * dz);
       // Holding the way you are already going keeps a landing's carry through the chain window.
       const wantSq = wantX * wantX + wantZ * wantZ;
-      const carrying =
-        s.chainT > 0 && s.vx * s.vx + s.vz * s.vz > wantSq && s.vx * wantX + s.vz * wantZ > 0;
+      const along = s.vx * wantX + s.vz * wantZ;
+      const carrying = s.chainT > 0 && s.vx * s.vx + s.vz * s.vz > wantSq && along > 0;
+      // Momentum (owner 2026-11-18): faster than the stick asks and still heading its way, the
+      // speed falls only by landing.carryDecay (0 = it stays) until the stick is released or turned away.
+      let wx = wantX;
+      let wz = wantZ;
+      if (along > 0 && sp0 * sp0 > wantSq) {
+        const keep = Math.max(Math.sqrt(wantSq), sp0 - cfg.landing.carryDecay * dt);
+        const sc = keep / Math.sqrt(wantSq);
+        wx = wantX * sc;
+        wz = wantZ * sc;
+      }
+      const dx = wx - s.vx;
+      const dz = wz - s.vz;
+      const dl = Math.sqrt(dx * dx + dz * dz);
       // The ramp up to sprint speed is gentle; steering and braking keep the normal accel.
-      const ramp = sprinting && s.vx * wantX + s.vz * wantZ > 0 && sp0 < cfg.hero.sprintSpeed;
+      const ramp = sprinting && along > 0 && sp0 < cfg.hero.sprintSpeed;
+      // Run-up (owner 2026-11-18): speeding up along the heading takes runAccel, not the steering accel.
+      const runUp = along >= 0 && sp0 * sp0 < wantSq;
       const maxD =
-        (carrying ? cfg.landing.skidDecel : ramp ? cfg.hero.sprintAccel : cfg.hero.accel) * dt;
+        (carrying
+          ? cfg.landing.skidDecel
+          : ramp
+            ? cfg.hero.sprintAccel
+            : runUp
+              ? Math.min(cfg.hero.runAccel, cfg.hero.accel)
+              : cfg.hero.accel) * dt;
       if (dl <= maxD) {
-        s.vx = wantX;
-        s.vz = wantZ;
+        s.vx = wx;
+        s.vz = wz;
       } else {
         s.vx += (dx / dl) * maxD;
         s.vz += (dz / dl) * maxD;
