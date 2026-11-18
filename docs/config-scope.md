@@ -10,6 +10,7 @@ A mode may override only what is listed in `MODE_OVERRIDES` (same file) and in t
 | Key | Global default | Where it acts |
 | --- | --- | --- |
 | `camera.sideYawDeg / sideYawSpeed / sideYawEase / sideYawEaseBack` (T300, widened) | 40 / 2.5 / 0.07 / 0.035 | `tickYawOffsets`, called from the one camera tick in `game.ts`; full lean at 2.5 m/s sideways, slower ease back |
+| `camera.pathLookahead / pathTurnDeg` (T346) | 30 / 60 | `PathCam.setLead` (`content/graph/pathCamera.ts`, `leadHeading`), called from `game.ts`: the path camera aims this many m ahead along the route so the nagarkot-home 90 degree corner turns before the hero lands; 0 = old landing-only re-aim. Manual look-drag still pauses it until the next landing. |
 | `camera.overviewHeight / overviewPitchDeg / overviewEase / overviewMaxExtent / overviewNodes / overviewMargin` (hold-MAP view) | 30 / 65 / 0.08 / 120 / 15 / 1.3 | `adapters/render/overviewCam.ts`, blended in `game.ts` `tickCamera`; minimum height, steep pitch, per-tick ease in and out, max reach from the hero, how many nearest nodes ahead are framed, framing margin |
 | Overview availability (`overviewAvailable(heroMode)`) | grounded or attached to the rope; airborne/hanging/dead: off | `overviewCam.ts`, wired in `game.ts` `stepBody` and `hud.setOverviewEnabled`, all modes; no tuning key |
 | `camera.tiltDeg` (render-only pitch-down) | 20 | `game.ts` camera tick, all modes (was village-only) |

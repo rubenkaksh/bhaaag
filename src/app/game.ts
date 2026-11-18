@@ -231,6 +231,7 @@ export function startGame(
     pathGraph !== null && graph !== undefined
       ? new graph.PathCam(pathGraph)
       : (home?.pathCam ?? null);
+  if (pathCam !== null) pathCam.setLead(cfg.camera.pathLookahead, cfg.camera.pathTurnDeg);
   if (isVillage && village === undefined) throw new Error('village assets not loaded');
   const seedParam = params.get('seed');
   const fixedSeed = seedParam !== null && Number.isFinite(Number(seedParam));
