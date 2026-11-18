@@ -68,7 +68,8 @@ function play(v: number, style: Style): Outcome {
     const roof = w.solids[1 + 2 * (2 * hop + 1)]; // last roof of this row (rope leaves from its edge)
     const target = w.solids[1 + 2 * (2 * (hop + 1))]; // first roof of the next row
     // Metres before the edge when the thumb comes down (negative = after leaving the edge).
-    const fireDist = u(0, 5) - (style.lateTicks > 0 ? u(0, 1) * (style.lateTicks / 60) * cfg.hero.run : 0);
+    const fireDist =
+      u(0, 5) - (style.lateTicks > 0 ? u(0, 1) * (style.lateTicks / 60) * cfg.hero.run : 0);
     if (style.frozenAim) aimAt(a.px, a.py, a.pz); // aim once at hop start, then just run
     let attempts = 0;
     let nextAttempt = -1;

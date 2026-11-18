@@ -39,7 +39,11 @@ const HOP_SLOPE = 22;
 
 // Point on a sphere around the hand: bearing turns about +Y from +Z, slope dips below the
 // horizontal. Mirrors the chord model in hook.ts.
-function chordPoint(bearingDeg: number, slopeDeg: number, len: number): { x: number; y: number; z: number } {
+function chordPoint(
+  bearingDeg: number,
+  slopeDeg: number,
+  len: number,
+): { x: number; y: number; z: number } {
   const b = bearingDeg * DEG2RAD;
   const s = slopeDeg * DEG2RAD;
   return {
@@ -78,16 +82,54 @@ function pick(
   cam = HAND,
 ): void {
   const d = rayDir(bearingDeg, slopeDeg);
-  pickAnchor(w, DEFAULT_TUNING, HAND.x, HAND.y, HAND.z, cam.x, cam.y, cam.z, d.x, d.y, d.z, maxLen, magnetDeg, out);
+  pickAnchor(
+    w,
+    DEFAULT_TUNING,
+    HAND.x,
+    HAND.y,
+    HAND.z,
+    cam.x,
+    cam.y,
+    cam.z,
+    d.x,
+    d.y,
+    d.z,
+    maxLen,
+    magnetDeg,
+    out,
+  );
 }
 
 // Fire and ride at 60 Hz until AT_END (or the tick cap), sampling speeds on the way.
 function ride(
   w: World,
-  opts: { speedAlong?: number; brakeAt?: (tick: number) => boolean; cap?: number; anchorId?: number } = {},
-): { ticks: number; time: number; arrivalV: number; state: number; s: number; minV: number; maxV: number; h: Hook } {
+  opts: {
+    speedAlong?: number;
+    brakeAt?: (tick: number) => boolean;
+    cap?: number;
+    anchorId?: number;
+  } = {},
+): {
+  ticks: number;
+  time: number;
+  arrivalV: number;
+  state: number;
+  s: number;
+  minV: number;
+  maxV: number;
+  h: Hook;
+} {
   const h = newHook();
-  const ok = hookFire(h, opts.anchorId ?? 0, HAND.x, HAND.y, HAND.z, w, DEFAULT_TUNING, opts.speedAlong ?? 0);
+  const ok = hookFire(
+    h,
+    opts.anchorId ?? 0,
+    HAND.x,
+    HAND.y,
+    HAND.z,
+    w,
+    DEFAULT_TUNING,
+    opts.speedAlong ?? 0,
+  );
   expect(ok).toBe(true);
   const cap = opts.cap ?? 5000;
   let ticks = 0;
@@ -105,12 +147,28 @@ function ride(
 describe('newHook / resetHook / hookFire', () => {
   it('starts and returns to idle with no anchor', () => {
     const h = newHook();
-    expect([h.state, h.anchorId, h.len, h.s, h.v, h.flyT]).toEqual([HOOK_IDLE, NO_ANCHOR, 0, 0, 0, 0]);
+    expect([h.state, h.anchorId, h.len, h.s, h.v, h.flyT]).toEqual([
+      HOOK_IDLE,
+      NO_ANCHOR,
+      0,
+      0,
+      0,
+      0,
+    ]);
     hookFire(h, 0, HAND.x, HAND.y, HAND.z, hopWorld(), DEFAULT_TUNING, 0);
     expect(h.state).toBe(HOOK_FLYING);
     resetHook(h);
     expect([h.state, h.anchorId, h.ax, h.ay, h.az, h.len, h.s, h.v, h.flyT, h.handToFeet]).toEqual([
-      HOOK_IDLE, NO_ANCHOR, 0, 0, 0, 0, 0, 0, 0, 0,
+      HOOK_IDLE,
+      NO_ANCHOR,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
     ]);
   });
 
@@ -435,7 +493,12 @@ describe('hookRelease', () => {
     const out = new Vec3(0, 0, 0);
     hookRelease(r.h, out);
     expect([r.h.state, r.h.anchorId, r.h.len, r.h.s, r.h.v, r.h.flyT]).toEqual([
-      HOOK_IDLE, NO_ANCHOR, 0, 0, 0, 0,
+      HOOK_IDLE,
+      NO_ANCHOR,
+      0,
+      0,
+      0,
+      0,
     ]);
     expect(length(out)).toBeCloseTo(r.arrivalV, 12); // arrival speed handed over
   });
@@ -458,7 +521,13 @@ describe('determinism', () => {
     const brakeAt = (t: number): boolean => t >= 70 && t < 110;
     const a = ride(hopWorld(), { brakeAt, speedAlong: 4 });
     const b = ride(hopWorld(), { brakeAt, speedAlong: 4 });
-    expect([a.ticks, a.arrivalV, a.s, a.state, a.time]).toEqual([b.ticks, b.arrivalV, b.s, b.state, b.time]);
+    expect([a.ticks, a.arrivalV, a.s, a.state, a.time]).toEqual([
+      b.ticks,
+      b.arrivalV,
+      b.s,
+      b.state,
+      b.time,
+    ]);
     const pa = new Vec3(0, 0, 0);
     const pb = new Vec3(0, 0, 0);
     hookTrolleyPos(a.h, pa);
@@ -483,7 +552,13 @@ describe('determinism', () => {
         hookStep(h1, DT, w1, DEFAULT_TUNING, i > 30);
         hookStep(h2, DT, w2, DEFAULT_TUNING, i > 30);
       }
-      expect([h1.state, h1.s, h1.v, h1.flyT, h1.len]).toEqual([h2.state, h2.s, h2.v, h2.flyT, h2.len]);
+      expect([h1.state, h1.s, h1.v, h1.flyT, h1.len]).toEqual([
+        h2.state,
+        h2.s,
+        h2.v,
+        h2.flyT,
+        h2.len,
+      ]);
     }
   });
 
@@ -497,7 +572,11 @@ describe('determinism', () => {
     for (let run = 0; run < 3; run++) {
       pick(w, 1, HOP_SLOPE, out2, ROPE.maxLen, 12);
       pick(w, 1, HOP_SLOPE, out1, ROPE.maxLen, 12);
-      expect([out1.anchorId, out1.dist, out1.angleDeg]).toEqual([out2.anchorId, out2.dist, out2.angleDeg]);
+      expect([out1.anchorId, out1.dist, out1.angleDeg]).toEqual([
+        out2.anchorId,
+        out2.dist,
+        out2.angleDeg,
+      ]);
     }
     expect(out1.anchorId).toBe(0); // 1 degree off beats 4 and 8
   });
@@ -624,7 +703,10 @@ describe('aimReason', () => {
 describe('route assist split', () => {
   // Early route entries keep the 16 degree routeAssistDeg cone; the rest drop to the 6
   // degree routeAssistLateDeg cone. magnetDeg 2 so neither route cone is the magnet cone.
-  const cfg = { ...DEFAULT_TUNING, aim: { ...DEFAULT_TUNING.aim, routeAssistLateDeg: 6, routeAssistDeg: 16 } };
+  const cfg = {
+    ...DEFAULT_TUNING,
+    aim: { ...DEFAULT_TUNING.aim, routeAssistLateDeg: 6, routeAssistDeg: 16 },
+  };
   const MAGNET = 2;
 
   function assisted(w: World, bearingDeg: number): AimResult {

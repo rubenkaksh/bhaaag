@@ -87,8 +87,11 @@ export function buildStrategyFeatures(world: World, skipProps = false): Object3D
     const dx = a === undefined ? 0 : a.px - cx;
     const dz = a === undefined ? 1 : a.pz - cz;
     // The launch frame spans the whole pad: the hero may hook from anywhere on it.
-    const padHalf = Math.abs(dz) >= Math.abs(dx) ? (z.max.x - z.min.x) / 2 : (z.max.z - z.min.z) / 2;
-    posts.push(...doorwayBoxes(cx, cz, z.max.y, sy, dx, dz, Math.max(DOOR_HALF_W, padHalf), POST_W));
+    const padHalf =
+      Math.abs(dz) >= Math.abs(dx) ? (z.max.x - z.min.x) / 2 : (z.max.z - z.min.z) / 2;
+    posts.push(
+      ...doorwayBoxes(cx, cz, z.max.y, sy, dx, dz, Math.max(DOOR_HALF_W, padHalf), POST_W),
+    );
     // Graph levels: the landing house draws its own doorway pole (houseV2).
     if (a === undefined || skipProps) continue;
     posts.push(...doorwayBoxes(a.px, a.pz, a.py - POST_DOWN, a.py, dx, dz, DOOR_HALF_W, POST_W));

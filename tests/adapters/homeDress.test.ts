@@ -44,7 +44,8 @@ describe('nagarkot-home dressing', () => {
   });
 
   it('ground profile is strictly decreasing in z', () => {
-    for (let i = 1; i < d.profile.length; i++) expect(d.profile[i][0]).toBeLessThan(d.profile[i - 1][0]);
+    for (let i = 1; i < d.profile.length; i++)
+      expect(d.profile[i][0]).toBeLessThan(d.profile[i - 1][0]);
   });
 
   it('kit and collider never draw the same box: skipped solids add no mesh, Low stays small', () => {

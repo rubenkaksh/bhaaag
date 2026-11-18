@@ -4,6 +4,7 @@ import {
   newOverviewPose,
   overviewAvailable,
   overviewPose,
+  pickNodesAhead,
   overviewWeight,
   stepOverview,
   type OverviewCfg,
@@ -17,62 +18,96 @@ import {
 } from '../../src/core/hero';
 
 const cfg: OverviewCfg = {
-  overviewHeight: 40,
-  overviewPullBack: 10,
-  overviewPitchDeg: 45,
+  overviewHeight: 30,
+  overviewPitchDeg: 60,
   overviewEase: 0.1,
   overviewMaxExtent: 100,
-  overviewSpanScale: 0.5,
+  overviewNodes: 15,
+  overviewMargin: 1.25,
 };
+const FOV = 60;
+const hero = { x: 0, y: 0, z: 0 };
 
-describe('overviewPose', () => {
-  it('with nothing ahead, looks at the hero from behind and above (yaw 0 = camera on +z)', () => {
-    const p = overviewPose({ x: 3, y: 5, z: -2 }, [], 0, cfg, newOverviewPose());
-    expect(p.lx).toBeCloseTo(3);
-    expect(p.ly).toBeCloseTo(5);
-    expect(p.lz).toBeCloseTo(-2);
-    expect(p.py).toBeCloseTo(5 + 40);
-    expect(p.px).toBeCloseTo(3);
-    expect(p.pz).toBeCloseTo(-2 + 40 + 10); // h / tan45 + pull
+function pose(ahead: { x: number; y: number; z: number }[], yaw = 0, aspect = 390 / 844) {
+  return overviewPose(hero, ahead, yaw, cfg, FOV, aspect, newOverviewPose());
+}
+
+describe('pickNodesAhead', () => {
+  it('keeps the n nearest nodes ahead, sorted, and drops those behind', () => {
+    const c = [
+      { x: 0, y: 0, z: -50 },
+      { x: 0, y: 0, z: -10 },
+      { x: 0, y: 0, z: 30 }, // behind (yaw 0 faces -z)
+      { x: 0, y: 0, z: -30 },
+      { x: 0, y: 0, z: -2 }, // a hair behind the line is within the slack
+    ];
+    const out: { x: number; y: number; z: number }[] = [];
+    expect(pickNodesAhead(hero, 0, c, 3, out)).toBe(3);
+    expect(out.map((p) => p.z)).toEqual([-2, -10, -30]);
   });
 
-  it('frames hero plus path: centre is the bounds middle and height grows with the span', () => {
-    const near = overviewPose(
-      { x: 0, y: 10, z: 0 },
-      [{ x: 0, y: 0, z: -20 }],
-      0,
-      cfg,
-      newOverviewPose(),
-    );
-    const far = overviewPose(
-      { x: 0, y: 10, z: 0 },
-      [{ x: 0, y: 0, z: -80 }],
-      0,
-      cfg,
-      newOverviewPose(),
-    );
-    expect(near.lz).toBeCloseTo(-10);
-    expect(near.ly).toBeCloseTo(5);
-    expect(far.lz).toBeCloseTo(-40);
-    expect(far.py - far.ly).toBeGreaterThan(near.py - near.ly);
-    expect(far.py - far.ly).toBeCloseTo(40 + 80 * 0.5);
+  it('returns fewer when fewer qualify, and follows the yaw', () => {
+    const c = [
+      { x: 20, y: 0, z: 0 },
+      { x: -20, y: 0, z: 0 },
+    ];
+    const out: { x: number; y: number; z: number }[] = [];
+    expect(pickNodesAhead(hero, Math.PI / 2, c, 15, out)).toBe(1); // faces +x
+    expect(out[0].x).toBe(20);
+  });
+});
+
+describe('overviewPose framing', () => {
+  it('with nothing ahead, sits at the minimum height looking at the hero', () => {
+    const p = pose([]);
+    expect(p.lx).toBeCloseTo(0);
+    expect(p.lz).toBeCloseTo(0);
+    expect(p.py).toBeCloseTo(30); // overviewHeight floor
+    expect(p.pz).toBeGreaterThan(0); // behind the hero (yaw 0 = camera on +z)
   });
 
-  it('clamps far points to the max extent from the hero', () => {
-    const p = overviewPose(
-      { x: 0, y: 0, z: 0 },
-      [{ x: 0, y: 0, z: -1000 }],
-      0,
-      cfg,
-      newOverviewPose(),
-    );
-    expect(p.lz).toBeCloseTo(-50);
+  it('centres on the hero + nodes bounds and zooms out as they spread', () => {
+    const near = pose([{ x: 0, y: 0, z: -40 }]);
+    const far = pose([{ x: 0, y: 0, z: -160 }]); // clamped to the 100 m reach
+    expect(near.lz).toBeCloseTo(-20);
+    expect(far.lz).toBeCloseTo(-50);
+    expect(far.py).toBeGreaterThan(near.py);
+  });
+
+  it('fits the framed bounds inside the view (portrait and landscape)', () => {
+    const nodes = [
+      { x: -30, y: 0, z: -60 },
+      { x: 30, y: 0, z: -100 },
+    ];
+    for (const aspect of [390 / 844, 844 / 390]) {
+      const p = pose(nodes, 0, aspect);
+      const dist = Math.hypot(p.px - p.lx, p.py - p.ly, p.pz - p.lz);
+      const tanV = Math.tan((FOV * Math.PI) / 360);
+      // Sideways half-extent (30 m) and forward half-extent (50 m, foreshortened by sin 60°) both fit.
+      expect(30 <= dist * tanV * aspect).toBe(true);
+      expect(50 * Math.sin(Math.PI / 3) <= dist * tanV).toBe(true);
+    }
+  });
+
+  it('portrait backs off further than landscape for a wide spread', () => {
+    const nodes = [
+      { x: -40, y: 0, z: -30 },
+      { x: 40, y: 0, z: -30 },
+    ];
+    const portrait = pose(nodes, 0, 390 / 844);
+    const landscape = pose(nodes, 0, 844 / 390);
+    expect(portrait.py).toBeGreaterThan(landscape.py);
+  });
+
+  it('is steep: the camera looks down at the configured pitch', () => {
+    const p = pose([{ x: 0, y: 0, z: -80 }]);
+    const pitch = Math.atan2(p.py - p.ly, Math.hypot(p.px - p.lx, p.pz - p.lz));
+    expect((pitch * 180) / Math.PI).toBeCloseTo(60);
   });
 
   it('puts the camera behind the view direction for a rotated yaw', () => {
-    const yaw = Math.PI / 2; // faces +x, so behind is -x
-    const p = overviewPose({ x: 0, y: 0, z: 0 }, [], yaw, cfg, newOverviewPose());
-    expect(p.px).toBeLessThan(-40);
+    const p = overviewPose(hero, [], Math.PI / 2, cfg, FOV, 1, newOverviewPose()); // faces +x
+    expect(p.px).toBeLessThan(-5);
     expect(Math.abs(p.pz)).toBeLessThan(1e-6);
   });
 });
