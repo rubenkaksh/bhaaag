@@ -17,15 +17,18 @@ node tools/levelGraph.mjs nagarkot --seed=N --svg      # other generator seed
 ```
 
 ## What the picture shows
+
 - Rows = fewest moves from the start; top is start, bottom is goal. Left to right = across the hillside.
 - Green thick = shortest success route. Grey = other moves that still reach the goal.
 - Red dot and red dashed lines = dead-end roofs (reachable, no path to goal) and moves into them.
 - Squares = balcony or road nodes. Only forward moves are drawn.
 
 ## How to deliver
+
 Write the SVG to the session scratchpad and show it with SendUserFile (`display: render`). Do not hand-draw the graph in a widget: the script is the source of truth.
 
 ## Limits (say so when relevant)
+
 - Strategy levels use the generator's real kinematic graph (`src/content/strategy/{gen,graph}.ts`). Falls and missed jumps have no node, so the only failures shown are dead-end roofs.
 - JSON levels have no stored graph: the picture is a chain of spawn, route anchors and goal, with unused anchors as decoy dead ends. It is inferred, not simulated.
 - Only the shortest route is highlighted even when several escape paths exist.

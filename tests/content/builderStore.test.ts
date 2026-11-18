@@ -2,12 +2,20 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { compileLevel } from '../../src/content/builder/compile';
 import { sampleLevel } from '../../src/content/builder/sample';
 import { compileShipped, shippedBuilderLevels } from '../../src/content/builder/shipped';
-import { hasLocalBuilderLevel, readLocalBuilderLevel, savePlayLevel } from '../../src/content/builder/store';
+import {
+  hasLocalBuilderLevel,
+  readLocalBuilderLevel,
+  savePlayLevel,
+} from '../../src/content/builder/store';
 
 class MemStorage {
   m = new Map<string, string>();
-  getItem(k: string) { return this.m.get(k) ?? null; }
-  setItem(k: string, v: string) { this.m.set(k, v); }
+  getItem(k: string) {
+    return this.m.get(k) ?? null;
+  }
+  setItem(k: string, v: string) {
+    this.m.set(k, v);
+  }
 }
 afterEach(() => {
   // @ts-expect-error test cleanup
@@ -29,7 +37,11 @@ describe('builder hand-off (production path)', () => {
     globalThis.localStorage = { getItem: () => '{not json', setItem: () => undefined };
     expect(readLocalBuilderLevel()).toBeNull();
     // @ts-expect-error stub that throws
-    globalThis.localStorage = { getItem: () => { throw new Error('blocked'); } };
+    globalThis.localStorage = {
+      getItem: () => {
+        throw new Error('blocked');
+      },
+    };
     expect(readLocalBuilderLevel()).toBeNull();
   });
   it('shipped builder levels (content/builders) all validate and compile', () => {

@@ -30,6 +30,33 @@ describe('nagarkot-home dressing', () => {
     expect(k).toBe(d.houses.length);
   });
 
+  it('tiles a 32 m terrace node into joined houses with one roofline', () => {
+    const long = roofs.filter((n) => Math.max(n.x1 - n.x0, n.z1 - n.z0) >= 31.9);
+    expect(long.length).toBeGreaterThanOrEqual(2);
+    let k = 0;
+    for (let i = 0; i < roofs.length; i++) {
+      const n = d.perNode[i];
+      if (Math.max(roofs[i].x1 - roofs[i].x0, roofs[i].z1 - roofs[i].z0) >= 31.9) {
+        expect(n).toBe(4);
+        const joined = d.houses.slice(k, k + n).filter((h) => h.party.some((p) => p));
+        expect(joined).toHaveLength(4);
+      }
+      k += n;
+    }
+  });
+
+  it('roof guards only on faces without a party wall; crossed faces and cushions stay open', () => {
+    const guarded = d.houses.filter((h) => (h.guard ?? []).length > 0);
+    expect(guarded.length).toBeGreaterThan(0);
+    let k = 0;
+    for (let i = 0; i < roofs.length; i++) {
+      for (let j = 0; j < d.perNode[i]; j++, k++) {
+        if (roofs[i].cushion) expect(d.houses[k].guard).toEqual([]);
+      }
+    }
+    expect(d.houses.some((h) => h.balcony !== -1)).toBe(true);
+  });
+
   it('joins tiles of a wide footprint with party faces', () => {
     const t = tileFootprint(0, 16, 0, 8, 0, 1, 0);
     expect(t).toHaveLength(2);
@@ -44,7 +71,8 @@ describe('nagarkot-home dressing', () => {
   });
 
   it('ground profile is strictly decreasing in z', () => {
-    for (let i = 1; i < d.profile.length; i++) expect(d.profile[i][0]).toBeLessThan(d.profile[i - 1][0]);
+    for (let i = 1; i < d.profile.length; i++)
+      expect(d.profile[i][0]).toBeLessThan(d.profile[i - 1][0]);
   });
 
   it('kit and collider never draw the same box: skipped solids add no mesh, Low stays small', () => {

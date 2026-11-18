@@ -43,6 +43,7 @@ import {
   NODE_ROOF,
   buildEdges,
   estimateRoute,
+  moveOf,
   nodeDisjointPaths,
   type EdgeOpts,
   type MazeGraph,
@@ -60,6 +61,10 @@ const HOME_BALCONY_MIN = 3.0; // a balcony only on a 2-storey house
 const HOME_ROUTE_MAX_S = 80; // fixed-line run, seconds (card T336a)
 const HOME_DEAD_SHARE = 0.095; // 0.8 x the frozen level's 14/118 dead ends (review F7)
 const HOME_BRANCHES = 6;
+const SPRINT_RUN_M = 25; // a straight run this long on the route (item: sprint test)
+const HOME_LONG_ROWS: readonly number[] = [3, 8, 13, 19]; // rows whose route house is a 4-house terrace (32 m)
+const HOME_RUNS_MIN = 2;
+const HOME_SPRINT_GAPS_MIN = 1;
 
 function homeSegment(
   name: string,
@@ -101,6 +106,7 @@ export const HOME_PARAMS: GenParams = {
   deadMin: 6,
   deadMax: DEAD_MAX,
   edge: LEAK_EDGE,
+  longRows: HOME_LONG_ROWS,
 };
 
 function homeValid(s: StrategyLevel, p: GenParams): boolean {
@@ -115,6 +121,8 @@ function homeValid(s: StrategyLevel, p: GenParams): boolean {
     s.stats.deadEnds.length >= HOME_DEAD_SHARE * reach &&
     (sm.deadBranches ?? 0) >= HOME_BRANCHES &&
     (sm.routeDisjoint ?? 0) >= 2 &&
+    (sm.routeRuns ?? 0) >= HOME_RUNS_MIN &&
+    (sm.sprintGaps ?? 0) >= HOME_SPRINT_GAPS_MIN &&
     (sm.routeS ?? Infinity) > 0 &&
     (sm.routeS ?? Infinity) <= HOME_ROUTE_MAX_S
   );
@@ -248,6 +256,22 @@ function summarize(m: Measure, summary: StrategySummary): void {
   summary.routeM = est === null ? -1 : est.metres;
   summary.routeS = est === null ? -1 : est.seconds;
   summary.deadBranches = deadBranches(m.graph, m.stats);
+  if (est !== null) {
+    const nd = m.nb.nodes;
+    let runs = 0;
+    let gaps = 0;
+    for (let i = 0; i < est.path.length; i++) {
+      const a = nd[est.path[i]];
+      if (a.kind === NODE_ROOF && a.z1 - a.z0 >= SPRINT_RUN_M) runs++;
+      if (i + 1 >= est.path.length) continue;
+      const b = nd[est.path[i + 1]];
+      if (moveOf(a, b, nd) !== MOVE_JUMP) continue;
+      // the same jump from a short stand-in of A (same downhill lip, no runway): does it still work?
+      if (moveOf({ ...a, z1: a.z0 + 10 }, b, nd) !== MOVE_JUMP) gaps++;
+    }
+    summary.routeRuns = runs;
+    summary.sprintGaps = gaps;
+  }
 }
 
 // T337: the straight level turns 90 degrees at its middle road. The generator, graph and validity stay in the straight

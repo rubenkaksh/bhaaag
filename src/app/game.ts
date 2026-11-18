@@ -49,6 +49,7 @@ import {
   overviewAvailable,
   overviewPose,
   overviewWeight,
+  pickNodesAhead,
   stepOverview,
 } from '../adapters/render/overviewCam';
 import type { Pt } from '../adapters/render/overviewCam';
@@ -101,6 +102,7 @@ import {
 } from '../adapters/render/animEvents';
 import { CameraFx } from '../adapters/render/cameraFx';
 import { DustPuff } from '../adapters/render/dustPuff';
+import { cushionBelow, diveStep } from '../adapters/render/diveTrigger';
 import { GameLoop } from './loop';
 import { framingFor } from '../adapters/render/framing';
 import { MODE_INFO, graphIdOf, isGraphMode, readBest, writeBest } from './modes/mode';
@@ -365,7 +367,8 @@ export function startGame(
   let ovEnabled = true; // MAP button enabled (grounded or riding the rope)
   const ovFollow = newOverviewPose();
   const ovTarget = newOverviewPose();
-  const ovAhead: Pt[] = [];
+  const ovCand: Pt[] = []; // every node ahead-candidate, rebuilt while MAP is held
+  const ovAhead: Pt[] = []; // the nearest overviewNodes of them
   const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig radians): zipline diagonal + side look (T300)
   let hintId = NO_ANCHOR; // anchor highlighted by HINT (T299); render-only, never read by the sim
   let hintT = 0;
@@ -470,20 +473,15 @@ export function startGame(
     if (ovK > 0) applyOverview(base);
   }
 
-  /** Blend the follow pose toward the bird's eye pose: hero + the path ahead (next anchors, pads, finish). */
+  /** Blend the follow pose toward the held-MAP pose: hero + the nearest N nodes ahead (pads, anchors, finish). */
   function applyOverview(baseYaw: number): void {
-    const fx = Math.sin(baseYaw);
-    const fz = -Math.cos(baseYaw);
     let n = 0;
     const add = (x: number, y: number, z: number): void => {
-      // Only what lies ahead of the hero along the view direction (a little behind is fine).
-      if ((x - cur.px) * fx + (z - cur.pz) * fz >= -4) {
-        if (n === ovAhead.length) ovAhead.push({ x: 0, y: 0, z: 0 });
-        const p = ovAhead[n++];
-        p.x = x;
-        p.y = y;
-        p.z = z;
-      }
+      if (n === ovCand.length) ovCand.push({ x: 0, y: 0, z: 0 });
+      const p = ovCand[n++];
+      p.x = x;
+      p.y = y;
+      p.z = z;
     };
     const first = cs !== null ? 0 : nextRouteIndex;
     for (let i = first; i < world.route.length; i++) {
@@ -495,14 +493,15 @@ export function startGame(
       add((b.min.x + b.max.x) / 2, b.max.y, (b.min.z + b.max.z) / 2);
     }
     if (hasGoal) add(goalCx, goalCy, goalCz);
-    ovAhead.length = n; // keep the pool small; entries are re-created on demand
+    ovCand.length = n;
+    pickNodesAhead(feet, baseYaw, ovCand, camCfg.overviewNodes, ovAhead);
     ovFollow.px = curRig.pos.x;
     ovFollow.py = curRig.pos.y;
     ovFollow.pz = curRig.pos.z;
     ovFollow.lx = curRig.lookAt.x;
     ovFollow.ly = curRig.lookAt.y;
     ovFollow.lz = curRig.lookAt.z;
-    overviewPose(feet, ovAhead, baseYaw, camCfg, ovTarget);
+    overviewPose(feet, ovAhead, baseYaw, camCfg, curRig.fov, gs.camera.aspect, ovTarget);
     blendPose(ovFollow, ovTarget, overviewWeight(ovK));
     curRig.pos.x = ovFollow.px;
     curRig.pos.y = ovFollow.py;
@@ -1102,6 +1101,13 @@ export function startGame(
     hv.rolling = cur.rollT > 0;
     hv.sliding = cur.slideT > 0;
     hv.sprint = sprintK * cfg.hero.sprintCadence;
+    hv.dive = diveStep(
+      hv.dive,
+      cur.mode === HERO_AIRBORNE && cur.dead === 0,
+      cur.vy,
+      cushionBelow(world.cushions, cur.px, cur.pz, cur.py, cfg.hero.radius),
+      cfg.hero.diveMinFall,
+    );
     hv.events = animEv;
     hv.ropeLen = cur.hook.len;
     hv.impact = animImpact;

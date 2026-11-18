@@ -72,8 +72,8 @@ const TANK_RUN_UP = 3.2; // no tank within this depth of a takeoff, runout or pa
 export interface HouseDecorOptions {
   look?: 'home';
   /**
-   * Strategy levels whose deck is a bare collider (nagarkot-home): no parapets, rooftop tanks or
-   * flag lines, since the sim has no solid for them and the hero runs straight through. Walls,
+   * Strategy levels whose deck is a bare collider (nagarkot-home): no rooftop tanks or flag lines, and parapets only on
+   * the faces a house lists in `guard` (render-only; the sim has no solid for them). Walls,
    * windows, balconies' doors and crop dressing stay. Default false (kit levels unchanged).
    */
   deckClear?: boolean;
@@ -281,7 +281,8 @@ function dressHouse(
   );
 
   // Parapets.
-  for (let f = 0; f < (deckClear ? 0 : 4); f++) {
+  for (let f = 0; f < 4; f++) {
+    if (deckClear && (h.guard === undefined || h.guard.indexOf(f as Face) < 0)) continue;
     const segs = parapetSegments(h, f as Face);
     const hgt = parapetHeight(h, f as Face);
     const col = c(hgt > 1 ? TERRACOTTA : CONCRETE);

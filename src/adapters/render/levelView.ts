@@ -325,7 +325,10 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
     if (gully !== null) g.add(gully);
   }
   if (strategy) {
-    const feats = buildStrategyFeatures(world, opts.graph !== undefined && opts.graph.kitSkip === undefined);
+    const feats = buildStrategyFeatures(
+      world,
+      opts.graph !== undefined && opts.graph.kitSkip === undefined,
+    );
     for (let i = 0; i < feats.length; i++) g.add(feats[i]);
   }
   // Cloud Village (floorY) has no pre-tied rope or post: the ziplines are the anchors themselves.

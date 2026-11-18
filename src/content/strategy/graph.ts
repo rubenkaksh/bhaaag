@@ -141,7 +141,10 @@ export function jumpOk(a: MazeNode, b: MazeNode, rel: Rel, opts?: EdgeOpts): boo
   const dy = b.y - a.y;
   if (dy > STEP_MAX) return false;
   const need = rel.gap + 2 * R + LAND_MARGIN;
-  const L = opts === undefined ? LAUNCHES : LAUNCHES.concat(opts.launches);
+  let L = opts === undefined ? LAUNCHES : LAUNCHES.concat(opts.launches);
+  // A long straight (a joined terrace) gives the sprint its runway: run-jump at sprint speed (nagarkot-home).
+  const along = rel.lateral ? a.x1 - a.x0 : a.z1 - a.z0;
+  if (along - 2 * R >= SPRINT_RUNWAY_M) L = L.concat([[SPRINT_JUMP_VY, SPRINT_SPEED]]);
   for (let i = 0; i < L.length; i++) {
     const f = flight(L[i][0], L[i][1], dy);
     if (f === null || f.dist < need) continue;
