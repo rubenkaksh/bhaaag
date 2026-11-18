@@ -3,7 +3,7 @@
 // level above a cloud sea, amendment 2026-11-12; timed like Classic).
 // Pure helpers plus localStorage persistence; every storage access is guarded (private mode).
 
-import { GRAPH_LEVELS } from '../../content/graph/registry';
+import { GRAPH_INFO as GRAPH_LEVELS } from '../../content/graph/info';
 
 export type GameMode = 'classic' | 'chase' | 'strategy' | 'village' | `g:${string}`;
 const BASE_MODES = ['classic', 'chase', 'strategy', 'village'] as const;
@@ -20,14 +20,14 @@ export function graphIdOf(m: GameMode): string {
 }
 export const MODE_KEY = 'zt.mode';
 const AIM_HINT = 'Aim at a glowing anchor and hook';
-/** Per-mode UI text and flags: label, in-play hint, and whether the HOP chip is shown. */
-type ModeInfo = { label: string; hint: string; hopChip: boolean };
+/** Per-mode UI flags: in-play hint and whether the HOP chip is shown (labels live in registry.ts and levels.ts). */
+type ModeInfo = { hint: string; hopChip: boolean };
 const GRAPH_HINT = 'Run, vault, grab: find the way down';
 export const MODE_INFO: Record<GameMode, ModeInfo> = {
-  classic: { label: 'Classic', hint: AIM_HINT, hopChip: true },
-  chase: { label: 'Dragon Chase', hint: AIM_HINT, hopChip: true },
-  strategy: { label: 'Nagarkot Run', hint: 'Stand on a gold pad and press Hook', hopChip: false },
-  village: { label: 'Cloud Village', hint: AIM_HINT, hopChip: true },
+  classic: { hint: AIM_HINT, hopChip: true },
+  chase: { hint: AIM_HINT, hopChip: true },
+  strategy: { hint: 'Stand on a gold pad and press Hook', hopChip: false },
+  village: { hint: AIM_HINT, hopChip: true },
 };
 export const BEST_KEYS: Record<GameMode, string> = {
   classic: 'bhagdori.best.l1',
@@ -36,7 +36,7 @@ export const BEST_KEYS: Record<GameMode, string> = {
   village: 'bhagdori.best.village',
 };
 for (const g of GRAPH_LEVELS) {
-  MODE_INFO[`g:${g.id}`] = { label: g.label, hint: GRAPH_HINT, hopChip: false };
+  MODE_INFO[`g:${g.id}`] = { hint: GRAPH_HINT, hopChip: false };
   BEST_KEYS[`g:${g.id}`] = `bhagdori.best.g.${g.id}`;
 }
 

@@ -29,6 +29,7 @@ export interface HeroPoseInput {
   win: number; // 1 = level complete
   hookFlying: number; // 1 = hook in flight
   sliding: boolean; // landing slide in progress (core slideT > 0)
+  sprint: number; // extra run cycle rate, 0 = none (core sprintFrac x hero.sprintCadence)
 }
 
 export function newHeroPoseInput(): HeroPoseInput {
@@ -49,6 +50,7 @@ export function newHeroPoseInput(): HeroPoseInput {
     win: 0,
     hookFlying: 0,
     sliding: false,
+    sprint: 0,
   };
 }
 
@@ -487,11 +489,14 @@ function copyRow(st: HeroPoseState, pose: number, src: Float64Array): number {
   return o;
 }
 
+// Run amplitude ceiling: 1 = the 6 m/s run, up to 1.6 for a sprint (ADR 0018, was clamped at 1).
+const RUN_AMP_MAX = 1.6;
+
 function writeRun(st: HeroPoseState, speed: number): void {
   const r = st.rows;
   const o = pose0(POSE_RUN);
   for (let c = 0; c < CH_COUNT; c++) r[o + c] = 0;
-  const amp = clamp(speed / 6, 0.3, 1);
+  const amp = clamp(speed / 6, 0.3, RUN_AMP_MAX);
   const a = st.phase * TWO_PI;
   const s = Math.sin(a);
   const k = Math.cos(a);
@@ -924,7 +929,7 @@ export function stepHeroPose(st: HeroPoseState, inp: HeroPoseInput, yaw: number)
   st.active = target;
   if (target === POSE_WIN && prevActive !== POSE_WIN) st.tWin = 0;
   st.time += dt;
-  st.phase += runCadence(speed) * dt;
+  st.phase += runCadence(speed) * (1 + inp.sprint) * dt;
   st.phase -= Math.floor(st.phase);
   st.rollT = inp.rolling ? st.rollT + dt : 0;
 

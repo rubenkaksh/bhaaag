@@ -105,10 +105,13 @@ import { DustPuff } from '../adapters/render/dustPuff';
 import { GameLoop } from './loop';
 import { framingFor } from '../adapters/render/framing';
 import { MODE_INFO, graphIdOf, isGraphMode, readBest, writeBest } from './modes/mode';
-import { graphEntry, loadGraph } from '../content/graph/registry';
-import { placeGraph } from '../content/graph/place';
-import { PathCam, buildPathGraph } from '../content/graph/pathCamera';
-import { buildForkMarkers } from '../adapters/render/forkMarkers';
+import { loadBest, rulesForKey } from './modes/registry';
+import { RunClock } from './runClock';
+import { finishRun } from './finish';
+import { createLocalLeaderboard } from './leaderboard';
+import type { LeaderboardPort } from './leaderboard';
+import { graphInfo } from '../content/graph/info';
+import type { GraphAssets } from './graphAssets';
 import type { GameMode } from './modes/mode';
 import { readViewport, watchViewport } from './viewport';
 import { viewportSize } from '../adapters/ui/orientation';
@@ -187,6 +190,10 @@ export function startGame(
   village?: VillageAssets,
   /** A compiled builder level to play in place of the generated Nagarkot one (ADR 0016). */
   levelOverride?: LevelJson,
+  /** Graph levels only: the lazy graph chunk (graphAssets.ts). */
+  graph?: GraphAssets,
+  /** Finish-time board (T339); defaults to the local-storage port. */
+  leaderboard: LeaderboardPort = createLocalLeaderboard(),
 ): GameHandle {
   const cfg = resolveCfg(mode);
   let camCfg = cfg.camera;
@@ -199,13 +206,18 @@ export function startGame(
   const isStrategy = mode === 'strategy';
   const isVillage = mode === 'village';
   const isGraph = isGraphMode(mode);
-  const placed = isGraph ? placeGraph(loadGraph(graphIdOf(mode))) : null;
+  if (isGraph && graph === undefined) throw new Error('graph assets not loaded');
+  const placed =
+    isGraph && graph !== undefined ? graph.placeGraph(graph.loadGraph(graphIdOf(mode))) : null;
   // Opt-in path camera (home-street): heading follows the route; written into the sim camYaw so the stick stays camera-relative.
   const pathGraph =
-    isGraph && placed !== null && graphEntry(graphIdOf(mode))?.pathCamera === true
-      ? buildPathGraph(loadGraph(graphIdOf(mode)), placed.houses)
+    isGraph &&
+    graph !== undefined &&
+    placed !== null &&
+    graphInfo(graphIdOf(mode))?.pathCamera === true
+      ? graph.buildPathGraph(graph.loadGraph(graphIdOf(mode)), placed.houses)
       : null;
-  const pathCam = pathGraph !== null ? new PathCam(pathGraph) : null;
+  const pathCam = pathGraph !== null && graph !== undefined ? new graph.PathCam(pathGraph) : null;
   if (isVillage && village === undefined) throw new Error('village assets not loaded');
   const seedParam = params.get('seed');
   const fixedSeed = seedParam !== null && Number.isFinite(Number(seedParam));
@@ -239,15 +251,15 @@ export function startGame(
                   props: placed.props,
                   profile: placed.profile,
                   seed: placed.seed,
-                  look: graphEntry(graphIdOf(mode))?.look,
+                  look: graphInfo(graphIdOf(mode))?.look,
                   patches: placed.patches,
                   field: placed.field,
                 },
           floorY: village !== undefined && isVillage ? village.VILLAGE_CLOUD_TOP_Y : undefined,
         })
       : null;
-  if (level !== null && pathGraph !== null && placed !== null)
-    level.add(buildForkMarkers(pathGraph, placed.edges));
+  if (level !== null && pathGraph !== null && placed !== null && graph !== undefined)
+    level.add(graph.buildForkMarkers(pathGraph, placed.edges));
   // Chase views: no classic scenery; own rows, endless ground and dragon.
   if (cs !== null) gs.setBlobWorld(world);
   const rowsView = isChase ? new ChaseRowsView(() => gs.refreshFlags()) : null;
@@ -304,7 +316,7 @@ export function startGame(
 
   const prev = newHeroState();
   const cur = newHeroState();
-    const frame = newInputFrame();
+  const frame = newInputFrame();
   const coarse = window.matchMedia('(pointer: coarse)').matches;
   const input = coarse ? new TouchInput(root) : new DesktopInput(canvas);
 
@@ -326,7 +338,7 @@ export function startGame(
   let panT = 0;
   let panSkip = false;
   let deadT = 0;
-  let runT = 0;
+  const clock = new RunClock(cfg.fixedHz);
   let nextRouteIndex = 0;
   let anyInput = false;
   let brakeWas = false;
@@ -349,7 +361,14 @@ export function startGame(
   let aimId = NO_ANCHOR;
   let jsMs = 0;
   let stepMs = 0;
-  let best = readBest(mode);
+  const bestStore = (() => {
+    try {
+      return typeof localStorage === 'undefined' ? undefined : localStorage;
+    } catch {
+      return undefined;
+    }
+  })();
+  let best = loadBest(mode, bestStore);
 
   function resetHero(): void {
     copyHeroState(cur, newHeroState());
@@ -380,6 +399,7 @@ export function startGame(
     copyHeroState(prev, cur);
   }
 
+  let sprintK = 0; // 0..1 render-only sprint look (cadence, fov): grounded speed between run and sprintSpeed
   function tickCamera(): void {
     feet.x = cur.px;
     feet.y = cur.py;
@@ -401,6 +421,13 @@ export function startGame(
       feet.z += heroView.mantleOz;
     }
     const speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
+    sprintK =
+      cur.grounded === 1
+        ? Math.min(
+            1,
+            Math.max(0, (speed - cfg.hero.run) / (cfg.hero.sprintSpeed - cfg.hero.run || 1)),
+          )
+        : 0;
     // One camera path for every mode: base rig yaw, then the shared auto yaw offsets (zip + side look).
     // Chase frontPov 0 (default) is the behind view, same rig as classic (r = PI - c), looking
     // downhill along the run; frontPov 1 is the old camera ahead of the hero, tilted up the slope.
@@ -423,6 +450,8 @@ export function startGame(
       speed,
       world.solids,
       camCfg,
+      undefined,
+      sprintK * cfg.hero.sprintFov,
     );
     if (ovK > 0) applyOverview(base);
   }
@@ -524,7 +553,7 @@ export function startGame(
     resetHero();
     phase = 'play';
     deadT = 0;
-    runT = 0;
+    clock.reset();
     nextRouteIndex = 0;
     anyInput = false;
     animEv = 0;
@@ -638,7 +667,7 @@ export function startGame(
       if ((cur.eventBits & HERO_EV_HOOKED) !== 0 || cur.mode === HERO_ATTACHED)
         tapAnchor = NO_ANCHOR;
       if (cs !== null) chaseStep(cs, cur, world, cfg);
-      runT += stepDt;
+      clock.tick(frame);
 
       const ev = cur.eventBits;
       if ((ev & HERO_EV_LANDED) !== 0) {
@@ -690,11 +719,9 @@ export function startGame(
         aabbContainsPoint(world.goal, cur.px, cur.py, cur.pz)
       ) {
         phase = 'won';
-        if (best === 0 || runT < best) {
-          best = runT;
-          writeBest(mode, best);
-        }
-        hudUi.showWin(runT, best);
+        const res = finishRun(mode, clock, best, leaderboard, bestStore);
+        best = res.best;
+        hudUi.showWin(res.seconds, best);
         hudUi.pulseTimer();
       }
       updateReticle();
@@ -712,9 +739,10 @@ export function startGame(
     overShown = true;
     overAtT = deadT;
     const score = chaseScore(cs, cfg);
-    const isBest = score > best;
+    const res = rulesForKey('chase').onFinish(score, best);
+    const isBest = res.record;
     if (isBest) {
-      best = score;
+      best = res.best;
       writeBest('chase', score);
     }
     chaseHud.showOver(
@@ -1059,6 +1087,7 @@ export function startGame(
     hv.brake = cur.mode === HERO_ATTACHED && (frame.buttons & BTN_REEL) !== 0;
     hv.rolling = cur.rollT > 0;
     hv.sliding = cur.slideT > 0;
+    hv.sprint = sprintK * cfg.hero.sprintCadence;
     hv.events = animEv;
     hv.ropeLen = cur.hook.len;
     hv.impact = animImpact;
@@ -1133,7 +1162,7 @@ export function startGame(
       renderChase(nowSec, frameDt);
     } else if (level !== null) {
       updateLevelView(level, nowSec, nextRouteIndex, hintId);
-      hudUi.setTime(runT);
+      hudUi.setTime(clock.seconds);
       hudUi.setHop(nextRouteIndex, world.route.length);
       hudUi.setAltitude(altitudeFraction(cur.py, world.spawn.y, hasGoal ? goalCy : world.spawn.y));
     }

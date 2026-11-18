@@ -69,3 +69,5 @@ Amendment 2026-11-17f (owner decisions 2026-11-17e, replaces the 17b wording "sp
 - Leaderboard time is (finish tick minus first-user-input tick) / 60, not replay traces; trust-the-client with server bounds.
 - Success: a first-time player finishes the level in under 2 minutes per run and retries instantly.
 - Budget: initial chunk frozen at the T333 baseline (264,521 B gz, one file) until T345 lazy-loads hidden modes to <= 215 KB gz.
+
+Amendment 2026-11-17g (owner decision, supersedes the 215 KB and 264,521 B figures in 17f): initial chunk budget is <= 255 KB gz (255,000 B, measured as the sum of gzip of each JS file index.html loads). T345 (graph levels and builder compile lazy) already brought it to 252,890 B. Total bundle limit (~600 KB gz) unchanged. Remaining headroom is about 1.5 KB, so T336b/c, T337, T340 must not grow it, or must lazy-load what they add.

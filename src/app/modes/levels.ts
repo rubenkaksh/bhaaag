@@ -1,12 +1,12 @@
 // Two public modes (ADR 0016): Classic (finite levels) and Dragon Chase (endless). A Classic level is
 // data; `playKey` maps (mode, level) to the internal GameMode that selects tuning, best key and HUD flags.
-import { GRAPH_LEVELS } from '../../content/graph/registry';
-import { shippedBuilderLevels } from '../../content/builder/shipped';
+import { GRAPH_INFO as GRAPH_LEVELS } from '../../content/graph/info';
+import { shippedBuilderMeta } from '../../content/builder/shippedMeta';
 import type { GameMode } from './mode';
 
-export type Mode = 'classic' | 'chase';
-export const MODES: readonly Mode[] = ['classic', 'chase'];
-export const MODE_LABEL: Record<Mode, string> = { classic: 'Classic', chase: 'Dragon Chase' };
+/** A lobby mode id; the set of valid ids lives in the registry (registry.ts, ADR 0017). */
+export type Mode = string;
+const DEFAULT_MODE_IDS: readonly string[] = ['classic', 'chase'];
 
 export interface LevelEntry {
   id: string;
@@ -29,7 +29,7 @@ const BASE_LEVELS: readonly LevelEntry[] = [
 /** Classic's levels: the built-in ones, shipped builder levels, then the local builder level when present. */
 export function classicLevels(hasLocalBuilder = false): LevelEntry[] {
   const out: LevelEntry[] = [...BASE_LEVELS];
-  for (const b of shippedBuilderLevels()) {
+  for (const b of shippedBuilderMeta()) {
     out.push({ id: 'b:' + b.id, label: b.name, key: 'strategy', builder: 'shipped' });
   }
   if (hasLocalBuilder) {
@@ -43,7 +43,10 @@ export interface Selection {
   level: string;
 }
 
-export function playKey(sel: Selection, levels: readonly LevelEntry[] = classicLevels(true)): GameMode {
+export function playKey(
+  sel: Selection,
+  levels: readonly LevelEntry[] = classicLevels(true),
+): GameMode {
   if (sel.mode === 'chase') return 'chase';
   return (levels.find((l) => l.id === sel.level) ?? levels[0]).key;
 }
@@ -74,6 +77,7 @@ export function loadSelection(
   q: URLSearchParams,
   levels: readonly LevelEntry[],
   store: Store | undefined = defaultStore(),
+  modeIds: readonly string[] = DEFAULT_MODE_IDS,
 ): Selection {
   const get = (k: string): string | null => {
     try {
@@ -85,13 +89,14 @@ export function loadSelection(
   const known = (id: string | null): id is string => id !== null && levels.some((l) => l.id === id);
   const m = q.get('mode');
   const legacy = legacyLevel(m);
+  const saved = get(MODE_STORE_KEY);
   const mode: Mode =
-    m === 'chase' || m === 'classic'
+    m !== null && modeIds.includes(m)
       ? m
       : legacy !== null
         ? 'classic'
-        : get(MODE_STORE_KEY) === 'chase'
-          ? 'chase'
+        : saved !== null && modeIds.includes(saved)
+          ? saved
           : 'classic';
   const wanted = q.get('level') ?? legacy ?? get(LEVEL_KEY);
   return { mode, level: known(wanted) ? wanted : DEFAULT_LEVEL };
