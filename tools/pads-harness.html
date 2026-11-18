@@ -1,0 +1,42 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pads + dive harness</title>
+<style>html,body{margin:0;height:100%;background:#000}canvas{width:100%;height:100%;display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+// Dev-only harness (not in the build): nagarkot-home in a real scene so tools/shots-pads.mjs can
+// shoot close-ups of a cushion, a trampoline and the dive pose (T-dive-pads).
+import { createGameScene } from '/src/adapters/render/scene.ts';
+import { loadWorldFromObject } from '/src/content/load.ts';
+import { buildNagarkotHome } from '/src/content/strategy/home.ts';
+import { dressNagarkotHome } from '/src/adapters/render/decor/homeDress.ts';
+import { HeroView } from '/src/adapters/render/heroView.ts';
+const s = buildNagarkotHome();
+const d = dressNagarkotHome(s);
+const world = loadWorldFromObject(s.level);
+const gs = createGameScene(document.getElementById('c'));
+gs.buildWorld(world, { houseDress: false, graph: d });
+const hv = new HeroView();
+gs.scene.add(hv.group);
+const mid = (b) => [(b.min.x + b.max.x) / 2, b.max.y, (b.min.z + b.max.z) / 2];
+const biggest = (a) => a.reduce((m, b) => ((b.max.x - b.min.x) * (b.max.z - b.min.z) > (m.max.x - m.min.x) * (m.max.z - m.min.z) ? b : m), a[0]);
+window.__p = {
+  cushion: world.cushions.length ? mid(biggest(world.cushions)) : null,
+  tramp: world.tramps.length ? mid(world.tramps[0]) : null,
+  counts: [world.cushions.length, world.tramps.length],
+  view(x, y, z, tx, ty, tz) {
+    gs.camera.position.set(x, y, z);
+    gs.camera.lookAt(tx, ty, tz);
+    gs.camera.updateMatrixWorld();
+    gs.resize();
+    gs.render();
+    gs.render();
+  },
+  hero(x, y, z, dive) {
+    const mk = (py) => ({ px: x, py: py, pz: z, vx: 0, vy: -9, vz: 0, yaw: 0, mode: 1, dead: 0, deadCause: 0 });
+    hv.input.dive = dive;
+    for (let i = 0; i < 90; i++) hv.update(mk(y), mk(y), 1, 1 / 60);
+    gs.render();
+  },
+};
+window.__ready = true;
+</script></body></html>

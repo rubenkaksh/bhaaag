@@ -60,15 +60,7 @@ describe('input quantization', () => {
 
 describe('input button flags', () => {
   it('flags are distinct powers of two', () => {
-    const flags = [
-      BTN_JUMP,
-      BTN_HOOK,
-      BTN_DROP,
-      BTN_REEL,
-      BTN_RESTART,
-      BTN_AIM,
-      BTN_ACTION,
-    ];
+    const flags = [BTN_JUMP, BTN_HOOK, BTN_DROP, BTN_REEL, BTN_RESTART, BTN_AIM, BTN_ACTION];
     for (let i = 0; i < flags.length; i++) {
       const v = flags[i];
       expect(v).toBeGreaterThan(0);

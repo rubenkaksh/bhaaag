@@ -41,9 +41,7 @@ export function doorwayBoxes(
   }
   const L = o + h;
   out.push(
-    spanX
-      ? [cx - L, bot, cz - h, cx + L, top, cz + h]
-      : [cx - h, bot, cz - L, cx + h, top, cz + L],
+    spanX ? [cx - L, bot, cz - h, cx + L, top, cz + h] : [cx - h, bot, cz - L, cx + h, top, cz + L],
   );
   return out;
 }

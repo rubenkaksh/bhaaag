@@ -17,7 +17,10 @@ describe('dragon', () => {
 
   it('rubber-bands only beyond gapMax', () => {
     const base = dragonSpeed(10, cfg.chase.gapMax, cfg);
-    expect(dragonSpeed(10, cfg.chase.gapMax + 10, cfg)).toBeCloseTo(base + 10 * cfg.chase.rubberK, 9);
+    expect(dragonSpeed(10, cfg.chase.gapMax + 10, cfg)).toBeCloseTo(
+      base + 10 * cfg.chase.rubberK,
+      9,
+    );
   });
 
   it('catches a stationary hero in about 8 s and never slows down', () => {

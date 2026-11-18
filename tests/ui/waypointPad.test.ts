@@ -6,7 +6,14 @@ type Solid = {
   max: { x: number; y: number; z: number };
 };
 
-function box(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number): Solid {
+function box(
+  minX: number,
+  minY: number,
+  minZ: number,
+  maxX: number,
+  maxY: number,
+  maxZ: number,
+): Solid {
   return { min: { x: minX, y: minY, z: minZ }, max: { x: maxX, y: maxY, z: maxZ } };
 }
 

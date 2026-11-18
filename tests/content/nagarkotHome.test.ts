@@ -21,7 +21,12 @@ import {
 } from '../../src/content/strategy/graph';
 
 const s = buildNagarkotHome();
-const strict: MazeGraph = { n: s.nodes.length, edges: buildEdges(s.nodes), start: s.graph.start, goal: s.graph.goal };
+const strict: MazeGraph = {
+  n: s.nodes.length,
+  edges: buildEdges(s.nodes),
+  start: s.graph.start,
+  goal: s.graph.goal,
+};
 const roads = s.nodes.filter((n) => n.kind === NODE_ROAD).map((n) => n.id);
 
 describe('nagarkot-home sprint runs', () => {
@@ -93,7 +98,9 @@ describe('nagarkot-home generator', () => {
   it('only a balcony climb leads uphill in the leak graph', () => {
     for (const e of s.graph.edges) {
       if (e.move === MOVE_CLIMB) continue;
-      expect(s.nodes[e.to].y, `edge ${e.from}->${e.to}`).toBeLessThanOrEqual(s.nodes[e.from].y + 0.3 + 1e-6);
+      expect(s.nodes[e.to].y, `edge ${e.from}->${e.to}`).toBeLessThanOrEqual(
+        s.nodes[e.from].y + 0.3 + 1e-6,
+      );
     }
   });
 
@@ -103,7 +110,10 @@ describe('nagarkot-home generator', () => {
       expect(n.house).toBeGreaterThanOrEqual(0);
       const h = s.layout.houses[n.house];
       const deck = roofY(h) - (planeY(h.zc) - h.drop);
-      expect([3.2, 6.0].some((k) => Math.abs(deck - k) < 1e-6), `house ${n.house} deck ${deck}`).toBe(true);
+      expect(
+        [3.2, 6.0].some((k) => Math.abs(deck - k) < 1e-6),
+        `house ${n.house} deck ${deck}`,
+      ).toBe(true);
     }
     const hs = s.layout.houses;
     for (let i = 0; i < hs.length; i++) {
@@ -118,7 +128,9 @@ describe('nagarkot-home generator', () => {
   it('shortest start -> goal route is <= 80 s (metres and seconds logged)', () => {
     const r = estimateRoute(strict, s.nodes);
     expect(r).not.toBeNull();
-    console.log(`nagarkot-home S->G: ${r!.metres.toFixed(1)} m, ${r!.seconds.toFixed(1)} s, seed ${s.seed}, tries ${nagarkotHomeTries()}`);
+    console.log(
+      `nagarkot-home S->G: ${r!.metres.toFixed(1)} m, ${r!.seconds.toFixed(1)} s, seed ${s.seed}, tries ${nagarkotHomeTries()}`,
+    );
     expect(r!.seconds).toBeLessThanOrEqual(80);
   });
 });

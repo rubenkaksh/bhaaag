@@ -21,6 +21,7 @@ const schema = z.strictObject({
     handToFeet: num,
     hookSpeed: num,
     brakeDecel: num,
+    legHazardKill: num,
   }),
   aim: z.strictObject({
     magnetDegDesktop: num,
@@ -80,6 +81,7 @@ const schema = z.strictObject({
     sprintAccel: num,
     sprintCadence: num,
     sprintFov: num,
+    diveMinFall: num,
   }),
   camera: z.strictObject({
     dist: num,
@@ -104,11 +106,11 @@ const schema = z.strictObject({
     sideYawEase: num,
     sideYawEaseBack: num,
     overviewHeight: num,
-    overviewPullBack: num,
     overviewPitchDeg: num,
     overviewEase: num,
     overviewMaxExtent: num,
-    overviewSpanScale: num,
+    overviewNodes: num,
+    overviewMargin: num,
     tiltDeg: num,
   }),
   validator: z.strictObject({
