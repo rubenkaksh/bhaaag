@@ -10,6 +10,8 @@ import {
 import { buildNagarkotHome, nagarkotHomeTries } from '../../src/content/strategy/home';
 import {
   MOVE_CLIMB,
+  MOVE_JUMP,
+  moveOf,
   NODE_ROAD,
   analyze,
   buildEdges,
@@ -26,6 +28,32 @@ const strict: MazeGraph = {
   goal: s.graph.goal,
 };
 const roads = s.nodes.filter((n) => n.kind === NODE_ROAD).map((n) => n.id);
+
+describe('nagarkot-home sprint runs', () => {
+  const est = estimateRoute(strict, s.nodes)!;
+  const path = est.path.map((i) => s.nodes[i]);
+
+  it('the route crosses at least two straight runs of 25 m or more', () => {
+    expect(path.filter((n) => n.z1 - n.z0 >= 25).length).toBeGreaterThanOrEqual(2);
+    expect(s.summary.routeRuns).toBeGreaterThanOrEqual(2);
+  });
+
+  it('the route has a launch gap that only a sprint from a long run clears', () => {
+    let sprintOnly = 0;
+    for (let i = 0; i + 1 < path.length; i++) {
+      const a = path[i];
+      const b = path[i + 1];
+      if (moveOf(a, b, s.nodes) !== MOVE_JUMP) continue;
+      if (moveOf({ ...a, z1: a.z0 + 10 }, b, s.nodes) !== MOVE_JUMP) sprintOnly++;
+    }
+    expect(sprintOnly).toBeGreaterThanOrEqual(1);
+    expect(s.summary.sprintGaps).toBe(sprintOnly);
+  });
+
+  it('keeps the route under 80 s', () => {
+    expect(s.summary.routeS!).toBeLessThanOrEqual(80);
+  });
+});
 
 describe('nagarkot-home generator', () => {
   it('is deterministic and records its seed', () => {
