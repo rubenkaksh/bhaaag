@@ -7,7 +7,13 @@ import {
   planeY,
   roofY,
 } from '../../src/content/strategy/gen';
-import { buildNagarkotHome, nagarkotHomeTries } from '../../src/content/strategy/home';
+import {
+  HOME_DEAD_MAX,
+  HOME_DEGREE_MIN,
+  avgOutDegree,
+  buildNagarkotHome,
+  nagarkotHomeTries,
+} from '../../src/content/strategy/home';
 import {
   MOVE_CLIMB,
   MOVE_JUMP,
@@ -89,10 +95,18 @@ describe('nagarkot-home generator', () => {
     expect(nodeDisjointPaths(strict, roads, true)).toBeGreaterThanOrEqual(2);
   });
 
-  it('keeps >= 80% of the baseline dead-end share in >= 6 branches', () => {
-    const reach = s.stats.reach.filter(Boolean).length;
-    expect(s.stats.deadEnds.length / reach).toBeGreaterThanOrEqual(0.8 * (14 / 118));
-    expect(s.summary.deadBranches ?? 0).toBeGreaterThanOrEqual(6);
+  it('is a navigable maze: few dead ends, every node reachable, many exits per roof', () => {
+    // Round 2: the owner wants to pick the next roof at speed. Baseline was 12 dead ends and 1.55 exits per roof.
+    expect(s.stats.deadEnds.length).toBeLessThanOrEqual(HOME_DEAD_MAX);
+    expect(s.summary.deadRoofs).toBeLessThanOrEqual(HOME_DEAD_MAX);
+    expect(analyze(s.graph).goalReached).toBe(true);
+    const unreached = s.nodes.filter((n) => !s.stats.reach[n.id]).map((n) => n.id);
+    expect(unreached, 'nodes nobody can reach from the start').toEqual([]);
+    expect(avgOutDegree(s.graph, s.stats)).toBeGreaterThanOrEqual(HOME_DEGREE_MIN);
+  });
+
+  it('lands on seed 20261127 (first seed from 20261117 that passes the navigable-maze rules)', () => {
+    expect(s.seed).toBe(20261127);
   });
 
   it('only a balcony climb leads uphill in the leak graph', () => {
