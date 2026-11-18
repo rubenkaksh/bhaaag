@@ -64,6 +64,7 @@ const ZONE_OFF = 2; // zip zone centre, left of the lane centre
 const PAD_OFF = 2; // tramp pad centre, right of the lane centre (never under the zone)
 const SLAB = 0.3; // roof and balcony slab thickness (style 2)
 const FOOT = 6; // house boxes reach this far under the centre-line ground
+export const CUSHION_HALF = 2.5; // nagarkot-home cushion pad half side (m): a 5 m pad mid-roof, not the whole roof
 const THIN = 0.02; // cushion and tramp slab thickness (inside the sim's slab tolerance)
 const ZONE_THICK = 0.05;
 const HAZARD_STRIP = 4; // lethal ground in strips this deep, stepped down the hill
@@ -824,7 +825,12 @@ export function layoutToLevel(layout: Layout): LevelJson {
     }
     const px0 = x + PAD_OFF - PAD_HALF;
     const px1 = x + PAD_OFF + PAD_HALF;
-    if (h.cushion && !h.tramp) {
+    if (h.cushion && GP.home) {
+      // A small pad mid-roof; beside a tramp it starts behind the tramp strip so the pad always bounces.
+      const zm = (z0 + z1) / 2;
+      const cz0 = Math.max(zm - CUSHION_HALF, h.tramp ? z0 + PAD_DEPTH : -Infinity);
+      cushions.push(bx(x - CUSHION_HALF, y, cz0, x + CUSHION_HALF, y + THIN, zm + CUSHION_HALF));
+    } else if (h.cushion && !h.tramp) {
       cushions.push(bx(x - H, y, z0, x + H, y + THIN, z1));
     } else if (h.cushion) {
       // Keep the cushion off the tramp pad so the pad always bounces.

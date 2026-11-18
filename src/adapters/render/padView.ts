@@ -224,7 +224,7 @@ export function addTrampoline(
   tops.ring(cx, top + 0.012, cz, R * 0.36, R * 0.5, PAD_GOLD);
 }
 
-/** Cushion mesh and the two trampoline meshes; only the parts the world has. */
+/** One mesh per cushion and the two trampoline meshes; only the parts the world has. */
 export function buildPadMeshes(world: World): Mesh[] {
   const out: Mesh[] = [];
   const rims = new PadBuilder();
@@ -237,12 +237,20 @@ export function buildPadMeshes(world: World): Mesh[] {
     out.push(rims.mesh('trampRims'));
     out.push(tops.mesh('trampTops'));
   }
-  const cush = new PadBuilder();
+  // One mesh per cushion slab so the landing reaction can squash just that pad (padBounce.ts).
   for (let i = 0; i < world.cushions.length; i++) {
     const c = world.cushions[i];
+    const cush = new PadBuilder();
     addCushion(cush, c.min.x, c.max.y, c.min.z, c.max.x, c.max.z);
+    const m = cush.mesh('cushion');
+    m.userData.padSlab = {
+      index: i,
+      cx: (c.min.x + c.max.x) / 2,
+      cz: (c.min.z + c.max.z) / 2,
+      base: c.max.y,
+    };
+    out.push(m);
   }
-  if (!cush.empty) out.push(cush.mesh('cushions'));
   return out;
 }
 
