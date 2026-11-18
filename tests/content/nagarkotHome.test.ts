@@ -105,8 +105,8 @@ describe('nagarkot-home generator', () => {
     expect(avgOutDegree(s.graph, s.stats)).toBeGreaterThanOrEqual(HOME_DEGREE_MIN);
   });
 
-  it('lands on seed 20261127 (first seed from 20261117 that passes the navigable-maze rules)', () => {
-    expect(s.seed).toBe(20261127);
+  it('lands on seed 20261142 (first seed from 20261117 that passes the maze rules and the cushion-pad model)', () => {
+    expect(s.seed).toBe(20261142);
   });
 
   it('only a balcony climb leads uphill in the leak graph', () => {

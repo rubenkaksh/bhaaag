@@ -418,6 +418,18 @@ export function roadY(r: Road): number {
   return planeY(r.zc + ROAD_HALF) + ROAD_LIFT;
 }
 
+/** The nagarkot-home cushion pad on a house roof (x centre `x`): a small slab mid-roof, behind the tramp strip if any. */
+function homePad(h: House, x: number): { x0: number; x1: number; z0: number; z1: number } {
+  const z0 = houseZ0(h);
+  const zm = (z0 + h.zc + HOUSE_HALF) / 2;
+  return {
+    x0: x - CUSHION_HALF,
+    x1: x + CUSHION_HALF,
+    z0: Math.max(zm - CUSHION_HALF, h.tramp ? z0 + PAD_DEPTH : -Infinity),
+    z1: zm + CUSHION_HALF,
+  };
+}
+
 /** Nodes for a layout: roof (and balcony) per house, one per road. Ids are stable per call. */
 export function buildNodes(layout: Layout): NodeIndex {
   const nodes: MazeNode[] = [];
@@ -439,6 +451,7 @@ export function buildNodes(layout: Layout): NodeIndex {
       z1: h.zc + HOUSE_HALF,
       y: roofY(h),
       cushion: h.cushion,
+      pad: h.cushion && GP.home ? homePad(h, x) : undefined,
       tramps: h.tramp ? [x + PAD_OFF] : [],
       zipTo: -1,
       zipX: x - ZONE_OFF,
@@ -827,9 +840,8 @@ export function layoutToLevel(layout: Layout): LevelJson {
     const px1 = x + PAD_OFF + PAD_HALF;
     if (h.cushion && GP.home) {
       // A small pad mid-roof; beside a tramp it starts behind the tramp strip so the pad always bounces.
-      const zm = (z0 + z1) / 2;
-      const cz0 = Math.max(zm - CUSHION_HALF, h.tramp ? z0 + PAD_DEPTH : -Infinity);
-      cushions.push(bx(x - CUSHION_HALF, y, cz0, x + CUSHION_HALF, y + THIN, zm + CUSHION_HALF));
+      const cp = homePad(h, x);
+      cushions.push(bx(cp.x0, y, cp.z0, cp.x1, y + THIN, cp.z1));
     } else if (h.cushion && !h.tramp) {
       cushions.push(bx(x - H, y, z0, x + H, y + THIN, z1));
     } else if (h.cushion) {

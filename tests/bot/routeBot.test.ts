@@ -1,6 +1,7 @@
 // Route bot for nagarkot-home. Dev aid, skipped by default: ROUTE_BOT=1 pnpm bot:route
 import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { MOVE_ZIP } from '../../src/content/strategy/graph';
 import { buildPlan, formatReport, playEdgeAlone, playRoute, TIME_LIMIT_S } from './routeBot';
 
 const SEED = 20261142;
@@ -26,6 +27,18 @@ describe.skipIf(!on)('route bot (ROUTE_BOT=1)', () => {
     if (process.env.ROUTE_BOT_STRICT === '1') {
       expect(run.finished).toBe(true);
       expect(run.seconds).toBeLessThan(TIME_LIMIT_S);
+    }
+  });
+});
+
+describe('cushion edges survive the real sim (always on)', () => {
+  it('every route leg onto a cushion pad lands alive when played alone', () => {
+    const plan = buildPlan(SEED);
+    const legs = plan.legs.filter((l) => l.pad !== null && l.move !== MOVE_ZIP);
+    expect(legs.length).toBeGreaterThan(0);
+    for (const l of legs) {
+      const r = playEdgeAlone(plan, l.index);
+      expect(r.ok, `edge ${l.from}->${l.to}: ${r.cause}`).toBe(true);
     }
   });
 });
