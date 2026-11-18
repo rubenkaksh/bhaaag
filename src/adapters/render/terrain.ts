@@ -106,14 +106,49 @@ function wobble(x: number, z: number): number {
   );
 }
 
+const RISE_MAX = 18; // m: flank rise far from the road (was unbounded 0.0014 d^2 + 0.05 d)
+const RISE_L = 55; // m: e-folding distance of the rise
+const CAP = 24; // m: hard ceiling above max(f.h, planeY(z))
+const TAP = 14; // m: box-filter step that melts the seam crease
+const TERRACE_H = 3.5; // m: terrace step height, faded out by d = 120
+const SINK = 28; // m: far rim sinks this much between d 150 and 280 (tucks under the near card)
+
+function fieldRaw(x: number, z: number): number {
+  if (fieldNow === null) return 0;
+  const f = fieldNow(x, z);
+  const rise = RISE_MAX * (1 - Math.exp(-f.d / RISE_L));
+  return f.h + rise - SINK * smooth(150, 280, f.d) + 1.6 * wobble(x, z) * smooth(0, 60, f.d);
+}
+
+function terrace(r: number): number {
+  const s = r / TERRACE_H;
+  const k = Math.floor(s);
+  return TERRACE_H * (k + smooth(0.2, 0.8, s - k));
+}
+
 /** Height of the visible ground at (x, z). Equals planeY(z) for |x| <= HILL_HALF_X. */
 export function terrainY(x: number, z: number): number {
   if (fieldNow !== null) {
     const f = fieldNow(x, z);
     const w = smooth(0, 18, f.d);
     if (w <= 0) return f.h;
-    const out = f.d;
-    return f.h + w * (0.0014 * out * out + 0.05 * out + 3.2 * wobble(x, z) * smooth(0, 60, out));
+    const raw = fieldRaw(x, z);
+    // x taps slide east near the seam (x 20..44) so the filter never samples across it
+    const sh = 2 * TAP * smooth(20, 44, x);
+    const soft =
+      (fieldRaw(x - 2 * TAP + sh, z) +
+        fieldRaw(x - TAP + sh, z) +
+        raw +
+        fieldRaw(x + TAP + sh, z) +
+        fieldRaw(x + 2 * TAP + sh, z) +
+        fieldRaw(x, z - TAP) +
+        fieldRaw(x, z + TAP)) /
+      7;
+    let y = raw + smooth(4, 30, f.d) * (soft - raw); // filter only off the road
+    y = Math.min(y, Math.max(f.h, planeY(z)) + CAP);
+    const r = y - f.h;
+    if (r > 0) y = f.h + r + (1 - smooth(80, 120, f.d)) * (terrace(r) - r); // terraces fade out far away
+    return f.h + w * (y - f.h);
   }
   // Centre-line profile: the plane, then a valley floor, then the far wall rising.
   let base = planeY(z);
