@@ -105,6 +105,7 @@ function profileAt(p: [number, number][], z: number): number {
 const HILL_HALF = 34; // terrain.ts HILL_HALF_X
 const SEAM0 = 26; // world X where the straight hill starts giving way to the turned run
 const SEAM1 = 40;
+const SOUTH_GRADE = 0.4; // m of drop per m south of the turned run (the hill's grade, about 0.4)
 
 // The bent ground: the straight hill (local frame) west of the corner, the same hill turned 90 degrees east of it.
 function bentField(
@@ -115,10 +116,19 @@ function bentField(
   return (x, z) => {
     const h1 = profileAt(p, z);
     const d1 = Math.max(0, Math.abs(x) - HILL_HALF);
-    const h2 = profileAt(p, zr + xE - x);
+    // South of the turned road (downhill of the corner) the land keeps falling at the hill's own grade
+    // instead of staying level, so it never stands above the valley the lane is heading into.
+    const h2 = profileAt(p, zr + xE - x) - SOUTH_GRADE * Math.max(0, zr - HILL_HALF - z);
     const d2 = Math.max(0, Math.abs(z - zr) - HILL_HALF);
     const t = Math.max(0, Math.min(1, (x - SEAM0) / (SEAM1 - SEAM0)));
-    const w = t * t * (3 - 2 * t);
+    // North of the turned road (uphill of the corner) the nearer road is the first run: keep its descent
+    // there, or the east land stays a flat shelf above the lane and covers the painted foothills
+    // (owner 2026-11-18: "one part of the drawing is blocking the background"). r: 0 on the turned
+    // road's band, 1 beside the first run.
+    const dN = Math.max(0, z - zr - HILL_HALF);
+    const r = dN + d1 > 0 ? dN / (dN + d1) : 0;
+    const q = 1 - Math.max(0, Math.min(1, (r - 0.35) / 0.3));
+    const w = t * t * (3 - 2 * t) * (q * q * (3 - 2 * q));
     return { h: h1 + w * (h2 - h1), d: d1 + w * (d2 - d1) };
   };
 }
