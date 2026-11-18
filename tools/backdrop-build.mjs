@@ -28,9 +28,9 @@ const PLAN = {
   high: { plate: [1800, 130000], far: [1600, 100000], near: [1774, 125000] },
 };
 // haze baked into the cards (0 = untouched), colour is the foothill haze of the plate
-const HAZE = { far: [0.18, '#c7a9a4'], near: [0.1, '#c7a9a4'] };
+const HAZE = { far: [0.16, '#d9a881'], near: [0.06, '#d9a881'] };
 const SEAM = 0.1; // fraction of the plate width cross-faded
-const FADE_TOP = 0.16; // plate rows faded to alpha 0
+const FADE_TOP = 0.28; // plate rows faded to alpha 0
 const b64 = (f) => readFileSync(SRC + f).toString('base64');
 
 const browser = await chromium.launch();
@@ -254,11 +254,17 @@ const result = await page.evaluate(
     const topCard = mk(sw, cut);
     topCard.getContext('2d').drawImage(sheet, 0, 0, sw, cut, 0, 0, sw, cut);
 
-    const keyedNear = fadeBottom(hazeIt(key(topCard), haze.near), 0.08);
+    const keyedNear = fadeBottom(hazeIt(key(topCard), haze.near), 0.14);
     const keyedFar = fadeBottom(hazeIt(key(toCanvas(ridge3)), haze.far), 0.08);
     const plate = plateSeam(plateIm);
+    // mean colour of the first fully opaque plate row: the sky gradient must meet it (skyView SKY_STOPS)
+    const pr = Math.ceil(plate.height * fadeTop);
+    const prd = plate.getContext('2d').getImageData(0, pr, plate.width, 1).data;
+    const pm = [0, 0, 0];
+    for (let x = 0; x < plate.width; x++) for (let c = 0; c < 3; c++) pm[c] += prd[x * 4 + c];
+    const plateTop = '#' + pm.map((v) => Math.round(v / plate.width).toString(16).padStart(2, '0')).join('');
 
-    const out = { cut, files: {} };
+    const out = { cut, plateTop, files: {} };
     const srcs = { plate, far: keyedFar, near: keyedNear };
     for (const tier of Object.keys(plan))
       for (const [name, [w, target]] of Object.entries(plan[tier])) {
@@ -277,6 +283,7 @@ const result = await page.evaluate(
 await browser.close();
 
 console.log('sheet split row', result.cut);
+console.log('plateTop', result.plateTop);
 const tot = { low: 0, medium: 0, high: 0 };
 for (const [f, r] of Object.entries(result.files)) {
   writeFileSync(OUT + f, Buffer.from(r.b64, 'base64'));

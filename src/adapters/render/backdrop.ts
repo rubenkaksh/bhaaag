@@ -76,7 +76,7 @@ export const BACKDROP_SPECS: Record<BackdropSpec['name'], BackdropSpec> = {
     repeat: CARD_REPEAT,
     mirrored: true,
     u0: 0,
-    fogTint: 0.4,
+    fogTint: 0.3,
     renderOrder: -1.7,
   },
   near: {
@@ -87,7 +87,7 @@ export const BACKDROP_SPECS: Record<BackdropSpec['name'], BackdropSpec> = {
     repeat: CARD_REPEAT,
     mirrored: true,
     u0: 0,
-    fogTint: 0.22,
+    fogTint: 0.12,
     renderOrder: -1.6,
   },
 };
