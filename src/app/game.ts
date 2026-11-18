@@ -17,6 +17,7 @@ import {
   HERO_EV_MANTLE,
   HERO_EV_VAULT,
   HERO_EV_SLIDE,
+  HERO_EV_CUSHION,
   HERO_EV_RELEASED,
   newHeroState,
 } from '../core/hero';
@@ -97,12 +98,14 @@ import {
   AE_MANTLE,
   AE_VAULT,
   AE_SLIDE,
+  AE_CUSHION,
   AE_RELEASE,
   landAmp,
 } from '../adapters/render/animEvents';
 import { CameraFx } from '../adapters/render/cameraFx';
 import { DustPuff } from '../adapters/render/dustPuff';
 import { cushionBelow, diveStep } from '../adapters/render/diveTrigger';
+import { PadBounce, cushionUnder } from '../adapters/render/padBounce';
 import { GameLoop } from './loop';
 import { framingFor } from '../adapters/render/framing';
 import { MODE_INFO, graphIdOf, isGraphMode, readBest, writeBest } from './modes/mode';
@@ -320,6 +323,7 @@ export function startGame(
   gs.scene.add(previewView.group);
   const cameraFx = new CameraFx();
   const dust = new DustPuff();
+  const padBounce = new PadBounce(level);
   gs.scene.add(dust.mesh);
   const sfx = new Sfx();
   let animEv = 0;
@@ -698,6 +702,7 @@ export function startGame(
       if ((ev & HERO_EV_MANTLE) !== 0) animEv |= AE_MANTLE;
       if ((ev & HERO_EV_VAULT) !== 0) animEv |= AE_VAULT;
       if ((ev & HERO_EV_SLIDE) !== 0) animEv |= AE_SLIDE;
+      if ((ev & HERO_EV_CUSHION) !== 0) animEv |= AE_CUSHION;
       if ((ev & HERO_EV_DIED) !== 0) animEv |= AE_DIE;
       if (prev.mode !== HERO_ATTACHED && cur.mode === HERO_ATTACHED) animEv |= AE_ATTACH;
       if (
@@ -1140,6 +1145,13 @@ export function startGame(
     if ((animEv & AE_LAND) !== 0 && (animImpact >= 3 || cur.rollT > 0)) {
       dust.trigger(gp.x, gp.y, gp.z, landAmp(animImpact));
     }
+    if ((animEv & AE_CUSHION) !== 0) {
+      // soft landing: the pad under the feet squashes and rebounds, with a small puff of dust
+      const pad = cushionUnder(world.cushions, cur.px, cur.pz, cur.py, 0.1);
+      padBounce.trigger(pad, Math.max(0.55, landAmp(animImpact)));
+      dust.trigger(gp.x, gp.y, gp.z, 0.4);
+    }
+    padBounce.update(frameDt);
     if ((animEv & AE_JUMP) !== 0) dust.trigger(gp.x, gp.y, gp.z, 0.2);
     if ((animEv & AE_FIRE) !== 0) sfx.fire();
     if ((animEv & AE_ATTACH) !== 0) sfx.attach();

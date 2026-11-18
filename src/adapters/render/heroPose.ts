@@ -154,6 +154,7 @@ const BREATH_HZ = 0.28;
 
 // Event bits (mirror animEvents.ts; kept local so this file has no imports).
 const EV_LAND = 1;
+const EV_CUSHION = 2048;
 const EV_JUMP = 2;
 const EV_RELEASE = 4;
 const EV_ATTACH = 16;
@@ -171,6 +172,7 @@ const SLIDE_TAU_ON = 0.05;
 const SLIDE_TAU_OFF = 0.1;
 const DIVE_TAU_ON = 0.12;
 const DIVE_TAU_OFF = 0.18;
+const CUSHION_LAND_AMP = 0.9; // any cushion landing sinks into the pad this deep, however short the fall
 const DIVE_LAND_AMP = 0.85; // a landing out of a dive absorbs at least this deep (soft cushion crouch)
 
 // Static pose rows (channels not listed are 0).
@@ -715,7 +717,8 @@ function startOverlays(st: HeroPoseState, inp: HeroPoseInput): void {
     const a = (inp.impact - 2) / 9;
     st.landA = a < 0 ? 0 : a > 1 ? 1 : a;
     if (st.diveW > 0.3 && st.landA < DIVE_LAND_AMP) st.landA = DIVE_LAND_AMP;
-    st.landRoll = inp.rolling ? 1 : 0;
+    if ((ev & EV_CUSHION) !== 0 && st.landA < CUSHION_LAND_AMP) st.landA = CUSHION_LAND_AMP;
+    st.landRoll = inp.rolling && (ev & EV_CUSHION) === 0 ? 1 : 0;
     st.tLand = 0;
   }
   if ((ev & EV_ATTACH) !== 0) {

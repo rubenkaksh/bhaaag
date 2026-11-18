@@ -19,7 +19,7 @@ describe('strategy rendering', () => {
     const g = buildLevelMeshes(w, { houseDress: false });
     const names = g.children.map((c) => c.name);
     expect(names.some((n) => n.startsWith('anchor'))).toBe(false);
-    for (const n of ['lineZones', 'linePosts', 'lineRopes', 'trampRims', 'trampTops', 'cushions']) {
+    for (const n of ['lineZones', 'linePosts', 'lineRopes', 'trampRims', 'trampTops', 'cushion']) {
       expect(names).toContain(n);
     }
   });
