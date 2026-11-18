@@ -20,7 +20,6 @@ import {
   SEGMENTS,
   UNREACHED_MAX,
   deadInRange,
-  DEAD_MAX,
   measure,
   planeY,
   roadY,
@@ -59,8 +58,15 @@ const KIT_HEIGHTS: readonly number[] = [KIT_LOW, KIT_HIGH];
 const ROAD_UNDER = 2.7; // road deck under the front row's ground: a 1-storey front roof drops 5.9
 const HOME_BALCONY_MIN = 3.0; // a balcony only on a 2-storey house
 const HOME_ROUTE_MAX_S = 80; // fixed-line run, seconds (card T336a)
-const HOME_DEAD_SHARE = 0.095; // 0.8 x the frozen level's 14/118 dead ends (review F7)
-const HOME_BRANCHES = 6;
+// Round 2 (owner phone test): the level must be navigable at speed, so dead ends are rare and every roof has ways on.
+// Baseline seed 20261142 had 12 dead ends (19% of 64 roofs) and 1.55 exits per roof. Now at most 4 dead ends (6%) and
+// an average of 1.6 exits per roof in the leak graph (measured 4 and 1.73; the 6% allows one cushion-less pocket per
+// ~16 roofs, the floor sits under the measured value so a seed change fails loudly, not silently).
+export const HOME_DEAD_MAX = 4;
+export const HOME_DEGREE_MIN = 1.6;
+const HOME_TRAP = 0.4; // decoys rarely sit a storey under the house they hang off (was 0.7-0.85): fewer pockets
+const HOME_DECO: readonly number[] = [0.08, 0.1, 0.08, 0.4]; // cushion, balcony, tramp, zip (was zip 0.1-0.12): decoys get lines on
+const HOME_GAPS_OPEN: readonly number[] = [6, 7, 6, 7, 6, 7, 11, 12]; // 3 in 4 gaps jumpable on foot (was 1 in 2)
 const SPRINT_RUN_M = 25; // a straight run this long on the route (item: sprint test)
 const HOME_LONG_ROWS: readonly number[] = [3, 8, 13, 19]; // rows whose route house is a 4-house terrace (32 m)
 const HOME_RUNS_MIN = 2;
@@ -74,7 +80,17 @@ function homeSegment(
   roadAfter: boolean,
   base: Segment,
 ): Segment {
-  return { ...base, name, houses, perBand, gaps, heights: KIT_HEIGHTS, roadAfter };
+  return {
+    ...base,
+    name,
+    houses,
+    perBand,
+    gaps: gaps.length === 4 ? HOME_GAPS_OPEN : gaps,
+    heights: KIT_HEIGHTS,
+    roadAfter,
+    trap: base.trap === 0 ? 0 : HOME_TRAP,
+    deco: base.trap === 0 ? base.deco : HOME_DECO,
+  };
 }
 const HOME_SEGMENTS: readonly Segment[] = [
   homeSegment('ridge', 5, [2, 2], [11, 12], false, SEGMENTS[0]),
@@ -103,23 +119,30 @@ export const HOME_PARAMS: GenParams = {
   goalH: KIT_LOW,
   segments: HOME_SEGMENTS,
   houses: 59,
-  deadMin: 6,
-  deadMax: DEAD_MAX,
+  deadMin: 0,
+  deadMax: HOME_DEAD_MAX,
   edge: LEAK_EDGE,
   longRows: HOME_LONG_ROWS,
 };
 
-function homeValid(s: StrategyLevel, p: GenParams): boolean {
+/** Mean number of exits per reachable node in the leak graph: the connectivity metric of the maze. */
+export function avgOutDegree(g: MazeGraph, st: MazeStats): number {
   let reach = 0;
-  for (let i = 0; i < s.stats.reach.length; i++) if (s.stats.reach[i]) reach++;
+  let out = 0;
+  for (let i = 0; i < g.n; i++) if (st.reach[i]) reach++;
+  for (let i = 0; i < g.edges.length; i++) if (st.reach[g.edges[i].from]) out++;
+  return reach === 0 ? 0 : out / reach;
+}
+
+function homeValid(s: StrategyLevel, p: GenParams): boolean {
   const sm = s.summary;
   return (
     s.stats.goalReached &&
     sm.houses === p.houses &&
     sm.unreachedRoofs <= UNREACHED_MAX &&
     deadInRange(s, p) &&
-    s.stats.deadEnds.length >= HOME_DEAD_SHARE * reach &&
-    (sm.deadBranches ?? 0) >= HOME_BRANCHES &&
+    s.stats.deadEnds.length <= HOME_DEAD_MAX &&
+    avgOutDegree(s.graph, s.stats) >= HOME_DEGREE_MIN &&
     (sm.routeDisjoint ?? 0) >= 2 &&
     (sm.routeRuns ?? 0) >= HOME_RUNS_MIN &&
     (sm.sprintGaps ?? 0) >= HOME_SPRINT_GAPS_MIN &&
