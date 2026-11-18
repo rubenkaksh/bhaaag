@@ -32,6 +32,8 @@ export interface HomeDressing {
   skip: Set<number>;
   /** Same set as a predicate, the shape levelView's `graph.kitSkip` takes. */
   kitSkip: (solidIndex: number) => boolean;
+  /** Bent level (T337): the view-only ground that follows the turned run; absent for a straight level. */
+  field?: (x: number, z: number) => { h: number; d: number };
   /** Kit houses per roof node, in node order (1 for every 8 x 8 node). */
   perNode: number[];
 }
@@ -81,14 +83,46 @@ function near(a: number, b: number): boolean {
   return Math.abs(a - b) < EPS;
 }
 
+function profileAt(p: [number, number][], z: number): number {
+  if (z >= p[0][0]) return p[0][1] + ((z - p[0][0]) * (p[1][1] - p[0][1])) / (p[1][0] - p[0][0]);
+  for (let i = 1; i < p.length; i++) {
+    if (z >= p[i][0])
+      return p[i - 1][1] + ((z - p[i - 1][0]) / (p[i][0] - p[i - 1][0])) * (p[i][1] - p[i - 1][1]);
+  }
+  const n = p.length;
+  return p[n - 1][1];
+}
+
+const HILL_HALF = 34; // terrain.ts HILL_HALF_X
+const SEAM0 = 26; // world X where the straight hill starts giving way to the turned run
+const SEAM1 = 40;
+
+// The bent ground: the straight hill (local frame) west of the corner, the same hill turned 90 degrees east of it.
+function bentField(
+  p: [number, number][],
+  zr: number,
+  xE: number,
+): (x: number, z: number) => { h: number; d: number } {
+  return (x, z) => {
+    const h1 = profileAt(p, z);
+    const d1 = Math.max(0, Math.abs(x) - HILL_HALF);
+    const h2 = profileAt(p, zr + xE - x);
+    const d2 = Math.max(0, Math.abs(z - zr) - HILL_HALF);
+    const t = Math.max(0, Math.min(1, (x - SEAM0) / (SEAM1 - SEAM0)));
+    const w = t * t * (3 - 2 * t);
+    return { h: h1 + w * (h2 - h1), d: d1 + w * (d2 - d1) };
+  };
+}
+
 export function dressNagarkotHome(s: StrategyLevel): HomeDressing {
   const houses: HouseSpec[] = [];
   const perNode: number[] = [];
   const skip = new Set<number>();
   const sol = s.level.solids;
   const sty = s.level.style ?? [];
-  for (let i = 0; i < s.nodes.length; i++) {
-    const n = s.nodes[i];
+  const wn = s.world?.nodes ?? s.nodes;
+  for (let i = 0; i < wn.length; i++) {
+    const n = wn[i];
     if (n.kind !== NODE_ROOF) continue;
     const h = s.layout.houses[n.house];
     const storeys: 1 | 2 = h.h > 4.5 ? 2 : 1;
@@ -114,7 +148,9 @@ export function dressNagarkotHome(s: StrategyLevel): HomeDressing {
   }
 
   // Ground: one flat terrace per hazard band, 0.2 m under the lethal top, stepping between bands.
-  const bands = (s.level.hazards ?? []).slice().sort((a, b) => b.max[2] - a.max[2]);
+  const bands = (s.world?.local.hazards ?? s.level.hazards ?? [])
+    .slice()
+    .sort((a, b) => b.max[2] - a.max[2]);
   const profile: [number, number][] = [];
   for (let k = 0; k < bands.length; k++) {
     const y = bands[k].max[1] - HAZARD_LIP;
@@ -137,6 +173,7 @@ export function dressNagarkotHome(s: StrategyLevel): HomeDressing {
     seed: s.seed,
     look: 'home',
     skip,
+    field: s.world === undefined ? undefined : bentField(profile, s.world.zr, s.world.xEast),
     kitSkip: (i: number) => skip.has(i),
     perNode,
   };

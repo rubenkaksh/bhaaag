@@ -306,7 +306,19 @@ export interface StrategySummary {
   leakPasses?: number;
 }
 
+/** nagarkot-home bend (T337): the generator works in a straight local frame; `level` and `world.nodes` are the bent world. */
+export interface BendFrame {
+  pivotNode: number; // road node the descent turns on
+  z0: number; // local downhill edge of that road
+  zr: number; // local centre z of that road (world Z of the lane centre line after the turn)
+  xEast: number; // world X of the widened road's east end; the turned run starts here
+  nodes: MazeNode[]; // world rectangles, in node order (same ids as `nodes`)
+  tail: boolean[]; // node id -> lies after the pivot (rotated)
+  local: LevelJson; // the straight level before the turn (profile and checks)
+}
+
 export interface StrategyLevel {
+  world?: BendFrame;
   level: LevelJson;
   layout: Layout;
   nodes: MazeNode[];

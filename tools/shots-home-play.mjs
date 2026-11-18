@@ -19,7 +19,7 @@ for (const [tag, w, h] of [['p', 390, 844], ['l', 844, 390]]) {
   const p = await ctx.newPage();
   p.on('console', (m) => { if (m.type() === 'error') { errors++; console.log(`[${tag}] console error: ${m.text()}`); } });
   p.on('pageerror', (e) => { errors++; console.log(`[${tag}] page error: ${e.message}`); });
-  await p.goto(`${base}?level=nagarkot-home&gfx=low&debug`);
+  await p.goto(`${base}?mode=classic&level=nagarkot-home&gfx=low&debug`);
   await p.waitForTimeout(4000);
   await p.screenshot({ path: `art/shots/auto/t336c-${tag}-1-start.png` });
   await p.getByText('PLAY', { exact: true }).first().click({ timeout: 3000 }).catch(() => {});
