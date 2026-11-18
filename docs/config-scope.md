@@ -18,6 +18,7 @@ A mode may override only what is listed in `MODE_OVERRIDES` (same file) and in t
 | `hero.airSteer / airSteerCap` | 14 / 6 | `core/sim.ts`, mode-blind |
 | `hero.sprintSpeed / sprintStreakM / sprintAccel` (ADR 0018) | 11 / 11.9 / 8 | `core/sim.ts` grounded non-slip branch only; sprintSpeed <= run disables it |
 | `hero.sprintCadence / sprintFov` (ADR 0018) | 0.2 / 6 | render only: `heroPose.ts` cycle rate, `cameraRig.ts` fov boost |
+| `hero.diveMinFall` | 6 | render only: metres above a cushion top before the swan-dive pose starts (`diveTrigger.ts`) |
 | `tramp.airSteer / airSteerCap` | 12 / 6 | `core/sim.ts`, mode-blind |
 | `vault.*` (minSpeed 2.5, maxH 1.1, maxDepth 0.7, sec 0.28, keep 0.9, coneDeg 45, clearH 0.1) (ADR 0013) | see config | `core/sim.ts`, global; acts only through `World.parkour` |
 | `slide.*` (minSpeed 7, sec 0.6, height 1.0, decel 4, minKeep 2) (ADR 0013) | see config | `core/sim.ts`, global; acts only through `World.parkour` |

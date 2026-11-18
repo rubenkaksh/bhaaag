@@ -101,6 +101,7 @@ import {
 } from '../adapters/render/animEvents';
 import { CameraFx } from '../adapters/render/cameraFx';
 import { DustPuff } from '../adapters/render/dustPuff';
+import { cushionBelow, diveStep } from '../adapters/render/diveTrigger';
 import { GameLoop } from './loop';
 import { framingFor } from '../adapters/render/framing';
 import { MODE_INFO, graphIdOf, isGraphMode, readBest, writeBest } from './modes/mode';
@@ -1102,6 +1103,13 @@ export function startGame(
     hv.rolling = cur.rollT > 0;
     hv.sliding = cur.slideT > 0;
     hv.sprint = sprintK * cfg.hero.sprintCadence;
+    hv.dive = diveStep(
+      hv.dive,
+      cur.mode === HERO_AIRBORNE && cur.dead === 0,
+      cur.vy,
+      cushionBelow(world.cushions, cur.px, cur.pz, cur.py, cfg.hero.radius),
+      cfg.hero.diveMinFall,
+    );
     hv.events = animEv;
     hv.ropeLen = cur.hook.len;
     hv.impact = animImpact;
