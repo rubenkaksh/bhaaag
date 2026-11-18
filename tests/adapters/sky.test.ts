@@ -29,11 +29,11 @@ describe('sky gradient (ADR 0005 D4)', () => {
     expect(skyColorAt(-0.2, new Color()).getHexString()).toBe('e6a77a');
   });
 
-  it('starts at HAZE on the horizon and hits the stops at 0.10, 0.30 and 0.60', () => {
+  it('starts at HAZE on the horizon and hits the stops at 0.12, 0.264 (plate top) and 0.70', () => {
     expect(skyColorAt(0, new Color()).getHexString()).toBe(new Color(HAZE).getHexString());
-    expect(skyColorAt(0.1, new Color()).getHexString()).toBe('f2a050');
-    expect(skyColorAt(0.3, new Color()).getHexString()).toBe('d77a45');
-    expect(skyColorAt(0.9, new Color()).getHexString()).toBe('9c5a4c');
+    expect(skyColorAt(0.12, new Color()).getHexString()).toBe('f0b47a');
+    expect(skyColorAt(0.264, new Color()).getHexString()).toBe('afa1b4');
+    expect(skyColorAt(0.9, new Color()).getHexString()).toBe('b7765a');
   });
 
   it('is a real gradient between stops, not a flat band', () => {

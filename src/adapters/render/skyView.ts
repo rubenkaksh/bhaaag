@@ -50,9 +50,10 @@ const SUN_BOOST = new Color('#ffd890');
 // Stops by normalised height h (sphere radius 500, so h = dir.y).
 const SKY_STOPS: [number, Color][] = [
   [0, new Color(HAZE)],
-  [0.1, new Color('#f2a050')],
-  [0.3, new Color('#d77a45')],
-  [0.6, new Color('#9c5a4c')],
+  [0.12, new Color('#f0b47a')],
+  [0.264, new Color('#afa1b4')], // mean colour of the plate's first opaque row (backdrop-build 'plateTop'), sin 15.3 deg
+  [0.45, new Color('#e2a46e')],
+  [0.7, new Color('#b7765a')],
 ];
 
 /** Sky colour for normalised height h. Writes into `out` and returns it. */

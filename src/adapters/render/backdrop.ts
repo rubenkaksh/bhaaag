@@ -54,14 +54,25 @@ const PLATE_REPEAT = 2;
 const CARD_REPEAT = 4;
 /** Vertical squash of the plate: a true 360 degree wrap would make the peaks absurdly tall. */
 const PLATE_SQUASH = 0.5;
+/**
+ * Height factor of the far snow range and slate ridges (owner 2026-11-18: "50% more height"). 1 = the original
+ * plate. The plate is scaled about PLATE_ANCHOR (the image row where the ridges meet the foothills), not about
+ * the horizon: the snow peaks sit at eye level, so a horizon-anchored stretch would not lift them at all.
+ */
+export const FAR_PEAK_SCALE = 1.5;
+/** Plate image row (fraction from the top) that keeps its world height when FAR_PEAK_SCALE changes. */
+const PLATE_ANCHOR = 0.62;
+const PLATE_EYE_ROW_1 = 0.6; // eyeRow of the unscaled plate (see buildLayer: the eye sits 0.4 of the height below the top)
+const plateEyeRow = (s: number): number =>
+  1 - PLATE_ANCHOR - (1 - PLATE_EYE_ROW_1 - PLATE_ANCHOR) / s;
 const tile = (r: number, n: number): number => (TAU * r) / n;
 
 export const BACKDROP_SPECS: Record<BackdropSpec['name'], BackdropSpec> = {
   plate: {
     name: 'plate',
     radius: PLATE_R,
-    height: (tile(PLATE_R, PLATE_REPEAT) / PLATE_ASPECT) * PLATE_SQUASH,
-    eyeRow: 0.6,
+    height: (tile(PLATE_R, PLATE_REPEAT) / PLATE_ASPECT) * PLATE_SQUASH * FAR_PEAK_SCALE,
+    eyeRow: plateEyeRow(FAR_PEAK_SCALE),
     repeat: PLATE_REPEAT,
     mirrored: false,
     u0: 0.42,
@@ -76,7 +87,7 @@ export const BACKDROP_SPECS: Record<BackdropSpec['name'], BackdropSpec> = {
     repeat: CARD_REPEAT,
     mirrored: true,
     u0: 0,
-    fogTint: 0.4,
+    fogTint: 0.3,
     renderOrder: -1.7,
   },
   near: {
@@ -87,7 +98,7 @@ export const BACKDROP_SPECS: Record<BackdropSpec['name'], BackdropSpec> = {
     repeat: CARD_REPEAT,
     mirrored: true,
     u0: 0,
-    fogTint: 0.22,
+    fogTint: 0.12,
     renderOrder: -1.6,
   },
 };
