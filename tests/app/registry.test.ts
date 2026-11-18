@@ -48,7 +48,7 @@ describe('mode registry', () => {
     ]);
     // a hidden mode still resolves by id and in URL parsing
     const ids = defs.map((d) => d.id);
-    const levels = classicLevels(false);
+    const levels = classicLevels(false, true);
     expect(loadSelection(new URLSearchParams('mode=fake'), levels, undefined, ids).mode).toBe(
       'fake',
     );
@@ -58,7 +58,7 @@ describe('mode registry', () => {
   });
 
   it('legacy URLs still resolve to a Classic level', () => {
-    const levels = classicLevels(false);
+    const levels = classicLevels(false, true);
     for (const [q, lvl] of [
       ['mode=village', 'village'],
       ['mode=strategy', 'nagarkot'],

@@ -176,7 +176,7 @@ Lean scope reserves gold for interactive, cream-white for safe and terracotta fo
 
 **Mapping** **[USER]**: the reference shows joystick + HOOK + SPRINT. The game has no sprint (stick magnitude sets speed), and adding one would change gameplay.
 - The runner pictogram goes on **JUMP**. The hook pictogram goes on the contextual **ACTION** button, which swaps to a brake glyph while attached.
-- The right-side look-drag and tap-to-aim zone stays as it is.
+- Superseded: there is no look-drag or tap-to-aim zone any more (docs/controls.md, "Camera and aim"); the right side holds only the buttons.
 - `setActionLabel` must stop using `textContent`, which would wipe the icon. It sets `data-mode="hook|brake"` and `aria-label` instead.
 
 **Shared tokens** (vh-driven, so both viewports derive from one rule):
