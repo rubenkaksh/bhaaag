@@ -900,7 +900,7 @@ function forest(B: Builder, bodies: Body[], seed: number): number[] {
   for (let s = -1; s <= 1; s += 2) {
     for (let z = TERRAIN_Z_MAX - 6; z > TERRAIN_Z_MIN + 6; z -= 9) {
       for (let x = 37; x < TERRAIN_HALF_X - 6;) {
-        const pitch = x < 110 ? 9 : x < 190 ? 13 : 20;
+        const pitch = x < 110 ? 8 : x < 190 ? 13 : 20;
         const tx = s * (x + (fr() - 0.5) * pitch * 0.8);
         const tz = z + (fr() - 0.5) * 7;
         const rr = fr();
@@ -909,13 +909,13 @@ function forest(B: Builder, bodies: Body[], seed: number): number[] {
         const rc = fr();
         x += pitch;
         const ax = Math.abs(tx);
-        const dens = 0.78 - 0.5 * Math.min(1, (ax - 37) / 280);
+        const dens = 0.82 - 0.5 * Math.min(1, (ax - 37) / 280);
         // the valley floor below the last house stays an open meadow beside the stream
         if (tz < -140 && ax < 90 && rt < 0.55) continue;
         if (rt > dens) continue;
         const up = terrainY(tx, tz) - planeY(tz);
         const scale = ax > 110 ? 1.45 : 1;
-        const con = up > 50 || (up > 22 && rc < (up - 22) / 28);
+        const con = ax > 60 ? rc < 0.65 : up > 50 || (up > 22 && rc < (up - 22) / 28);
         list.push({
           x: tx,
           z: tz,
