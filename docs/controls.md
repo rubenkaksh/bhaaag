@@ -48,8 +48,8 @@ Q/E camera turn. The camera is a fixed view from BEHIND the hero, looking downhi
 left and right to keep the hero centred (pitch `camera.frontPitchDeg`).
 Automatic changes: while moving sideways the camera leans up to `camera.sideYawDeg` (40 deg, full at
 `sideYawSpeed` 2.5 m/s, `sideYawEaseBack` eases it home) so houses at the sides show; while ziplining diagonally the yaw eases by `camera.zipYawDeg` toward the
-travel side, then back to the default downhill view when the line ends (`src/adapters/render/cameraYaw.ts`, tunables in
-`content/config/tuning.json`). Movement is screen-space relative to that view.
+travel side, then back to the default downhill view when the line ends (`src/adapters/render/cameraYaw.ts`, defaults in
+`src/core/config.ts`, overridable in `content/config/tuning.json`). Movement is screen-space relative to that view.
 
 Aim needs no look control. By default the hook aims at the glowing next route anchor; on touch, tap an
 anchor to aim at it (nearest within `aim.tapRadiusNdc`). In line-only strategy levels ziplines are
