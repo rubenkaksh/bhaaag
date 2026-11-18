@@ -179,7 +179,7 @@ const ON_NODE = 0.5;
 /**
  * Lookahead heading (T346): sim yaw from the hero at (x, z) to the point `cfg.lookahead` metres ahead
  * along the route. The route is the hero -> nearest point of the next node's footprint -> ... polyline
- * through the nodes' exits; a fork follows its exit closest to the forkHold heading, so the view swings toward a
+ * through the nodes' exits; a fork follows its exit closest to the mean exit heading (or its heading override), so the view swings toward a
  * corner BEFORE the hero lands on it. Null when off, the hero is not over/near a node, or the route
  * ends within LEAD_MIN (keep the current heading). `from` = the node last landed on. Pure.
  */
@@ -215,8 +215,10 @@ export function leadHeading(
     if (node.exits.length === 0) break;
     let nextId = node.exits[0];
     if (node.exits.length > 1) {
-      // fork: follow the exit closest to the held heading (the main line), not a mean that points between exits
-      const hold = forkHold(pg, node, cfg);
+      // fork: follow the exit closest to the mean exit heading, so a wide fan of exits leads along its middle
+      const ex = exitHeadings(pg, node);
+      const hold =
+        node.heading !== undefined || ex.length === 0 ? forkHold(pg, node, cfg) : meanAngle(ex);
       let bestA = Infinity;
       for (const id of node.exits) {
         const t = nodeOf(pg, id);
