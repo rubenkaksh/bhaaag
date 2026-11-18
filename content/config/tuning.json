@@ -71,7 +71,8 @@
     "sprintStreakM": 11.9,
     "sprintAccel": 8,
     "sprintCadence": 0.2,
-    "sprintFov": 6
+    "sprintFov": 6,
+    "diveMinFall": 6
   },
   "camera": {
     "dist": 4.5,

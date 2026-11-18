@@ -80,6 +80,7 @@ const schema = z.strictObject({
     sprintAccel: num,
     sprintCadence: num,
     sprintFov: num,
+    diveMinFall: num,
   }),
   camera: z.strictObject({
     dist: num,

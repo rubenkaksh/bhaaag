@@ -84,6 +84,7 @@ export type Tuning = {
     sprintAccel: number; // m/s^2 of the ramp from run to sprintSpeed
     sprintCadence: number; // extra run-cycle rate at full sprint (0.2 = 20% faster), render only
     sprintFov: number; // extra camera fov in degrees at full sprint, render only
+    diveMinFall: number; // m above a cushion top before the swan dive pose starts, render only
   };
   camera: {
     dist: number;
@@ -280,6 +281,7 @@ export const DEFAULT_TUNING: Tuning = {
     sprintAccel: 8,
     sprintCadence: 0.2,
     sprintFov: 6,
+    diveMinFall: 6,
   },
   camera: {
     dist: 4.5,
