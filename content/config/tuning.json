@@ -12,7 +12,8 @@
     "trolleyStop": 0.6,
     "handToFeet": 2.0,
     "hookSpeed": 320,
-    "brakeDecel": 10
+    "brakeDecel": 10,
+    "legHazardKill": 0
   },
   "aim": { "magnetDegDesktop": 4, "magnetDegTouch": 6, "routeAssistDeg": 16, "routeAssistLateDeg": 10, "routeAssistEarlyHops": 2, "snapRadius": 1.2, "previewHz": 15, "previewMaxSec": 8, "previewReleaseSamples": 12,
     "tapRadiusNdc": 0.18,

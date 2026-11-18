@@ -21,6 +21,7 @@ const schema = z.strictObject({
     handToFeet: num,
     hookSpeed: num,
     brakeDecel: num,
+    legHazardKill: num,
   }),
   aim: z.strictObject({
     magnetDegDesktop: num,
