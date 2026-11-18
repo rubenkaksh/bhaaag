@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TUNING as cfg } from '../../src/core/config';
+import { LEGACY_TUNING as cfg } from '../fixtures/legacyFeel';
 import { RowSpec, difficultyFor, rowSpec, rowSpecInto } from '../../src/core/chase/rows';
 import { dragonSpeed } from '../../src/core/chase/dragon';
 import { NO_DRAGON, cfgWith, runBot } from './chaseBot';

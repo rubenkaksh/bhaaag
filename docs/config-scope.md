@@ -34,6 +34,7 @@ A mode may override only what is listed in `MODE_OVERRIDES` (same file) and in t
 | --- | --- | --- | --- |
 | `hero.sprintSpeed` (ADR 0018) | 11 | `chase`: 6 (= `hero.run`, sprint off) | Dragon Chase keeps its tuned run pace; every other mode sprints |
 | Camera tilt `?tilt=N` | `camera.tiltDeg` 20 | debug URL param, all modes | debugging only; no per-mode tilt any more |
+| `hero.runAccel` / `landing.carryDecay` (ADR 0019) | 14 / 0 | `chase`: 40 / 40 (the old abrupt run-up and bleed-off) | Dragon Chase keeps its tuned pace; every other mode gets the smooth run-up and keeps landing/rope momentum |
 | `chase.startGap` | 36 | `?dragonGap=N` debug param in chase | debug aid, chase-only key |
 | HINT button | shown | hidden in strategy | `world.lineOnly`: no free aim, nothing to hint |
 | Camera base rig (chase `frontPov`) | 0 = behind view | `chase.frontPov` 1 = ahead view | chase-only flag; yaw offsets still apply |
