@@ -79,12 +79,12 @@ Neutral metadata shape (illustrative; populate from actual processed files, neve
   "extrude": 1,
   "sprites": {
     "projectile_blue_000": {
-      "frame": {"x": 0, "y": 0, "w": 64, "h": 32},
-      "sourceSize": {"w": 64, "h": 32},
-      "spriteSourceSize": {"x": 0, "y": 0, "w": 64, "h": 32},
+      "frame": { "x": 0, "y": 0, "w": 64, "h": 32 },
+      "sourceSize": { "w": 64, "h": 32 },
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 32 },
       "trimmed": false,
-      "pivot": {"x": 0.5, "y": 0.5},
-      "sourcePivot": {"x": 0.5, "y": 0.5}
+      "pivot": { "x": 0.5, "y": 0.5 },
+      "sourcePivot": { "x": 0.5, "y": 0.5 }
     }
   },
   "animations": {

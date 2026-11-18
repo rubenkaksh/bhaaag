@@ -36,7 +36,8 @@ describe('valley-1 zip zones', () => {
             step(s, f, w, DEFAULT_TUNING);
             if (s.mode === HERO_ATTACHED) hooked = true;
           }
-          if (!hooked || s.dead !== 0 || s.grounded !== 1) bad.push(`L${li} (${fx},${fz}) mode${s.mode}`);
+          if (!hooked || s.dead !== 0 || s.grounded !== 1)
+            bad.push(`L${li} (${fx},${fz}) mode${s.mode}`);
         }
       }
     });

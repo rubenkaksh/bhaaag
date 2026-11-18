@@ -131,7 +131,14 @@ export function generateLevel() {
     const xa = Math.min(face, face + dir * BALCONY_DEPTH);
     const xb = Math.max(face, face + dir * BALCONY_DEPTH);
     add(
-      box(xa, h.top - BALCONY_DROP - 0.3, h.cz - HALF_Z + 1, xb, h.top - BALCONY_DROP, h.cz + HALF_Z - 1),
+      box(
+        xa,
+        h.top - BALCONY_DROP - 0.3,
+        h.cz - HALF_Z + 1,
+        xb,
+        h.top - BALCONY_DROP,
+        h.cz + HALF_Z - 1,
+      ),
       1,
     );
   });
@@ -153,10 +160,36 @@ export function generateLevel() {
   // Invisible barrier walls (style 5) keep the hero on the collider hill: sides, back, front.
   const wallTop = 40;
   const wallBot = -120;
-  add(box(-HILL_HALF_X - WALL_T, wallBot, HILL_Z_MIN - WALL_T, -HILL_HALF_X, wallTop, HILL_Z_MAX + WALL_T), STYLE_HIDDEN);
-  add(box(HILL_HALF_X, wallBot, HILL_Z_MIN - WALL_T, HILL_HALF_X + WALL_T, wallTop, HILL_Z_MAX + WALL_T), STYLE_HIDDEN);
-  add(box(-HILL_HALF_X, wallBot, HILL_Z_MAX, HILL_HALF_X, wallTop, HILL_Z_MAX + WALL_T), STYLE_HIDDEN);
-  add(box(-HILL_HALF_X, wallBot, HILL_Z_MIN - WALL_T, HILL_HALF_X, wallTop, HILL_Z_MIN), STYLE_HIDDEN);
+  add(
+    box(
+      -HILL_HALF_X - WALL_T,
+      wallBot,
+      HILL_Z_MIN - WALL_T,
+      -HILL_HALF_X,
+      wallTop,
+      HILL_Z_MAX + WALL_T,
+    ),
+    STYLE_HIDDEN,
+  );
+  add(
+    box(
+      HILL_HALF_X,
+      wallBot,
+      HILL_Z_MIN - WALL_T,
+      HILL_HALF_X + WALL_T,
+      wallTop,
+      HILL_Z_MAX + WALL_T,
+    ),
+    STYLE_HIDDEN,
+  );
+  add(
+    box(-HILL_HALF_X, wallBot, HILL_Z_MAX, HILL_HALF_X, wallTop, HILL_Z_MAX + WALL_T),
+    STYLE_HIDDEN,
+  );
+  add(
+    box(-HILL_HALF_X, wallBot, HILL_Z_MIN - WALL_T, HILL_HALF_X, wallTop, HILL_Z_MIN),
+    STYLE_HIDDEN,
+  );
 
   const zLow = hillY(HILL_Z_MIN);
   const ramps = [

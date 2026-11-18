@@ -32,12 +32,12 @@ Retrieve answers from the brief, repo docs, screenshots and earlier decisions be
 
 ## Status ladder
 
-| Label | Meaning |
-|---|---|
-| Concept only | Generated visual; not processed. |
-| Processed | Extracted, normalized and packaged. |
-| Engine-ready | Metadata and import configuration prepared for the target engine. |
-| Engine-verified | Imported and tested in the actual project. |
+| Label           | Meaning                                                           |
+| --------------- | ----------------------------------------------------------------- |
+| Concept only    | Generated visual; not processed.                                  |
+| Processed       | Extracted, normalized and packaged.                               |
+| Engine-ready    | Metadata and import configuration prepared for the target engine. |
+| Engine-verified | Imported and tested in the actual project.                        |
 
 "Production-ready" is never a synonym for "generated". If the project cannot be run, say **processed, not engine-verified**.
 
@@ -63,16 +63,16 @@ Report passed, failed and unverified checks separately. A PASS from `tools/asset
 
 Load only what the task needs.
 
-| Need | File |
-|---|---|
-| Prompting, style bible, consistency, sprite/sheet/tile/UI/3D strategy | `references/generation.md` |
-| Keying, crop/trim, slicing, frame QA, atlas packing, metadata schema | `references/processing.md` |
-| File, atlas, visual and engine checks; failure handling | `references/validation.md` |
-| Folder layout, handoff contents, working with existing repos | `references/delivery.md` |
-| Three.js / custom 3D | `references/engines/threejs.md` |
-| Flutter Flame | `references/engines/flame.md` |
-| Unity | `references/engines/unity.md` |
-| Godot | `references/engines/godot.md` |
-| Unreal | `references/engines/unreal.md` |
+| Need                                                                  | File                            |
+| --------------------------------------------------------------------- | ------------------------------- |
+| Prompting, style bible, consistency, sprite/sheet/tile/UI/3D strategy | `references/generation.md`      |
+| Keying, crop/trim, slicing, frame QA, atlas packing, metadata schema  | `references/processing.md`      |
+| File, atlas, visual and engine checks; failure handling               | `references/validation.md`      |
+| Folder layout, handoff contents, working with existing repos          | `references/delivery.md`        |
+| Three.js / custom 3D                                                  | `references/engines/threejs.md` |
+| Flutter Flame                                                         | `references/engines/flame.md`   |
+| Unity                                                                 | `references/engines/unity.md`   |
+| Godot                                                                 | `references/engines/godot.md`   |
+| Unreal                                                                | `references/engines/unreal.md`  |
 
 Helper script: `tools/asset_pipeline.py` (Pillow). Documented in `references/processing.md`.
