@@ -3,7 +3,7 @@ import { Mesh } from 'three';
 import type { BufferGeometry, InstancedMesh, Object3D } from 'three';
 import { describe, expect, it } from 'vitest';
 import { loadWorldFromJson } from '../../src/content/load';
-import { buildBackdrop } from '../../src/adapters/render/backdrop';
+import { backdropDraws, buildBackdrop } from '../../src/adapters/render/backdrop';
 import { buildLevelMeshes } from '../../src/adapters/render/levelView';
 import {
   GRAPHICS_TIERS,
@@ -95,8 +95,9 @@ describe('A3 static budgets', () => {
     expect(meshes(createHeroRig().root).length).toBeLessThanOrEqual(6);
   });
 
-  it('merges the backdrop rings into one draw', () => {
-    expect(buildBackdrop('low').children.length).toBe(1);
+  it('backdrop is one draw per layer: plate + near card on Low', () => {
+    expect(buildBackdrop('low').children.length).toBe(backdropDraws('low'));
+    expect(backdropDraws('low')).toBe(2);
   });
 
   it('house kit v2 (ADR 0013): instanced meshes <= 24 and Low draw calls <= 55 for a house level', () => {
@@ -114,7 +115,7 @@ describe('A3 static budgets', () => {
     // everything that is not house decor in a v1 level (ground, lane, pads, ropes) plus the backdrop and hero
     const fixedCalls =
       all.filter((m) => !(m as InstancedMesh).isInstancedMesh).length +
-      buildBackdrop('low').children.length +
+      backdropDraws('low') +
       meshes(createHeroRig().root).length;
     for (const g of fixtures) {
       const inst = meshes(g).filter((m) => (m as InstancedMesh).isInstancedMesh === true);
