@@ -780,3 +780,19 @@
 #hud-win .board-invite .invite {
   opacity: 1;
 }
+/* L6: privacy row under the board. */
+#hud-win .board-privacy {
+  margin-top: 6px;
+  text-align: center;
+}
+#hud-win .board-privacy a,
+#hud-win .board-privacy .link {
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}

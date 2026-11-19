@@ -88,4 +88,16 @@ describe('online client', () => {
     expect(await o.inviteLink()).toBe('https://x.io/bhaaag/?friend=CODE2345');
     vi.unstubAllGlobals();
   });
+  it('deletes server data then the local identity, and only on confirmation', async () => {
+    const store = mem();
+    let reply: unknown = null;
+    const o = mk((() => json(reply)) as typeof fetch, store);
+    expect(await o.deleteMyData()).toBe(true); // no player: nothing to do
+    o.setPlayerName('Ruben');
+    expect(await o.deleteMyData()).toBe(false); // server did not confirm
+    expect(o.hasPlayer()).toBe(true);
+    reply = true;
+    expect(await o.deleteMyData()).toBe(true);
+    expect(o.hasPlayer()).toBe(false);
+  });
 });

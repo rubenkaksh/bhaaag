@@ -1,3 +1,4 @@
+import './zodConfig';
 import { startGame } from './game';
 import { bestLabel, readBest, isGraphMode } from './modes/mode';
 import { classicLevels } from './modes/levels';

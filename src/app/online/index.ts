@@ -180,6 +180,19 @@ export function createOnline(cfg: OnlineConfig) {
       if (code === null || typeof location === 'undefined') return null;
       return `${location.origin}${location.pathname}?friend=${code}`;
     },
+    /** Deletes this player's data on the server, then the local identity. False (nothing local touched) if the server did not confirm. */
+    async deleteMyData(): Promise<boolean> {
+      const p = loadPlayer();
+      if (!p) return true;
+      if ((await rpc('delete_my_data', creds(p))) !== true) return false;
+      try {
+        store?.setItem(PLAYER_KEY, '');
+        store?.setItem(PENDING_KEY, '');
+      } catch {
+        /* blocked storage: nothing was there to clear */
+      }
+      return true;
+    },
     /** Best Classic times of this player and their friends, fastest first. Empty on any failure. */
     async friendsTop(n: number): Promise<FriendRow[]> {
       const p = loadPlayer();

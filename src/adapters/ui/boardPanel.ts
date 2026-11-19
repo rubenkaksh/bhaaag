@@ -100,8 +100,29 @@ async function post(host: HTMLElement, online: Online, ticks: number): Promise<v
     tabs,
     list,
   );
+  host.append(privacyRow(host, online));
   showGlobal();
   if (added) void showFriends();
+}
+
+/** Privacy link and "delete my data" (name-only players have no account page, so it lives here). */
+function privacyRow(host: HTMLElement, online: Online): HTMLElement {
+  const row = node('p', 'board-note board-privacy');
+  const a = document.createElement('a');
+  a.href = 'privacy.html';
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.textContent = 'Privacy';
+  const del = node('button', 'link', 'Delete my data') as HTMLButtonElement;
+  del.type = 'button';
+  del.addEventListener('click', () => {
+    if (!confirm('Delete your name, times and friends from the leaderboard? This cannot be undone.')) return;
+    void online.deleteMyData().then((ok) => {
+      host.replaceChildren(node('p', 'board-note', ok ? 'Your leaderboard data was deleted.' : 'Could not reach the server. Try again.'));
+    });
+  });
+  row.append(a, ' · ', del);
+  return row;
 }
 
 function renderFriendRows(rows: FriendRow[]): HTMLElement {
