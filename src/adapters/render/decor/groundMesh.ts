@@ -21,7 +21,7 @@ const FOREST_LOW = '#46703a';
 const FOREST_MID = '#3d5634';
 const CONIFER = '#2e452d';
 const FAR_HAZE = '#7f8a5e'; // plate foothill green seen through haze
-const FALLOW = '#a08a4e'; // ochre fallow / harvested terrace
+const FALLOW = '#c4a45a'; // ochre fallow / harvested terrace
 
 // Module-level colours: groundColor runs once per vertex, so no Color is allocated in it.
 const C_EARTH = new Color(EARTH);
@@ -77,7 +77,7 @@ export function groundColor(x: number, z: number, y: number, out: Color, h: numb
   const bandIdx = Math.floor(yy / 3.5);
   const patch = hash(Math.floor(x / 20) + 500, Math.floor(z / 20) + 500 + bandIdx);
   out.copy(C_EARTH);
-  if (bandIdx % 2 === 1) out.lerp(C_FALLOW, 0.5 + 0.3 * patch);
+  if (bandIdx % 2 === 1) out.lerp(C_FALLOW, 0.65 + 0.3 * patch);
   else if (patch > 0.6) out.lerp(C_FALLOW, 0.3 * (patch - 0.6) * 2.5);
   if (yy % 3.5 > 3.0) out.lerp(C_TERRACE_LIP, 0.6);
   // faint wandering dirt tint near the lane keeps it from looking mowed
