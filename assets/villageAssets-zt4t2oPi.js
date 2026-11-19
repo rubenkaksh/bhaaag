@@ -1,4 +1,4 @@
-import{A as e,E as t,L as n,M as r,N as i,O as a,P as o,R as s,S as c,W as l,Y as u,j as d}from"./index-BYjv2k-d.js";var f=`{
+import{A as e,E as t,L as n,M as r,N as i,O as a,P as o,R as s,S as c,W as l,Y as u,j as d}from"./index-DcOJ9aZf.js";var f=`{
   "version": 1,
   "spawn": [0, 0, 0],
   "spawnYaw": 3.14159,
