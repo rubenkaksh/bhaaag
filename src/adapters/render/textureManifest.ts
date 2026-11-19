@@ -40,6 +40,9 @@ export const TEXTURE_MANIFEST: readonly TextureEntry[] = [
   { file: 'facade_n.jpg', tiers: HIGH },
   { file: 'tin_n.jpg', tiers: HIGH },
   { file: 'straw_n.jpg', tiers: HIGH },
+  { file: 'terrace.jpg', tiers: ['low'] },
+  { file: 'terrace_hi.jpg', tiers: RICH },
+  { file: 'terrace_hi_n.jpg', tiers: HIGH },
   // painted backdrop (render/backdrop.ts, built by tools/backdrop-build.mjs): lazy, per tier
   // Himalaya sky strip (open cylinder, tools/cartoonify.py --mode pano) and snow range card.
   // Low has only ~4 KB of headroom (baseline 146 KB), so it gets a small pano and no range card.
