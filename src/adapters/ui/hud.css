@@ -686,7 +686,9 @@
 /* --- Win-screen leaderboard panel (L4). Compact so 844x390 landscape still fits PLAY AGAIN. --- */
 #hud-win .win-extra {
   width: min(86vw, 360px);
-  max-height: 42vh;
+}
+#hud-win .board-list {
+  max-height: 30vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
