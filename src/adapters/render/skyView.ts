@@ -344,6 +344,26 @@ export function buildSkyView(): Group {
   return g;
 }
 
+const DRIFT_PERIOD = 90; // seconds per cloud sway
+const GLOW_PERIOD = 45; // seconds per haze breath
+
+/**
+ * Gentle sky life, one call per frame, no allocation: clouds sway a few degrees, the high layer
+ * the other way, the horizon haze breathes. `t` in seconds; pass a constant for reduced motion.
+ */
+export function updateSky(sky: Group, t: number): void {
+  const a = (Math.sin((t / DRIFT_PERIOD) * Math.PI * 2) * 3 * Math.PI) / 180;
+  const lo = sky.getObjectByName('clouds');
+  if (lo !== undefined) lo.rotation.y = a;
+  const hi = sky.getObjectByName('cloudsHigh');
+  if (hi !== undefined) hi.rotation.y = -0.7 * a;
+  const haze = sky.getObjectByName('horizonHaze') as Mesh | undefined;
+  if (haze !== undefined) {
+    (haze.material as MeshBasicMaterial).opacity =
+      1 + 0.25 * Math.sin((t / GLOW_PERIOD) * Math.PI * 2);
+  }
+}
+
 export const DUST_COUNT = 90;
 const DUST_BOX = [36, 14, 36];
 

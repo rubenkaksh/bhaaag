@@ -27,7 +27,7 @@ import type { World } from '../../core/world';
 import { applyTierMaps } from './homeTextures';
 import { buildLevelMeshes } from './levelView';
 import type { BuildLevelOpts } from './levelView';
-import { buildDust, buildSkyView, updateDust } from './skyView';
+import { buildDust, buildSkyView, updateDust, updateSky } from './skyView';
 import {
   GRAPHICS_TIER_EVENT,
   isTierAuto,
@@ -39,6 +39,9 @@ import {
 import type { GraphicsTier, RenderConfig } from './graphicsTier';
 
 export { pixelRatioFor };
+
+const reducedMotion =
+  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function coarsePointer(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
@@ -467,6 +470,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     if (govActive) govern();
     // The sky dome follows the camera so the long descent never leaves it.
     sky.position.copy(camera.position);
+    updateSky(sky, reducedMotion ? 0 : performance.now() / 1000);
     if (dust.visible)
       updateDust(
         dust,

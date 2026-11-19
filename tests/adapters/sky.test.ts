@@ -8,6 +8,7 @@ import {
   SUN_DIR,
   SUN_EL_DEG,
   buildSkyView,
+  updateSky,
   buildDust,
   updateDust,
   DUST_COUNT,
@@ -145,5 +146,23 @@ describe('P4 atmosphere extras', () => {
     const x0 = d.geometry.getAttribute('position').getX(0);
     updateDust(d, 0, 0, 0, 10);
     expect(d.geometry.getAttribute('position').getX(0)).not.toBe(x0);
+  });
+});
+
+describe('sky animation', () => {
+  it('moves clouds and haze with time, and is stable for equal t', () => {
+    const sky = buildSkyView();
+    const clouds = sky.getObjectByName('clouds') as Mesh;
+    const haze = sky.getObjectByName('horizonHaze') as Mesh;
+    updateSky(sky, 0);
+    const r0 = clouds.rotation.y;
+    updateSky(sky, 22.5);
+    expect(clouds.rotation.y).not.toBe(r0);
+    expect(Math.abs(clouds.rotation.y)).toBeLessThan((4 * Math.PI) / 180);
+    const o = (haze.material as MeshBasicMaterial).opacity;
+    expect(o).toBeGreaterThan(0.7);
+    expect(o).toBeLessThan(1.3);
+    updateSky(sky, 22.5);
+    expect(clouds.rotation.y).toBeCloseTo(clouds.rotation.y, 12);
   });
 });
