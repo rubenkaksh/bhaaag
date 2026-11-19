@@ -11,6 +11,11 @@ Modes
          placed side by side (facade bays, 1:2); not seamless
   card   one wide backdrop card: crop -> resize to --size x --height -> alpha mask from the sky
          (dark ridge below a bright sky) -> haze blend; written with alpha (use a .webp --out)
+         --sky-diff: alpha from colour distance to the crop's top-row sky colour (bright snow stays opaque)
+         --overlay SRC --overlay-box x0,y0,x1,y1 --overlay-at X,Y,W: paste the light (snow/cloud) part
+         of another photo into the crop (X,Y = overlay bottom-left in crop pixels) before styling
+  pano   one horizontally seamless sky strip, no alpha (use --palette tools/palette_sky.json): crop ->
+         resize to --size*(1+--wrap) x --height -> wrap cross-fade of the overlap -> style -> --size wide
 
 Common steps after the geometry: autolevel (percentile stretch) -> pull saturation by --sat ->
 light median smoothing -> map every pixel to the nearest colour of tools/palette.json (fixed ~16
@@ -104,7 +109,7 @@ def grey_norm(rgb: np.ndarray, mean: float, spread: float) -> np.ndarray:
 
 def style(img: Image.Image, pal: np.ndarray, args: argparse.Namespace, wrap: bool) -> np.ndarray:
     a = np.asarray(img, dtype=np.float64)
-    a = desaturate(autolevel(a), args.sat)
+    a = desaturate(a if args.no_level else autolevel(a), args.sat)
     sm = Image.fromarray(np.clip(a + 0.5, 0, 255).astype(np.uint8)).filter(ImageFilter.MedianFilter(3))
     out = to_palette(np.asarray(sm, dtype=np.float64), pal)
     out = ink(out, args.ink)
@@ -132,9 +137,61 @@ def sky_alpha(img: Image.Image) -> np.ndarray:
     return np.clip((ys - ridge[None, :] + 3) / 6.0, 0, 1)
 
 
+def wrap_fade(a: np.ndarray, frac: float) -> np.ndarray:
+    """Horizontal seamless strip: blend the first f columns with the f columns past the new end."""
+    w = a.shape[1]
+    f = int(w * frac / (1 + frac))
+    nw = w - f
+    t = (np.arange(f) + 0.5) / f
+    t = t * t * (3 - 2 * t)
+    out = a[:, :nw].copy()
+    out[:, :f] = a[:, :f] * t[None, :, None] + a[:, nw:] * (1 - t)[None, :, None]
+    return out
+
+
+def sky_alpha_diff(img: Image.Image) -> np.ndarray:
+    """Opaque from the first row (per column) that is lit snow or dark haze ridge, not sunset sky."""
+    a = np.asarray(img.filter(ImageFilter.GaussianBlur(2)), dtype=np.float64)
+    h, w = a.shape[:2]
+    # Lit snow is bright in every channel (sunset sky is not: its blue or red channel stays low), and
+    # the haze ridges below the snow are dark; either one starts the opaque part of the column.
+    lum = (a * np.array([0.299, 0.587, 0.114])).sum(axis=2)
+    lag = 4
+    jump = np.abs(lum[lag:] - lum[:-lag])  # sky is smooth; snow and haze edges jump
+    ridge = np.full(w, np.nan)
+    for x in range(w):
+        hit = np.nonzero(jump[:, x] > 14)[0]
+        if hit.size:
+            ridge[x] = hit[0]
+    ok = ~np.isnan(ridge)
+    ridge = np.interp(np.arange(w), np.nonzero(ok)[0], ridge[ok])  # columns with no edge follow their neighbours
+    k = 12
+    pad = np.pad(ridge, k, mode="edge")
+    ridge = np.array([np.median(pad[i : i + 2 * k + 1]) for i in range(w)])
+    ys = np.arange(h)[:, None]
+    return np.clip((ys - ridge[None, :] + 2) / 4.0, 0, 1)
+
+
+def paste_overlay(base: Image.Image, args: argparse.Namespace) -> Image.Image:
+    ov = open_crop(args.overlay, args.overlay_box, 0)
+    ox, oy, ow = (int(v) for v in args.overlay_at.split(","))
+    oh = round(ov.height * ow / ov.width)
+    ov = ov.resize((ow, oh), Image.LANCZOS)
+    a = np.asarray(ov, dtype=np.float64)
+    lum = (a * np.array([0.299, 0.587, 0.114])).sum(axis=2)
+    snow = np.clip((lum - 215) / 20.0, 0, 1)  # bright snow
+    cloud = np.clip((a[..., 0] - a[..., 2] - 25) / 20.0, 0, 1) * np.clip((lum - 170) / 20.0, 0, 1)  # pink cap
+    m = np.maximum(snow, cloud)
+    fade = np.clip((oh - np.arange(oh)) / 14.0, 0, 1)[:, None]
+    mask = Image.fromarray((m * fade * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.5))
+    out = base.copy()
+    out.paste(ov, (ox, oy - oh), mask)
+    return out
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--mode", choices=["tile", "atlas", "card"], required=True)
+    p.add_argument("--mode", choices=["tile", "atlas", "card", "pano"], required=True)
     p.add_argument("--in", dest="inputs", action="append", required=True)
     p.add_argument("--box", action="append", required=True, help="x0,y0,x1,y1 in the upright photo")
     p.add_argument("--rotate", type=float, default=0.0)
@@ -148,6 +205,12 @@ def main() -> None:
     p.add_argument("--ink", type=float, default=0.3)
     p.add_argument("--grey", default="")
     p.add_argument("--haze", type=float, default=0.0)
+    p.add_argument("--wrap", type=float, default=0.2, help="pano: cross-faded fraction of the output width")
+    p.add_argument("--sky-diff", dest="sky_diff", action="store_true", help="card: alpha from colour distance to the sky")
+    p.add_argument("--no-level", dest="no_level", action="store_true", help="skip the percentile autolevel (keeps sky tones)")
+    p.add_argument("--overlay", help="card: second photo whose light part is pasted in")
+    p.add_argument("--overlay-box", dest="overlay_box")
+    p.add_argument("--overlay-at", dest="overlay_at", help="X,Y,W in crop pixels; Y is the overlay bottom edge")
     p.add_argument("--quality", type=int, default=70)
     p.add_argument("--palette", default=str(ROOT / "tools/palette.json"))
     p.add_argument("--out", required=True)
@@ -183,11 +246,18 @@ def main() -> None:
         for i, s in enumerate(strips):
             row.paste(s, (i * bay, 0))
         rgb = style(row, pal, args, False)
+    elif args.mode == "pano":
+        img = open_crop(args.inputs[0], args.box[0], args.rotate)
+        img = img.resize((round(args.size * (1 + args.wrap)), args.height or args.size // 4), Image.LANCZOS)
+        a = wrap_fade(np.asarray(img, dtype=np.float64), args.wrap)
+        rgb = style(Image.fromarray(np.clip(a + 0.5, 0, 255).astype(np.uint8)), pal, args, True)
     else:
         img = open_crop(args.inputs[0], args.box[0], args.rotate)
+        if args.overlay:
+            img = paste_overlay(img, args)
         img = img.resize((args.size, args.height or args.size // 4), Image.LANCZOS)
         rgb = style(img, pal, args, False)
-        alpha = sky_alpha(img)
+        alpha = sky_alpha_diff(img) if args.sky_diff else sky_alpha(img)
     if args.haze > 0:
         rgb = rgb * (1 - args.haze) + haze * args.haze
 
