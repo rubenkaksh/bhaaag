@@ -1,6 +1,8 @@
 // Two public modes (ADR 0016): Classic (finite levels) and Dragon Chase (endless). A Classic level is
 // data; `playKey` maps (mode, level) to the internal GameMode that selects tuning, best key and HUD flags.
 import { GRAPH_INFO as GRAPH_LEVELS } from '../../content/graph/info';
+import { LIBRARY_PREFIX, visibleLibrary } from '../../content/builder/library';
+import type { LibraryMeta } from '../../content/builder/library';
 import { shippedBuilderMeta } from '../../content/builder/shippedMeta';
 import type { GameMode } from './mode';
 
@@ -13,7 +15,7 @@ export interface LevelEntry {
   label: string;
   key: GameMode;
   /** 'local' = the builder's last Play level (localStorage), 'shipped' = content/builders file. */
-  builder?: 'local' | 'shipped';
+  builder?: 'local' | 'shipped' | 'library';
 }
 
 export const LOCAL_BUILDER_ID = 'builder';
@@ -39,8 +41,18 @@ const LEGACY_LEVELS: readonly LevelEntry[] = [
 export function classicLevels(
   hasLocalBuilder = false,
   showLegacy: boolean = SHOW_LEGACY_LEVELS,
+  library: readonly LibraryMeta[] = visibleLibrary(),
 ): LevelEntry[] {
-  if (!showLegacy) return [HOME_LEVEL];
+  // Saved builder levels flagged visible are listed whatever the legacy flag says.
+  const saved = library.map(
+    (b): LevelEntry => ({
+      id: LIBRARY_PREFIX + b.id,
+      label: b.name,
+      key: 'strategy',
+      builder: 'library',
+    }),
+  );
+  if (!showLegacy) return [HOME_LEVEL, ...saved];
   const out: LevelEntry[] = [HOME_LEVEL, ...LEGACY_LEVELS];
   for (const b of shippedBuilderMeta()) {
     out.push({ id: 'b:' + b.id, label: b.name, key: 'strategy', builder: 'shipped' });
@@ -48,7 +60,7 @@ export function classicLevels(
   if (hasLocalBuilder) {
     out.push({ id: LOCAL_BUILDER_ID, label: 'My level', key: 'strategy', builder: 'local' });
   }
-  return out;
+  return [...out, ...saved];
 }
 
 export interface Selection {
