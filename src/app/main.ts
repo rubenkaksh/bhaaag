@@ -77,7 +77,9 @@ async function levelOverrideFor(sel: Selection): Promise<LevelJson | undefined> 
   const lv =
     e.builder === 'local'
       ? (await import('../content/builder/store')).readLocalBuilderLevel()
-      : (await import('../content/builder/shipped')).compileShipped(e.id.slice(2));
+      : e.builder === 'library'
+        ? (await import('../content/builder/library')).readLibraryLevel(e.id)
+        : (await import('../content/builder/shipped')).compileShipped(e.id.slice(2));
   return lv ?? undefined;
 }
 function play(sel: Selection): void {
@@ -163,6 +165,6 @@ const q = new URLSearchParams(location.search);
 if (q.has('builder')) {
   lobby.hide();
   void import('../adapters/builder/builderPage').then((m) => m.mountBuilder(document.body));
-} else if (q.get('level') === 'builder' || q.get('level')?.startsWith('b:') === true) {
+} else if (q.get('level') === 'builder' || q.get('level')?.startsWith('b:') === true || q.get('level')?.startsWith('l:') === true) {
   play({ mode: 'classic', level: q.get('level') ?? 'builder' });
 }

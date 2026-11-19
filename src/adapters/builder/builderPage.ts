@@ -27,6 +27,12 @@ import {
 import { sampleLevel } from '../../content/builder/sample';
 import { loadDraft, saveDraft } from '../../content/builder/draft';
 import { savePlayLevel } from '../../content/builder/store';
+import {
+  readLibrary,
+  removeFromLibrary,
+  saveToLibrary,
+  setLibraryVisible,
+} from '../../content/builder/library';
 
 type Tool = 'select' | 'house' | 'zip' | 'gap' | 'delete';
 const TOOLS: [Tool, string][] = [
@@ -383,6 +389,16 @@ export function mountBuilder(root: HTMLElement): void {
     renderPanel();
   }
 
+  function saveLibrary(): void {
+    try {
+      const l = hist.present;
+      if (!saveToLibrary(l, compileLevel(l))) throw new Error('storage blocked');
+      msg = 'Saved "' + l.name + '" to the library (hidden until you tick Show in lobby).';
+    } catch (err) {
+      msg = 'Cannot save: ' + (err instanceof Error ? err.message : String(err));
+    }
+  }
+
   function esc(s: string): string {
     return s.replace(
       /[&<>"]/g,
@@ -420,6 +436,16 @@ export function mountBuilder(root: HTMLElement): void {
       <h3>File</h3><button data-act="play">Play this level</button> <button data-act="export">Download JSON</button>
       <button data-act="import">Import…</button><button data-act="new">New</button><button data-act="sample">Sample</button>
       <input type="file" accept=".json,application/json" data-f="file" hidden>
+      <h3>Library</h3><button data-act="save">Save to library</button>` +
+      (readLibrary().length === 0
+        ? '<div class="note">No saved levels yet.</div>'
+        : readLibrary()
+            .map(
+              (e) =>
+                `<div><label><input type="checkbox" data-f="vis" data-lid="${esc(e.id)}" ${e.visible ? 'checked' : ''}> Show in lobby</label> <b>${esc(e.name)}</b> <button data-lact="load" data-lid="${esc(e.id)}">Edit</button><button data-lact="del" data-lid="${esc(e.id)}">Delete</button></div>`,
+            )
+            .join('')) +
+      `
       <div class="${msg.startsWith('Cannot') || msg.startsWith('Import') ? 'err' : 'note'}">${esc(msg)}</div>`;
   }
 
@@ -443,6 +469,18 @@ export function mountBuilder(root: HTMLElement): void {
     } else if (d.act === 'redo') {
       if (hist.redo()) return changed();
     } else if (d.act === 'play') return play();
+    else if (d.act === 'save') saveLibrary();
+    else if (d.lact === 'load' && d.lid !== undefined) {
+      const e = readLibrary().find((x) => x.id === d.lid);
+      if (e !== undefined) {
+        sel = -1;
+        msg = 'Loaded ' + e.id;
+        return commit(e.source);
+      }
+    } else if (d.lact === 'del' && d.lid !== undefined) {
+      removeFromLibrary(d.lid);
+      msg = 'Deleted ' + d.lid + ' from the library.';
+    }
     else if (d.act === 'export') {
       download(l.id + '.builder.json', serializeBuilderLevel(l));
       msg = 'Downloaded ' + l.id + '.builder.json';
@@ -464,6 +502,11 @@ export function mountBuilder(root: HTMLElement): void {
     const f = t.dataset.f;
     const l = hist.present;
     if (f === 'via') via = t.value as GapVia;
+    else if (f === 'vis' && t.dataset.lid !== undefined) {
+      setLibraryVisible(t.dataset.lid, t.checked);
+      msg = t.checked ? 'Now listed in the lobby.' : 'Hidden from the lobby.';
+      renderPanel();
+    }
     else if (f === 'id') {
       const id = t.value
         .trim()
