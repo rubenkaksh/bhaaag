@@ -58,4 +58,7 @@ export function loadHome() {
   };
 }
 /** `pathCam` is null for a builder level (no route camera). */
-export type HomeBundle = Omit<ReturnType<typeof loadHome>, 'pathCam'> & { pathCam: PathCam | null };
+export type HomeBundle = Omit<ReturnType<typeof loadHome>, 'pathCam' | 'graph'> & {
+  pathCam: PathCam | null;
+  graph: ReturnType<typeof loadHome>['graph'] & { keep?: (solidIndex: number) => boolean };
+};

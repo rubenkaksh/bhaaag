@@ -137,6 +137,7 @@ export interface Report {
   edgeChecks: EdgeCheck[];
   touching: [number, number][]; // house id pairs whose footprints touch
   declaredReach: boolean; // start -> goal over valid declared edges + touching houses
+  checked: boolean; // false when validate stopped at the basic errors (links and routes not examined)
   derivedReach: boolean; // start -> goal over every move the model allows
   deadEnds: number[]; // house ids reachable from start with no way to the goal
   unreached: number[]; // house ids start cannot reach at all
@@ -254,6 +255,7 @@ export function validate(l: BuilderLevel): Report {
     edgeChecks: [],
     touching: [],
     declaredReach: false,
+    checked: false,
     derivedReach: false,
     deadEnds: [],
     unreached: [],
@@ -388,6 +390,7 @@ export function validate(l: BuilderLevel): Report {
     r.ok = false;
     return r;
   }
+  r.checked = true;
   const ns = buildNodeSet(l);
   const roofs = l.houses.map((h) => ns.nodes[ns.roofOf.get(h.id) as number]);
   const declared: MazeEdge[] = [];
@@ -487,6 +490,9 @@ export function validate(l: BuilderLevel): Report {
 
 /** The first error that `next` has and `prev` did not (tied to a house or edge), else null. Edits that add one are refused. */
 export function newProblem(prev: Report, next: Report): Problem | null {
+  // The earlier state stopped at basic errors (overlap, no start...): its link checks never ran, so what
+  // they now report is not something this edit caused. Fixing the basics must not be refused.
+  if (!prev.checked) return null;
   const had = new Set(prev.problems.map((p) => p.key));
   return (
     next.problems.find(

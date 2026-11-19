@@ -5,7 +5,7 @@ import type { BuilderLevel } from '../../content/builder/format';
 import { HOUSE_HALF } from '../../content/builder/format';
 import { buildNodeSet } from '../../content/builder/compile';
 import type { LevelJson } from '../../content/load';
-import { NODE_ROOF } from '../../content/strategy/graph';
+import { NODE_ROOF, relation } from '../../content/strategy/graph';
 import { HK } from '../../content/house/houseSpec';
 import type { Face } from '../../content/house/houseSpec';
 import { terrainProfile, tileFootprint } from '../render/decor/homeDress';
@@ -37,6 +37,23 @@ function hash(text: string): number {
 export function builderHome(src: BuilderLevel, level: LevelJson): HomeBundle {
   const ns = buildNodeSet(src);
   const used = ns.nodes.map(() => [false, false, false, false]);
+  // Touching houses are walked across, not linked: both faces stay open (Nagarkot's usedFaces does the same).
+  for (let i = 0; i < ns.nodes.length; i++) {
+    for (let j = i + 1; j < ns.nodes.length; j++) {
+      const a = ns.nodes[i];
+      const b = ns.nodes[j];
+      if (a.kind !== NODE_ROOF || b.kind !== NODE_ROOF || relation(a, b) === null) continue;
+      const f = faceToward(a, b);
+      used[i][f] = true;
+      used[j][OPPOSITE[f]] = true;
+    }
+  }
+  // A line or a trampoline leaves by the downhill face whatever way its target lies; a balcony is climbed from the uphill one.
+  for (const n of ns.nodes) {
+    if (n.kind !== NODE_ROOF) continue;
+    if (n.zipTo >= 0 || n.tramps.length > 0) used[n.id][3] = true;
+    if (n.balc >= 0) used[n.id][2] = true;
+  }
   for (const e of src.edges) {
     const a = ns.roofOf.get(e.a);
     const b = ns.roofOf.get(e.b);
@@ -46,6 +63,7 @@ export function builderHome(src: BuilderLevel, level: LevelJson): HomeBundle {
     used[b][OPPOSITE[f]] = true;
   }
   const houses = [];
+  const bodies = new Set<number>();
   const skip = new Set<number>();
   const sol = level.solids;
   const sty = level.style ?? [];
@@ -79,6 +97,16 @@ export function builderHome(src: BuilderLevel, level: LevelJson): HomeBundle {
       )
         foot = Math.min(foot, sol[k].min[1]);
     }
+    for (let k = 0; k < sol.length; k++) {
+      if (
+        sty[k] === 1 &&
+        near(sol[k].min[0], n.x0) &&
+        near(sol[k].max[0], n.x1) &&
+        near(sol[k].min[2], n.z0) &&
+        near(sol[k].max[2], n.z1)
+      )
+        bodies.add(k);
+    }
     for (const t of tiles) {
       t.below = groundY - foot + 0.5;
       houses.push(t);
@@ -97,9 +125,12 @@ export function builderHome(src: BuilderLevel, level: LevelJson): HomeBundle {
     }
   }
   if (HOUSE_HALF !== HK.half) throw new Error('builder house size differs from the kit');
+  // Step blocks (boxes, stairs) share the body style but are not house bodies: no kit draws them.
+  const keep = (i: number): boolean => sty[i] === 1 && !bodies.has(i);
   return {
     level,
     graph: {
+      keep,
       houses,
       props: [],
       profile: terrainProfile(level.hazards ?? []),

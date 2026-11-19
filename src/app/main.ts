@@ -101,6 +101,14 @@ async function levelOverrideFor(
     const lib = await import('../content/builder/library');
     level = lib.readLibraryLevel(e.id);
     source = lib.readLibrarySource(e.id);
+    if (source !== null) {
+      try {
+        const f = await import('../content/builder/format');
+        source = f.parseBuilderLevel(f.serializeBuilderLevel(source));
+      } catch {
+        source = null;
+      }
+    }
   } else {
     const shipped = await import('../content/builder/shipped');
     level = shipped.compileShipped(e.id.slice(2));
@@ -108,8 +116,12 @@ async function levelOverrideFor(
   }
   if (level === null) return undefined;
   if (source === null) return { level };
-  const { builderHome } = await import('../adapters/builder/dress');
-  return { home: builderHome(source, level) };
+  try {
+    const { builderHome } = await import('../adapters/builder/dress');
+    return { home: builderHome(source, level) };
+  } catch {
+    return { level }; // a source the dresser cannot read: play the level undressed
+  }
 }
 function play(sel: Selection): void {
   if (!tuningSettled) {

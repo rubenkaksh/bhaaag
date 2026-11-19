@@ -28,3 +28,33 @@ describe('builder dressing (Nagarkot kit)', () => {
     expect(home.pathCam).toBeNull();
   });
 });
+
+describe('builder dressing: review fixes', () => {
+  it('keeps step blocks (style 1, not a house body) drawn by the collider view', () => {
+    const src = sampleLevel();
+    const level = compileLevel(src);
+    const home = builderHome(src, level);
+    const keep = home.graph.keep;
+    expect(keep).toBeDefined();
+    const sty = level.style ?? [];
+    let bodies = 0;
+    let kept = 0;
+    for (let i = 0; i < level.solids.length; i++) {
+      if (sty[i] !== 1) continue;
+      if (keep?.(i)) kept++;
+      else bodies++;
+    }
+    expect(bodies).toBe(src.houses.length); // exactly the house bodies are left to the kit
+    expect(kept).toBeGreaterThan(0); // the sample's box-step link: its blocks stay drawn
+  });
+
+  it('opens the downhill face of a roof with a zipline or trampoline and the uphill face of a balcony', () => {
+    const src = sampleLevel();
+    const home = builderHome(src, compileLevel(src));
+    const zipFrom = new Set(src.edges.filter((e) => e.kind === 'zip').map((e) => e.a));
+    src.houses.forEach((h, i) => {
+      if (zipFrom.has(h.id)) expect(home.graph.houses[i].guard).not.toContain(3);
+      if (h.balcony) expect(home.graph.houses[i].guard).not.toContain(2);
+    });
+  });
+});
