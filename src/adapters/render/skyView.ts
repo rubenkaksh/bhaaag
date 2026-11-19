@@ -10,6 +10,7 @@ import {
   Group,
   Mesh,
   MeshBasicMaterial,
+  Object3D,
   Points,
   PointsMaterial,
   Quaternion,
@@ -353,12 +354,12 @@ const GLOW_PERIOD = 45; // seconds per haze breath
  */
 export function updateSky(sky: Group, t: number): void {
   const a = (Math.sin((t / DRIFT_PERIOD) * Math.PI * 2) * 3 * Math.PI) / 180;
-  const lo = sky.getObjectByName('clouds');
-  if (lo !== undefined) lo.rotation.y = a;
-  const hi = sky.getObjectByName('cloudsHigh');
-  if (hi !== undefined) hi.rotation.y = -0.7 * a;
-  const haze = sky.getObjectByName('horizonHaze') as Mesh | undefined;
-  if (haze !== undefined) {
+  const lo = (sky.userData.lo ??= sky.getObjectByName('clouds') ?? null) as Object3D | null;
+  if (lo !== null) lo.rotation.y = a;
+  const hi = (sky.userData.hi ??= sky.getObjectByName('cloudsHigh') ?? null) as Object3D | null;
+  if (hi !== null) hi.rotation.y = -0.7 * a;
+  const haze = (sky.userData.haze ??= sky.getObjectByName('horizonHaze') ?? null) as Mesh | null;
+  if (haze !== null) {
     (haze.material as MeshBasicMaterial).opacity =
       1 + 0.25 * Math.sin((t / GLOW_PERIOD) * Math.PI * 2);
   }

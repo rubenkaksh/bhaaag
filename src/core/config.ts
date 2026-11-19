@@ -83,7 +83,7 @@ export type Tuning = {
     airSteerCap: number; // horizontal speed it pulls toward at full stick, m/s; faster heroes keep their speed
     // Sprint (ADR 0018). sprintSpeed <= run turns it off. Remote-config shaped: plain numbers, clamp on read.
     sprintSpeed: number; // m/s the grounded run ramps to once the streak is earned
-    sprintStreakM: number; // metres run at >= 0.98 x run before sprint starts (7 steps x 1.7 m)
+    sprintStreakM: number; // metres run at >= 0.98 x run before sprint starts (gradual build, owner 2026-11-19)
     sprintAccel: number; // m/s^2 of the ramp from run to sprintSpeed
     sprintCadence: number; // extra run-cycle rate at full sprint (0.2 = 20% faster), render only
     sprintFov: number; // extra camera fov in degrees at full sprint, render only

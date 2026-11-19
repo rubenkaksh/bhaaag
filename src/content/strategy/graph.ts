@@ -78,11 +78,11 @@ const R = T.hero.radius;
 // Sprint reach (nagarkot-home, T336a). Derived from tuning.hero.sprint* and the distances measured in
 // docs/adr/0018-sprint.md (flat ground, DEFAULT_TUNING, 60 Hz). Test: "graph sprint constants == tuning".
 export const SPRINT_SPEED = T.hero.sprintSpeed; // m/s
-export const SPRINT_STREAK_M = T.hero.sprintStreakM; // 11.9 m of running (7 steps) before the sprint engages
+export const SPRINT_STREAK_M = T.hero.sprintStreakM; // 6 m of running before the sprint engages
 export const SPRINT_RAMP_M = 12.2; // run -> full sprint ramp at sprintAccel 3.5 (analytic 12.14; gradual build, owner 2026-11-19)
 export const SPRINT_JUMP_VY = T.hero.jump; // sprint take-off speed: unchanged by T334 (same 0.93 s airborne)
-const RUN_UP_M = (T.hero.run * T.hero.run) / (2 * T.hero.accel);
-export const SPRINT_RUNWAY_M = RUN_UP_M + SPRINT_STREAK_M + SPRINT_RAMP_M; // ~18.65 m from standing
+const RUN_UP_M = (T.hero.run * T.hero.run) / (2 * Math.min(T.hero.runAccel, T.hero.accel)); // standing start at the run-up accel
+export const SPRINT_RUNWAY_M = RUN_UP_M + SPRINT_STREAK_M + SPRINT_RAMP_M; // ~20.45 m from standing
 export const LEAK_SPEEDS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, SPRINT_SPEED];
 
 /** Optional edge model: extra launches and grab approach speeds (nagarkot-home leak model). Undefined = the frozen rules. */

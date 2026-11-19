@@ -5,6 +5,6 @@ import type { Tuning } from '../../src/core/config';
 
 export const LEGACY_TUNING: Tuning = {
   ...DEFAULT_TUNING,
-  hero: { ...DEFAULT_TUNING.hero, runAccel: DEFAULT_TUNING.hero.accel, sprintStreakM: 11.9, sprintAccel: 8 },
+  hero: { ...DEFAULT_TUNING.hero, runAccel: DEFAULT_TUNING.hero.accel, sprintStreakM: 11.9, sprintAccel: 8, sprintSpeed: DEFAULT_TUNING.hero.run },
   landing: { ...DEFAULT_TUNING.landing, carryDecay: 40 },
 };

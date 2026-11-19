@@ -123,7 +123,16 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     void import('./backdrop')
       .then((m) => m.loadBackdrop(tier))
       .then((g) => {
-        if (disposed || gen !== backdropGen) return;
+        if (disposed || gen !== backdropGen) {
+          g.traverse((o) => {
+            const m = o as Mesh;
+            m.geometry?.dispose();
+            const mat = m.material as MeshBasicMaterial | undefined;
+            mat?.map?.dispose();
+            mat?.dispose();
+          });
+          return;
+        }
         // tier change: drop the previous tier's layers (each tier has its own textures)
         for (const old of [...backdropRoot.children]) {
           backdropRoot.remove(old);
@@ -251,7 +260,8 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     const rich = cfg.atmosphere;
     for (const n of ['cloudsHigh', 'godRays']) {
       const o = sky.getObjectByName(n);
-      if (o !== undefined) o.visible = rich;
+      // the painted plate has its own clouds: keep the low-poly high layer hidden once it is loaded
+      if (o !== undefined) o.visible = rich && !(n === 'cloudsHigh' && backdropRoot.children.length > 0);
     }
     dust.visible = rich;
     applyCloudCover();

@@ -24,8 +24,8 @@ describe('graph sprint constants == tuning.hero.sprint*', () => {
     expect(Math.abs(SPRINT_RAMP_M - analytic)).toBeLessThanOrEqual(0.3);
   });
 
-  it('runway is run-up + streak + ramp (18.65 m from a standing start)', () => {
-    expect(Math.abs(SPRINT_RUNWAY_M - 18.65)).toBeLessThanOrEqual(0.1);
+  it('runway is run-up + streak + ramp (20.45 m from a standing start)', () => {
+    expect(Math.abs(SPRINT_RUNWAY_M - 20.45)).toBeLessThanOrEqual(0.1);
   });
 
   it('flight model reproduces the ADR run and sprint jump distances', () => {
