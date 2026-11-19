@@ -1,6 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { withCloud } from '../../src/app/cloudPort';
-import type { LeaderboardPort } from '../../src/app/leaderboard';
 import { PLAYER_KEY, cleanName, createOnline } from '../../src/app/online';
 
 const mem = () => {
@@ -46,29 +44,5 @@ describe('online client', () => {
   it('maps board rows', async () => {
     const o = mk((() => json([{ ticks: 3000, players: { display_name: 'A' } }])) as typeof fetch);
     expect(await o.top(5)).toEqual([{ name: 'A', ticks: 3000 }]);
-  });
-});
-
-describe('withCloud', () => {
-  const local = (): LeaderboardPort => ({ submit: vi.fn(), top: vi.fn(() => []) });
-  it('always saves locally; mirrors only classic with a player', async () => {
-    const submit = vi.fn(() => Promise.resolve(null));
-    const load = vi.fn(() => Promise.resolve({ appOnline: () => ({ submit }) }));
-    const l = local();
-    withCloud(l, load, () => false).submit('classic', 66666, 0);
-    expect(l.submit).toHaveBeenCalled();
-    expect(load).not.toHaveBeenCalled();
-    const l2 = local();
-    const p = withCloud(l2, load, () => true);
-    p.submit('chase', 66666, 0);
-    expect(load).not.toHaveBeenCalled();
-    p.submit('classic', 66667, 0);
-    await new Promise((r) => setTimeout(r, 0));
-    expect(submit).toHaveBeenCalledWith(4000);
-  });
-  it('swallows a failing loader', async () => {
-    const l = local();
-    expect(() => withCloud(l, () => Promise.reject(new Error('chunk')), () => true).submit('classic', 66667, 0)).not.toThrow();
-    await new Promise((r) => setTimeout(r, 0));
   });
 });

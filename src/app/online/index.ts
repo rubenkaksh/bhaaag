@@ -1,5 +1,5 @@
 // Online leaderboard client (L3, docs/plans/leaderboards-friends.md). Lazy chunk: reached only through
-// `await import('./online')` from cloudPort.ts. Plain fetch to Supabase REST, no SDK (the SDK arrives with
+// `await import('./online')` from boardPanel.ts. Plain fetch to Supabase REST, no SDK (the SDK arrives with
 // login in a later milestone). Every call has a timeout and never throws: failure means "no online result".
 import l1 from '../../../content/levels/l1.json';
 import { cfgHash } from '../cfgHash';
