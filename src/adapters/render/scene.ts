@@ -114,19 +114,36 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   backdropRoot.name = 'backdropRoot';
   // Painted plate + ridge cards (render/backdrop.ts, textures built by tools/backdrop-build.mjs):
   // code and textures load lazily; the sky gradient is the fallback until they arrive.
-  const backdropTier = cfg.tier;
-  void import('./backdrop')
-    .then((m) => m.loadBackdrop(backdropTier))
-    .then((g) => {
-      if (disposed) return;
-      backdropRoot.add(g);
-      // the painted plate has its own clouds and sun: drop the low-poly cloud layers
-      for (const n of ['clouds', 'cloudsHigh']) {
-        const o = sky.getObjectByName(n);
-        if (o) o.visible = false;
-      }
-    })
-    .catch(() => {});
+  let backdropGen = 0;
+  function loadBackdropFor(tier: GraphicsTier): void {
+    const gen = ++backdropGen;
+    void import('./backdrop')
+      .then((m) => m.loadBackdrop(tier))
+      .then((g) => {
+        if (disposed || gen !== backdropGen) return;
+        // tier change: drop the previous tier's layers (each tier has its own textures)
+        for (const old of [...backdropRoot.children]) {
+          backdropRoot.remove(old);
+          old.traverse((o) => {
+            const m = o as Mesh;
+            if (m.geometry) m.geometry.dispose();
+            const mat = m.material as MeshBasicMaterial | undefined;
+            if (mat) {
+              mat.map?.dispose();
+              mat.dispose();
+            }
+          });
+        }
+        backdropRoot.add(g);
+        // the painted plate has its own clouds and sun: drop the low-poly cloud layers
+        for (const n of ['clouds', 'cloudsHigh']) {
+          const o = sky.getObjectByName(n);
+          if (o) o.visible = false;
+        }
+      })
+      .catch(() => {});
+  }
+  loadBackdropFor(cfg.tier);
   scene.add(backdropRoot);
   const sun = new DirectionalLight(cfg.sun.color, cfg.sun.intensity);
   scene.add(sun);
@@ -373,6 +390,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     if (tier === cfg.tier) return;
     cfg = renderConfigFor(tier, coarse);
     applyConfig();
+    loadBackdropFor(tier);
   }
 
   const onTierEvent = (e: Event): void => {

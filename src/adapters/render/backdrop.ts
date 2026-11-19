@@ -1,10 +1,11 @@
 // Painted backdrop (owner decision 2026-11-18, replaces the procedural mountain rings and sea).
-// Loaded lazily by scene.ts (dynamic import), so none of this is in the initial chunk. Textures are
+// Loaded lazily by scene.ts (dynamic import), so none of this is in the initial chunk. scene.ts rebuilds it when
+// the graphics tier changes (each tier has its own textures). Textures are
 // built by tools/backdrop-build.mjs into public/assets/textures/backdrop/ and listed per tier in
 // textureManifest.ts. Stock unfogged MeshBasicMaterial only, no shaders.
 //   plate  full 360 degree cylinder (R 900 m) with the snow range at golden hour; the image is
 //          seam-blended so it wraps, and repeated twice round the horizon to keep it from
-//          stretching. Horizon row sits at the camera eye height.
+//          stretching. The plate is lifted by PLATE_LIFT so the snow clears the terrain rim in landscape.
 //   far    hazy foothills card at 700 m, near  pine hill with houses at 450 m (alpha cards).
 //          Mirrored-repeat tiling hides the missing seam. Low tier: plate + near only.
 // All three follow the camera POSITION every frame (never its rotation or the parent's offset), so
@@ -63,8 +64,13 @@ export const FAR_PEAK_SCALE = 1.5;
 /** Plate image row (fraction from the top) that keeps its world height when FAR_PEAK_SCALE changes. */
 const PLATE_ANCHOR = 0.62;
 const PLATE_EYE_ROW_1 = 0.6; // eyeRow of the unscaled plate (see buildLayer: the eye sits 0.4 of the height below the top)
+/**
+ * Lift of the whole plate in image heights (2026-11-19). The camera looks down at the hero, so in landscape the
+ * frame top is only ~5-10 degrees above the horizon and the snow (0-4 degrees) hid behind the terrain rim.
+ */
+export const PLATE_LIFT = -0.14;
 const plateEyeRow = (s: number): number =>
-  1 - PLATE_ANCHOR - (1 - PLATE_EYE_ROW_1 - PLATE_ANCHOR) / s;
+  1 - PLATE_ANCHOR - (1 - PLATE_EYE_ROW_1 - PLATE_ANCHOR) / s - PLATE_LIFT;
 const tile = (r: number, n: number): number => (TAU * r) / n;
 
 export const BACKDROP_SPECS: Record<BackdropSpec['name'], BackdropSpec> = {
