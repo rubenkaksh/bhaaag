@@ -45,7 +45,7 @@ export const TEXTURE_MANIFEST: readonly TextureEntry[] = [
   { file: 'terrace_hi_n.jpg', tiers: HIGH },
   // painted backdrop (render/backdrop.ts, built by tools/backdrop-build.mjs): lazy, per tier
   // Himalaya sky strip (open cylinder, tools/cartoonify.py --mode pano) and snow range card.
-  // Low has only ~4 KB of headroom (baseline 146 KB), so it gets a small pano and no range card.
+  // Low has ~4 KB of headroom (baseline 146 KB, then +1.8 KB terrace tile): small q10 pano, no range card.
   { file: 'sky_pano_low.webp', tiers: ['low'] },
   { file: 'sky_pano.webp', tiers: RICH },
   { file: 'range_card.webp', tiers: RICH },
