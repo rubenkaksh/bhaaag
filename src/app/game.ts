@@ -113,6 +113,7 @@ import { loadBest, rulesForKey } from './modes/registry';
 import { RunClock } from './runClock';
 import { finishRun } from './finish';
 import { createLocalLeaderboard } from './leaderboard';
+import { withCloud } from './cloudPort';
 import type { LeaderboardPort } from './leaderboard';
 import { graphInfo } from '../content/graph/info';
 import type { GraphAssets } from './graphAssets';
@@ -204,7 +205,7 @@ export function startGame(
   /** Graph levels only: the lazy graph chunk (graphAssets.ts). */
   graph?: GraphAssets,
   /** Finish-time board (T339); defaults to the local-storage port. */
-  leaderboard: LeaderboardPort = createLocalLeaderboard(),
+  leaderboard: LeaderboardPort = withCloud(createLocalLeaderboard()),
   /** nagarkot-home only: level, kit dressing and path camera from the lazy chunk (homeAssets.ts). */
   home?: HomeBundle,
 ): GameHandle {
