@@ -10,6 +10,10 @@ import { createOrientation } from '../adapters/ui/orientation';
 import { fetchTuningOverrides, tuningUrlFrom } from '../adapters/config/remoteTuning';
 import { initRemoteTuning } from './tuning';
 
+// Every level the game can start, listed in the lobby or not: a direct ?level=builder / b:<id> route must
+// work whatever the lobby's legacy flag says (the local and shipped builder levels are not lobby rows).
+const playable = () => classicLevels(true, true);
+
 const gameCanvas = document.getElementById('game');
 if (!(gameCanvas instanceof HTMLCanvasElement)) {
   throw new Error('canvas#game not found');
@@ -35,7 +39,7 @@ const orientation = createOrientation(document.body);
 const lobby = createLobby(document.body, {
   orientation,
   getBestLabel: (sel) => {
-    const key = resolvePlayKey(sel, classicLevels(true));
+    const key = resolvePlayKey(sel, playable());
     return bestLabel(key, readBest(key));
   },
   onPlay: (sel) => play(sel),
@@ -65,7 +69,7 @@ void (async () => {
   });
 // Builder levels (local or shipped) compile in a lazy chunk (T345); null = not a builder level or it failed.
 async function levelOverrideFor(sel: Selection): Promise<LevelJson | undefined> {
-  const e = classicLevels(true).find((l) => l.id === sel.level);
+  const e = playable().find((l) => l.id === sel.level);
   if (sel.mode !== 'classic') return undefined;
   if (e?.builder === undefined) {
     // Nagarkot Run: the generator is lazy; ?seed= still picks the seed.
@@ -90,7 +94,7 @@ function play(sel: Selection): void {
   lobby.hide();
   requestImmersive();
   if (orientation.pref() !== 'auto') orientation.setPref(orientation.pref()); // retry the lock inside this tap
-  const key = resolvePlayKey(sel, classicLevels(true));
+  const key = resolvePlayKey(sel, playable());
   const id = sel.mode === 'chase' ? 'chase' : sel.level;
   if (game !== null && runningId !== id) {
     game.destroy();
@@ -105,7 +109,7 @@ function play(sel: Selection): void {
     key === 'home' ||
     key === 'strategy' ||
     isGraphMode(key) ||
-    classicLevels(true).find((l) => l.id === sel.level)?.builder !== undefined;
+    playable().find((l) => l.id === sel.level)?.builder !== undefined;
   if (!lazy) {
     game = startGame(canvas, document.body, key);
     runningId = id;
