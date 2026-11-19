@@ -21,9 +21,18 @@ export interface OnlineConfig {
   key: string;
   fetch?: typeof fetch;
   store?: ModeStore;
-  /** Resolves the hash that boards are keyed on; injectable for tests. */
+  /** Resolves the hash that boards are keyed on (every mode); injectable for tests. */
   hash?: () => Promise<string>;
 }
+
+/** Boards share the same tables, one per mode. Chase scores are points (higher is better) stored in the `ticks` column. */
+export type BoardMode = 'classic' | 'chase';
+export const BOARD_MODES: Record<BoardMode, { level: string; higherIsBetter: boolean }> = {
+  classic: { level: 'l1', higherIsBetter: false },
+  chase: { level: 'endless', higherIsBetter: true },
+};
+/** Chase has no level file; this version is bumped by hand if the endless generator changes the score. */
+const CHASE_LEVEL_VERSION = 1;
 
 export interface BoardRow {
   name: string;
@@ -54,7 +63,9 @@ function defaultStore(): ModeStore | undefined {
 }
 
 function randomHex(bytes: number): string {
-  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, '0')).join('');
+  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) =>
+    b.toString(16).padStart(2, '0'),
+  ).join('');
 }
 
 export function cleanName(raw: string): string | null {
@@ -68,7 +79,12 @@ export function createOnline(cfg: OnlineConfig) {
   const store = cfg.store ?? defaultStore();
   const rest = cfg.url.replace(/\/$/, '') + '/rest/v1';
   const headers = { apikey: cfg.key, 'Content-Type': 'application/json' };
-  const hash = cfg.hash ?? (() => cfgHash('l1', l1.version, resolveCfg('classic')));
+  const hashFor = (mode: BoardMode): Promise<string> =>
+    cfg.hash
+      ? cfg.hash()
+      : mode === 'chase'
+        ? cfgHash(BOARD_MODES.chase.level, CHASE_LEVEL_VERSION, resolveCfg('chase'), ['chase'])
+        : cfgHash('l1', l1.version, resolveCfg('classic'));
 
   const call = async (path: string, init?: RequestInit, ms = TIMEOUT_MS): Promise<unknown> => {
     const ctl = new AbortController();
@@ -86,7 +102,12 @@ export function createOnline(cfg: OnlineConfig) {
   const loadPlayer = (): Player | null => {
     try {
       const p = JSON.parse(store?.getItem(PLAYER_KEY) ?? 'null') as Player | null;
-      return p && typeof p.id === 'string' && typeof p.secret === 'string' && cleanName(p.name ?? '') ? p : null;
+      return p &&
+        typeof p.id === 'string' &&
+        typeof p.secret === 'string' &&
+        cleanName(p.name ?? '')
+        ? p
+        : null;
     } catch {
       return null;
     }
@@ -120,8 +141,8 @@ export function createOnline(cfg: OnlineConfig) {
         return false;
       }
     },
-    /** Posts one Classic run. Null when there is no player, no network, a timeout or a server rejection. */
-    async submit(ticks: number): Promise<SubmitResult | null> {
+    /** Posts one run (`ticks` = run ticks for Classic, points for Chase). Null when there is no player, no network, a timeout or a server rejection. */
+    async submit(ticks: number, mode: BoardMode = 'classic'): Promise<SubmitResult | null> {
       const p = loadPlayer();
       if (!p || !Number.isInteger(ticks) || ticks <= 0) return null;
       const out = (await call('/rpc/submit_run', {
@@ -130,9 +151,9 @@ export function createOnline(cfg: OnlineConfig) {
           p_player_id: p.id,
           p_secret: p.secret,
           p_name: p.name,
-          p_mode: 'classic',
-          p_level: 'l1',
-          p_cfg_hash: await hash(),
+          p_mode: mode,
+          p_level: BOARD_MODES[mode].level,
+          p_cfg_hash: await hashFor(mode),
           p_ticks: ticks,
         }),
       })) as { best_ticks: number; is_new_best: boolean }[] | null;
@@ -193,28 +214,38 @@ export function createOnline(cfg: OnlineConfig) {
       }
       return true;
     },
-    /** Best Classic times of this player and their friends, fastest first. Empty on any failure. */
-    async friendsTop(n: number): Promise<FriendRow[]> {
+    /** Best values of this player and their friends, best first. Empty on any failure. */
+    async friendsTop(n: number, mode: BoardMode = 'classic'): Promise<FriendRow[]> {
       const p = loadPlayer();
       if (!p) return [];
       const out = (await rpc('friends_board', {
         ...creds(p),
-        p_mode: 'classic',
-        p_level: 'l1',
-        p_cfg_hash: await hash(),
+        p_mode: mode,
+        p_level: BOARD_MODES[mode].level,
+        p_cfg_hash: await hashFor(mode),
         p_n: n,
       })) as { name: string; ticks: number; is_me: boolean }[] | null;
-      return Array.isArray(out) ? out.map((r) => ({ name: r.name, ticks: r.ticks, me: r.is_me })) : [];
+      return Array.isArray(out)
+        ? out.map((r) => ({ name: r.name, ticks: r.ticks, me: r.is_me }))
+        : [];
     },
     /** The clamped remote tuning overlay from `game_config`; undefined on any failure or when no row applies (defaults stay). */
     async config(warn?: TuningWarn): Promise<ReturnType<typeof rowsToOverrides>> {
-      return rowsToOverrides(await call('/game_config?select=key,value', undefined, CONFIG_TIMEOUT_MS), warn);
+      return rowsToOverrides(
+        await call('/game_config?select=key,value', undefined, CONFIG_TIMEOUT_MS),
+        warn,
+      );
     },
-    /** Top `n` Classic times for the current config hash, fastest first. Empty on any failure. */
-    async top(n: number): Promise<BoardRow[]> {
-      const q = `/bests?mode=eq.classic&level=eq.l1&cfg_hash=eq.${await hash()}&select=ticks,players(display_name)&order=ticks.asc&limit=${n}`;
-      const out = (await call(q)) as { ticks: number; players: { display_name: string } | null }[] | null;
-      return Array.isArray(out) ? out.map((r) => ({ name: r.players?.display_name ?? '?', ticks: r.ticks })) : [];
+    /** Top `n` for the current config hash, best first (fastest Classic time, highest Chase score). Empty on any failure. */
+    async top(n: number, mode: BoardMode = 'classic'): Promise<BoardRow[]> {
+      const { level, higherIsBetter } = BOARD_MODES[mode];
+      const dir = higherIsBetter ? 'desc' : 'asc';
+      const q = `/bests?mode=eq.${mode}&level=eq.${level}&cfg_hash=eq.${await hashFor(mode)}&select=ticks,players(display_name)&order=ticks.${dir}&limit=${n}`;
+      const out = (await call(q)) as
+        { ticks: number; players: { display_name: string } | null }[] | null;
+      return Array.isArray(out)
+        ? out.map((r) => ({ name: r.players?.display_name ?? '?', ticks: r.ticks }))
+        : [];
     },
   };
 }
