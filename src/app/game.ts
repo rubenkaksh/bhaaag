@@ -210,6 +210,7 @@ export function startGame(
 ): GameHandle {
   const cfg = resolveCfg(mode);
   let camCfg = cfg.camera;
+  let pitchLift = 0; // render-only landscape tilt from framingFor
   const params = new URLSearchParams(location.search);
   // ?tilt=15|20|30: render-only camera pitch-down (deg) so more of the drop below shows. Default is camera.tiltDeg (global).
   const tiltParam = Number(params.get('tilt'));
@@ -468,7 +469,7 @@ export function startGame(
       curRig,
       feet,
       base + yawOff.zip + yawOff.side,
-      cur.camPitch - camTilt + (front ? 0.14 : 0),
+      cur.camPitch - camTilt + (front ? 0.14 : 0) + pitchLift,
       speed,
       world.solids,
       camCfg,
@@ -1331,6 +1332,7 @@ export function startGame(
     gs.resize();
     const fr = framingFor(v, cfg.camera);
     camCfg = fr.camera;
+    pitchLift = fr.pitchLiftRad;
     gs.setLensShift(fr.lensShiftY);
     lensShiftPx = -fr.lensShiftY * v.h; // positive view offset moves the image up
     document.documentElement.style.setProperty('--lens-shift', String(fr.lensShiftY));
