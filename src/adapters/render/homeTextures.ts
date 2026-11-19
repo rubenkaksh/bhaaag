@@ -29,12 +29,18 @@ export type TierMaps = {
 type MapMat = Material & {
   map: Texture | null;
   normalMap?: Texture | null;
+  normalScale?: { setScalar(v: number): unknown };
   color: { setScalar(v: number): unknown };
 };
+
+const NORMAL_STRENGTH = 0.35;
+const HIGH_LIFT = 1.3;
 
 function setOn(m: Material, map: Texture | null, normal: Texture | null, boost: number): void {
   const mm = m as MapMat;
   mm.map = map;
+  // Owner 2026-11-19: roofs read black on High. A softer normal map and a lift on the tinted albedo keep the relief without the shadowing.
+  if (normal !== null) mm.normalScale?.setScalar(NORMAL_STRENGTH);
   if (m instanceof MeshLambertMaterial || m instanceof MeshStandardMaterial) mm.normalMap = normal;
   if (!(m instanceof MeshBasicMaterial)) mm.color.setScalar(boost);
   m.needsUpdate = true;
@@ -48,7 +54,7 @@ export function applyTierMaps(o: Mesh, tier: GraphicsTier): boolean {
   const set = rich ? spec.rich : spec.low;
   const map = set?.map !== undefined ? tileTexture(set.map, set.ext) : null;
   const normal = tier === 'high' && set?.normal !== undefined ? tileNormal(set.normal) : null;
-  const boost = rich ? (spec.boost ?? 1) : 1;
+  const boost = rich ? (spec.boost ?? 1) * (tier === 'high' ? HIGH_LIFT : 1) : 1;
   if (spec.hideOnLow === true) o.visible = rich;
   // scene.swapStandard keeps its own copy of the lambert normal map: keep that in step too
   const ud = o.userData as { lambert?: Material; standard?: Material; normalMap?: Texture | null };
