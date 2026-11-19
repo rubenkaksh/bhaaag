@@ -9,6 +9,9 @@ import { resolveCfg } from '../tuning';
 import type { TuningWarn } from '../tuningOverrides';
 
 export const PLAYER_KEY = 'bhagdori.player';
+/** An invite code from `?friend=CODE`, kept until it can be redeemed (needs a named player). */
+export const PENDING_KEY = 'bhagdori.pendingFriend';
+const CODE_RE = /^[A-Za-z2-9]{8}$/;
 const TIMEOUT_MS = 3000;
 /** Remote config is read while the lobby shows and PLAY may wait for it, so it gets a shorter budget. */
 const CONFIG_TIMEOUT_MS = 1500;
@@ -25,6 +28,10 @@ export interface OnlineConfig {
 export interface BoardRow {
   name: string;
   ticks: number;
+}
+
+export interface FriendRow extends BoardRow {
+  me: boolean;
 }
 
 export interface SubmitResult {
@@ -85,6 +92,17 @@ export function createOnline(cfg: OnlineConfig) {
     }
   };
 
+  const rpc = (fn: string, args: object, ms?: number): Promise<unknown> =>
+    call(`/rpc/${fn}`, { method: 'POST', body: JSON.stringify(args) }, ms);
+  const creds = (p: Player) => ({ p_player_id: p.id, p_secret: p.secret });
+  let notice: string | null = null;
+
+  /** Registers the player on the server (idempotent) and returns their invite code. */
+  const ensure = async (p: Player): Promise<string | null> => {
+    const code = await rpc('ensure_player', { ...creds(p), p_name: p.name });
+    return typeof code === 'string' ? code : null;
+  };
+
   return {
     hasPlayer: (): boolean => loadPlayer() !== null,
     playerName: (): string | null => loadPlayer()?.name ?? null,
@@ -121,6 +139,60 @@ export function createOnline(cfg: OnlineConfig) {
       const r = out?.[0];
       return r ? { bestTicks: r.best_ticks, isNewBest: r.is_new_best } : null;
     },
+    /** Remembers an invite code from a URL query (`?friend=CODE`). True if one was found. */
+    stashFriendCode(search: string): boolean {
+      const code = new URLSearchParams(search).get('friend');
+      if (!code || !CODE_RE.test(code) || !store) return false;
+      try {
+        store.setItem(PENDING_KEY, code.toUpperCase());
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    /** Redeems a stashed invite once there is a player. Returns the new friend's name; null when nothing to do, unknown code or offline (an offline attempt stays stashed). */
+    async redeemPending(): Promise<string | null> {
+      const p = loadPlayer();
+      const code = store?.getItem(PENDING_KEY);
+      if (!p || !code || !store) return null;
+      if ((await ensure(p)) === null) return null;
+      const name = await rpc('redeem_invite', { ...creds(p), p_code: code });
+      if (typeof name !== 'string') return null;
+      try {
+        store.setItem(PENDING_KEY, '');
+      } catch {
+        /* storage blocked: the code is redeemed again next time, which is harmless (idempotent) */
+      }
+      if (name === '') return null;
+      notice = name;
+      return name;
+    },
+    /** The name of a friend added this session that the UI has not shown yet. */
+    takeNotice(): string | null {
+      const n = notice;
+      notice = null;
+      return n;
+    },
+    /** The shareable link for this player, or null when offline or no player. */
+    async inviteLink(): Promise<string | null> {
+      const p = loadPlayer();
+      const code = p ? await ensure(p) : null;
+      if (code === null || typeof location === 'undefined') return null;
+      return `${location.origin}${location.pathname}?friend=${code}`;
+    },
+    /** Best Classic times of this player and their friends, fastest first. Empty on any failure. */
+    async friendsTop(n: number): Promise<FriendRow[]> {
+      const p = loadPlayer();
+      if (!p) return [];
+      const out = (await rpc('friends_board', {
+        ...creds(p),
+        p_mode: 'classic',
+        p_level: 'l1',
+        p_cfg_hash: await hash(),
+        p_n: n,
+      })) as { name: string; ticks: number; is_me: boolean }[] | null;
+      return Array.isArray(out) ? out.map((r) => ({ name: r.name, ticks: r.ticks, me: r.is_me })) : [];
+    },
     /** The clamped remote tuning overlay from `game_config`; undefined on any failure or when no row applies (defaults stay). */
     async config(warn?: TuningWarn): Promise<ReturnType<typeof rowsToOverrides>> {
       return rowsToOverrides(await call('/game_config?select=key,value', undefined, CONFIG_TIMEOUT_MS), warn);
@@ -145,5 +217,14 @@ export function appOnline(): Online | null {
 
 /** Boot step: the remote tuning overlay for this build, or undefined (no Supabase config, failure, or no rows). */
 export function remoteOverrides(warn?: TuningWarn): Promise<ReturnType<typeof rowsToOverrides>> {
-  return appOnline()?.config(warn) ?? Promise.resolve(undefined);
+  const online = appOnline();
+  if (online === null) return Promise.resolve(undefined);
+  if (typeof location !== 'undefined' && online.stashFriendCode(location.search)) {
+    // Drop the code from the address bar so a reload or a re-share does not carry it.
+    const u = new URL(location.href);
+    u.searchParams.delete('friend');
+    history.replaceState(null, '', u);
+  }
+  void online.redeemPending();
+  return online.config(warn);
 }

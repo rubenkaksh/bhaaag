@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PLAYER_KEY, cleanName, createOnline } from '../../src/app/online';
+import { PENDING_KEY, PLAYER_KEY, cleanName, createOnline } from '../../src/app/online';
 
 const mem = () => {
   const m = new Map<string, string>();
@@ -44,5 +44,48 @@ describe('online client', () => {
   it('maps board rows', async () => {
     const o = mk((() => json([{ ticks: 3000, players: { display_name: 'A' } }])) as typeof fetch);
     expect(await o.top(5)).toEqual([{ name: 'A', ticks: 3000 }]);
+  });
+  it('stashes only well-formed friend codes', () => {
+    const store = mem();
+    const o = mk((() => json(null)) as typeof fetch, store);
+    expect(o.stashFriendCode('?friend=bad')).toBe(false);
+    expect(o.stashFriendCode('?friend=ABCD0123')).toBe(false); // 0 and O/I/L/1 are not in the alphabet
+    expect(o.stashFriendCode('?x=1&friend=abcd2345')).toBe(true);
+    expect(store.getItem(PENDING_KEY)).toBe('ABCD2345');
+  });
+  it('redeems a stashed code once, keeps it when offline, clears it when unknown', async () => {
+    const store = mem();
+    const calls: string[] = [];
+    let redeem: unknown = 'Alice';
+    const f = vi.fn((url: string) => {
+      calls.push(url.split('/').pop()!);
+      return url.endsWith('ensure_player') ? json('CODE2345') : redeem === undefined ? Promise.reject(new Error('x')) : json(redeem);
+    });
+    const o = mk(f as unknown as typeof fetch, store);
+    expect(await o.redeemPending()).toBeNull(); // no player
+    o.setPlayerName('Ruben');
+    o.stashFriendCode('?friend=ABCD2345');
+    redeem = undefined;
+    expect(await o.redeemPending()).toBeNull();
+    expect(store.getItem(PENDING_KEY)).toBe('ABCD2345'); // offline: kept
+    redeem = 'Alice';
+    expect(await o.redeemPending()).toBe('Alice');
+    expect(o.takeNotice()).toBe('Alice');
+    expect(o.takeNotice()).toBeNull();
+    expect(await o.redeemPending()).toBeNull(); // cleared, no more calls
+    o.stashFriendCode('?friend=ZZZZ2345');
+    redeem = '';
+    expect(await o.redeemPending()).toBeNull();
+    expect(store.getItem(PENDING_KEY)).toBe(''); // unknown code dropped
+    expect(calls.filter((c) => c === 'redeem_invite')).toHaveLength(3);
+  });
+  it('maps friends board rows and builds the invite link', async () => {
+    const o = mk(((url: string) =>
+      json(url.endsWith('friends_board') ? [{ name: 'A', ticks: 3000, is_me: true }] : 'CODE2345')) as typeof fetch);
+    o.setPlayerName('Ruben');
+    expect(await o.friendsTop(5)).toEqual([{ name: 'A', ticks: 3000, me: true }]);
+    vi.stubGlobal('location', { origin: 'https://x.io', pathname: '/bhaaag/' });
+    expect(await o.inviteLink()).toBe('https://x.io/bhaaag/?friend=CODE2345');
+    vi.unstubAllGlobals();
   });
 });

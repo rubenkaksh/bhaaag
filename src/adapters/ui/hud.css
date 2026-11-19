@@ -748,3 +748,33 @@
   font-size: 13px;
   opacity: 0.8;
 }
+/* L5: Global / Friends tabs and the invite button. */
+#hud-win .board-tabs {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin: 2px 0 4px;
+}
+#hud-win .board-tabs .tab,
+#hud-win .board-invite .invite {
+  margin-top: 0;
+  padding: 6px 14px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+}
+#hud-win .board-tabs .tab:not(.on) {
+  background: rgba(255, 246, 228, 0.14);
+  color: #fff6e4;
+}
+#hud-win .board-tabs .tab.on {
+  opacity: 1;
+}
+#hud-win .board-invite {
+  margin-top: 6px;
+  text-align: center;
+  word-break: break-all;
+}
+#hud-win .board-invite .invite {
+  opacity: 1;
+}

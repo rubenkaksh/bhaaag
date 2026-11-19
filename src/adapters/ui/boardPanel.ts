@@ -1,7 +1,7 @@
 // Win-screen leaderboard panel (L4): name entry (first time) and the top Classic times. Everything online
 // goes through the lazy ../../app/online chunk; with no Supabase config, or on any failure, the panel stays
 // empty or shows one quiet line, and PLAY AGAIN is never blocked.
-import type { BoardRow, Online } from '../../app/online';
+import type { BoardRow, FriendRow, Online } from '../../app/online';
 import { formatRunTime } from './hud';
 
 type Loader = () => Promise<{ appOnline(): Online | null }>;
@@ -60,16 +60,81 @@ async function post(host: HTMLElement, online: Online, ticks: number): Promise<v
   const status = node('p', 'board-note', 'Posting your time...');
   host.replaceChildren(status);
   const res = await online.submit(ticks);
+  await online.redeemPending();
   const rows = await online.top(TOP_N);
   if (rows.length === 0) {
     status.textContent = res ? '' : 'Offline: your time is saved on this device.';
     return;
   }
+  const mine = res?.bestTicks ?? ticks;
+  const me = online.playerName();
+  const list = node('div', 'board-list');
+  const tabs = node('div', 'board-tabs');
+  const global = node('button', 'tab on', 'GLOBAL') as HTMLButtonElement;
+  const friends = node('button', 'tab', 'FRIENDS') as HTMLButtonElement;
+  for (const b of [global, friends]) (b as HTMLButtonElement).type = 'button';
+  tabs.append(global, friends);
+  const showGlobal = (): void => {
+    global.classList.add('on');
+    friends.classList.remove('on');
+    list.replaceChildren(renderRows(rows, me, mine));
+    list.querySelector('.me')?.scrollIntoView({ block: 'nearest' });
+  };
+  const showFriends = async (): Promise<void> => {
+    friends.classList.add('on');
+    global.classList.remove('on');
+    list.replaceChildren(node('p', 'board-note', 'Loading...'));
+    const fr = await online.friendsTop(TOP_N);
+    if (!friends.classList.contains('on')) return; // user switched back meanwhile
+    list.replaceChildren(
+      fr.length > 0 ? renderFriendRows(fr) : node('p', 'board-note', 'No friends yet. Share your link below.'),
+      inviteButton(online),
+    );
+  };
+  global.addEventListener('click', showGlobal);
+  friends.addEventListener('click', () => void showFriends());
+  const added = online.takeNotice();
   host.replaceChildren(
     node('h2', 'board-title', 'Classic leaderboard'),
-    renderRows(rows, online.playerName(), res?.bestTicks ?? ticks),
+    ...(added ? [node('p', 'board-note', `You and ${added} are now friends.`)] : []),
+    tabs,
+    list,
   );
-  host.querySelector('.me')?.scrollIntoView({ block: 'nearest' });
+  showGlobal();
+  if (added) void showFriends();
+}
+
+function renderFriendRows(rows: FriendRow[]): HTMLElement {
+  const ol = renderRows(rows, null, null);
+  rows.forEach((r, i) => ol.children[i]?.classList.toggle('me', r.me));
+  return ol;
+}
+
+/** Copies (or shares) the invite link; shows the link itself if neither works. */
+function inviteButton(online: Online): HTMLElement {
+  const wrap = node('div', 'board-invite');
+  const btn = node('button', 'invite', 'INVITE A FRIEND') as HTMLButtonElement;
+  btn.type = 'button';
+  const note = node('p', 'board-note');
+  btn.addEventListener('click', () => {
+    void (async () => {
+      note.textContent = '...';
+      const link = await online.inviteLink();
+      if (link === null) {
+        note.textContent = 'Could not reach the server. Try again.';
+        return;
+      }
+      try {
+        if (typeof navigator.share === 'function') await navigator.share({ title: 'Bhaaag', url: link });
+        else await navigator.clipboard.writeText(link);
+        note.textContent = 'Link ready. Send it to a friend.';
+      } catch {
+        note.textContent = link; // clipboard blocked or share cancelled: show it to copy by hand
+      }
+    })();
+  });
+  wrap.append(btn, note);
+  return wrap;
 }
 
 function askName(host: HTMLElement, online: Online, ticks: number): void {
