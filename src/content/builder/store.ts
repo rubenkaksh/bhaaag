@@ -6,9 +6,19 @@ import { loadWorldFromObject } from '../load';
 
 export const PLAY_KEY = 'bhaaag.builder.play';
 
-export function savePlayLevel(compiled: LevelJson): boolean {
+export const PLAY_SRC_KEY = 'bhaaag.builder.play.src';
+
+/** `source` (the builder JSON text) lets the game dress the level like Nagarkot; without it the level plays plain. */
+export function savePlayLevel(compiled: LevelJson, source?: string): boolean {
   try {
+    // A source left from an earlier level would dress the wrong houses: clear it before anything can fail.
+    try {
+      localStorage.removeItem(PLAY_SRC_KEY);
+    } catch {
+      // best effort
+    }
     localStorage.setItem(PLAY_KEY, JSON.stringify(compiled));
+    if (source !== undefined) localStorage.setItem(PLAY_SRC_KEY, source);
     return true;
   } catch {
     return false;
@@ -31,4 +41,13 @@ export function readLocalBuilderLevel(): LevelJson | null {
 
 export function hasLocalBuilderLevel(): boolean {
   return readLocalBuilderLevel() !== null;
+}
+
+/** The builder source text saved with the play level, or null. Parsed later in the builder chunk. */
+export function readLocalBuilderSource(): string | null {
+  try {
+    return localStorage.getItem(PLAY_SRC_KEY);
+  } catch {
+    return null;
+  }
 }

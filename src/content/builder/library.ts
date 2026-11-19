@@ -128,3 +128,13 @@ export function readLibraryLevel(
     return null;
   }
 }
+
+/** The editable source of a visible saved level (lobby id `l:<id>`), or null. */
+export function readLibrarySource(
+  lobbyId: string,
+  store: Store | undefined = defaultStore(),
+): BuilderLevel | null {
+  if (!lobbyId.startsWith(LIBRARY_PREFIX)) return null;
+  const e = readLibrary(store).find((x) => x.id === lobbyId.slice(LIBRARY_PREFIX.length));
+  return e === undefined || !e.visible ? null : e.source;
+}

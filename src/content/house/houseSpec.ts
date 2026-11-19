@@ -36,6 +36,8 @@ export interface HouseSpec {
    * solid for it. Only faces no route move crosses; absent or empty = none.
    */
   guard?: Face[];
+  /** Brick plinth depth under `groundY` (default 1 m). Builder houses stand on a taller base so the kit reaches the hill. */
+  below?: number;
 }
 
 export const RUNOUT_GAP = 1.6;

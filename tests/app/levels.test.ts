@@ -117,3 +117,14 @@ describe('two modes (ADR 0016)', () => {
     });
   });
 });
+
+describe('direct builder routes', () => {
+  it('resolve to a builder entry even though the lobby row (legacy flag off) does not list them', () => {
+    const lobby = classicLevels(true, false, []);
+    expect(lobby.some((l) => l.id === 'builder')).toBe(false);
+    const all = classicLevels(true, true, []);
+    const local = all.find((l) => l.id === 'builder');
+    expect(local?.builder).toBe('local');
+    expect(local?.key).toBe('strategy');
+  });
+});
