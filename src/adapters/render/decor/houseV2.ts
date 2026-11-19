@@ -212,7 +212,7 @@ function dressHouse(
     'wallBrick',
     'plinth',
     h.cx - k - 0.05,
-    g - 1.0,
+    g - (h.below ?? 1.0),
     h.cz - k - 0.05,
     h.cx + k + 0.05,
     g + HK.plinth,

@@ -5,6 +5,8 @@ import { resolvePlayKey } from './modes/registry';
 import type { GameHandle } from './game';
 import type { Selection } from './modes/levels';
 import type { LevelJson } from '../content/load';
+import type { BuilderLevel } from '../content/builder/format';
+import type { HomeBundle } from './homeAssets';
 import { createLobby } from '../adapters/ui/lobby';
 import { createOrientation } from '../adapters/ui/orientation';
 import { fetchTuningOverrides, tuningUrlFrom } from '../adapters/config/remoteTuning';
@@ -67,8 +69,11 @@ void (async () => {
     pendingPlay = null;
     if (waiting !== null) play(waiting);
   });
-// Builder levels (local or shipped) compile in a lazy chunk (T345); null = not a builder level or it failed.
-async function levelOverrideFor(sel: Selection): Promise<LevelJson | undefined> {
+// Builder levels (local, shipped or saved) compile in a lazy chunk (T345); they are dressed like Nagarkot
+// Home (house kit, roof guard rails) when their source is known. Undefined = not a builder level or it failed.
+async function levelOverrideFor(
+  sel: Selection,
+): Promise<{ level?: LevelJson; home?: HomeBundle } | undefined> {
   const e = playable().find((l) => l.id === sel.level);
   if (sel.mode !== 'classic') return undefined;
   if (e?.builder === undefined) {
@@ -76,15 +81,35 @@ async function levelOverrideFor(sel: Selection): Promise<LevelJson | undefined> 
     const { STRATEGY_SEED, generateStrategyLevel } = await import('../content/strategy/gen');
     const seed = Number(new URLSearchParams(location.search).get('seed'));
     const has = new URLSearchParams(location.search).has('seed') && Number.isFinite(seed);
-    return generateStrategyLevel(has ? seed | 0 : STRATEGY_SEED);
+    return { level: generateStrategyLevel(has ? seed | 0 : STRATEGY_SEED) };
   }
-  const lv =
-    e.builder === 'local'
-      ? (await import('../content/builder/store')).readLocalBuilderLevel()
-      : e.builder === 'library'
-        ? (await import('../content/builder/library')).readLibraryLevel(e.id)
-        : (await import('../content/builder/shipped')).compileShipped(e.id.slice(2));
-  return lv ?? undefined;
+  let level: LevelJson | null;
+  let source: BuilderLevel | null;
+  if (e.builder === 'local') {
+    const store = await import('../content/builder/store');
+    level = store.readLocalBuilderLevel();
+    const text = store.readLocalBuilderSource();
+    source = null;
+    if (text !== null) {
+      try {
+        source = (await import('../content/builder/format')).parseBuilderLevel(text);
+      } catch {
+        source = null; // stale or corrupt source: play undressed
+      }
+    }
+  } else if (e.builder === 'library') {
+    const lib = await import('../content/builder/library');
+    level = lib.readLibraryLevel(e.id);
+    source = lib.readLibrarySource(e.id);
+  } else {
+    const shipped = await import('../content/builder/shipped');
+    level = shipped.compileShipped(e.id.slice(2));
+    source = shipped.shippedSource(e.id.slice(2));
+  }
+  if (level === null) return undefined;
+  if (source === null) return { level };
+  const { builderHome } = await import('../adapters/builder/dress');
+  return { home: builderHome(source, level) };
 }
 function play(sel: Selection): void {
   if (!tuningSettled) {
@@ -140,7 +165,17 @@ function play(sel: Selection): void {
       const { graphAssets } = await import('./graphAssets');
       return startGame(canvas, document.body, key, undefined, undefined, graphAssets);
     }
-    return startGame(canvas, document.body, key, undefined, await levelOverrideFor(sel));
+    const o = await levelOverrideFor(sel);
+    return startGame(
+      canvas,
+      document.body,
+      key,
+      undefined,
+      o?.level,
+      undefined,
+      undefined,
+      o?.home,
+    );
   };
   void prepare()
     .then((g) => {
@@ -169,6 +204,10 @@ const q = new URLSearchParams(location.search);
 if (q.has('builder')) {
   lobby.hide();
   void import('../adapters/builder/builderPage').then((m) => m.mountBuilder(document.body));
-} else if (q.get('level') === 'builder' || q.get('level')?.startsWith('b:') === true || q.get('level')?.startsWith('l:') === true) {
+} else if (
+  q.get('level') === 'builder' ||
+  q.get('level')?.startsWith('b:') === true ||
+  q.get('level')?.startsWith('l:') === true
+) {
   play({ mode: 'classic', level: q.get('level') ?? 'builder' });
 }

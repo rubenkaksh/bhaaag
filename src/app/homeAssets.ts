@@ -57,4 +57,5 @@ export function loadHome() {
     pathCam: new PathCam(buildHomePathGraph(s)),
   };
 }
-export type HomeBundle = ReturnType<typeof loadHome>;
+/** `pathCam` is null for a builder level (no route camera). */
+export type HomeBundle = Omit<ReturnType<typeof loadHome>, 'pathCam'> & { pathCam: PathCam | null };

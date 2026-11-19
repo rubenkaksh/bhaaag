@@ -594,7 +594,8 @@ export function mountBuilder(root: HTMLElement): void {
 
   function play(): void {
     try {
-      if (!savePlayLevel(compileLevel(hist.present))) throw new Error('storage blocked');
+      if (!savePlayLevel(compileLevel(hist.present), serializeBuilderLevel(hist.present)))
+        throw new Error('storage blocked');
       msg = 'Opened in a new tab.';
       window.open(location.pathname + '?mode=classic&level=builder', '_blank');
     } catch (err) {
