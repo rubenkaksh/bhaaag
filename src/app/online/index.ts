@@ -4,10 +4,14 @@
 import l1 from '../../../content/levels/l1.json';
 import { cfgHash } from '../cfgHash';
 import type { ModeStore } from '../modes/mode';
+import { rowsToOverrides } from '../remoteConfig';
 import { resolveCfg } from '../tuning';
+import type { TuningWarn } from '../tuningOverrides';
 
 export const PLAYER_KEY = 'bhagdori.player';
 const TIMEOUT_MS = 3000;
+/** Remote config is read while the lobby shows and PLAY may wait for it, so it gets a shorter budget. */
+const CONFIG_TIMEOUT_MS = 1500;
 
 export interface OnlineConfig {
   url: string;
@@ -59,9 +63,9 @@ export function createOnline(cfg: OnlineConfig) {
   const headers = { apikey: cfg.key, 'Content-Type': 'application/json' };
   const hash = cfg.hash ?? (() => cfgHash('l1', l1.version, resolveCfg('classic')));
 
-  const call = async (path: string, init?: RequestInit): Promise<unknown> => {
+  const call = async (path: string, init?: RequestInit, ms = TIMEOUT_MS): Promise<unknown> => {
     const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => ctl.abort(), ms);
     try {
       const res = await f(rest + path, { ...init, headers, signal: ctl.signal });
       return res.ok ? await res.json() : null;
@@ -117,6 +121,10 @@ export function createOnline(cfg: OnlineConfig) {
       const r = out?.[0];
       return r ? { bestTicks: r.best_ticks, isNewBest: r.is_new_best } : null;
     },
+    /** The clamped remote tuning overlay from `game_config`; undefined on any failure or when no row applies (defaults stay). */
+    async config(warn?: TuningWarn): Promise<ReturnType<typeof rowsToOverrides>> {
+      return rowsToOverrides(await call('/game_config?select=key,value', undefined, CONFIG_TIMEOUT_MS), warn);
+    },
     /** Top `n` Classic times for the current config hash, fastest first. Empty on any failure. */
     async top(n: number): Promise<BoardRow[]> {
       const q = `/bests?mode=eq.classic&level=eq.l1&cfg_hash=eq.${await hash()}&select=ticks,players(display_name)&order=ticks.asc&limit=${n}`;
@@ -133,4 +141,9 @@ export function appOnline(): Online | null {
   const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
   const key = import.meta.env.VITE_SUPABASE_KEY as string | undefined;
   return url && key ? createOnline({ url, key }) : null;
+}
+
+/** Boot step: the remote tuning overlay for this build, or undefined (no Supabase config, failure, or no rows). */
+export function remoteOverrides(warn?: TuningWarn): Promise<ReturnType<typeof rowsToOverrides>> {
+  return appOnline()?.config(warn) ?? Promise.resolve(undefined);
 }

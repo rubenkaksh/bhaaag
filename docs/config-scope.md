@@ -39,6 +39,13 @@ the fallback; nothing here blocks the game.
   init `initRemoteTuning` in `src/app/tuning.ts`; tests `tests/config/tuningOverrides.test.ts`,
   `tests/config/remoteTuning.test.ts`, `tests/app/tuningInit.test.ts`. No new dependency.
 
+- **Supabase source (L2, `docs/plans/leaderboards-friends.md` section 8):** with no `?tuning=`/`VITE_TUNING_URL`, boot reads the
+  `game_config` table (flat rows, key = dotted path) in the lazy `online` chunk, 1.5 s timeout, once per session (frozen, so a
+  restart never changes physics). Only keys in `CLAMPS` (`src/app/remoteConfig.ts`) are accepted, values are clamped, the rest
+  is dropped with a warning; any failure or no rows = baked-in defaults. A changed config has a new `cfgHash`, so publish with
+  `node tools/publish-config.mjs values.json --apply` (writes the `cfg_versions` row first, then `game_config`). Table:
+  `supabase/migrations/20261119000200_game_config.sql`. Tests: `tests/config/remoteConfig.test.ts`, `configScope.test.ts`.
+
 ### Keys (157 numbers, dotted paths; `tuning.json` is the authority)
 
 - `physics`: g, airDrag, killPlaneBelowMin
