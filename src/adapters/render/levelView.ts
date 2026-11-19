@@ -251,6 +251,8 @@ export type BuildLevelOpts = {
      * and rope posts (they match the colliders), and draw no render-only deck props.
      */
     kitSkip?: (solidIndex: number) => boolean;
+    /** Style-1 solids the kit does not draw (builder steps), so they are drawn as colliders. */
+    keep?: (solidIndex: number) => boolean;
     /** Segmented layouts: view-only ground along the road polyline (ADR 0015). */
     field?: (x: number, z: number) => { h: number; d: number };
   };
@@ -273,7 +275,12 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
       // the hidden barrier walls (style 5) are never drawn; neither is the kill slab far below
       // graph levels: the house kit's decor draws every body and parapet at the same coordinates,
       // so drawing the collider boxes too z-fights the decks and parapets (red-floor glitch)
-      if (opts.graph !== undefined && (s === STYLE_BODY || s === STYLE_PARAPET)) continue;
+      if (
+        opts.graph !== undefined &&
+        (s === STYLE_BODY || s === STYLE_PARAPET) &&
+        opts.graph.keep?.(i) !== true
+      )
+        continue;
       if (opts.graph?.kitSkip !== undefined && opts.graph.kitSkip(i)) continue;
       if (s === st && s !== STYLE_HIDDEN && world.solids[i].max.y > world.killPlaneY) {
         boxes.push(world.solids[i]);

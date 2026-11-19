@@ -16,6 +16,7 @@
 //    the lethal ground beside each house.
 import type { StrategyLevel } from '../../../content/strategy/gen';
 import { HAZARD_LIP } from '../../../content/strategy/gen';
+import type { Box } from '../../../content/strategy/gen';
 import { NODE_ROOF, relation } from '../../../content/strategy/graph';
 import type { MazeNode } from '../../../content/strategy/graph';
 import { HK, deckY } from '../../../content/house/houseSpec';
@@ -159,6 +160,22 @@ function usedFaces(s: StrategyLevel, id: number): boolean[] {
   return used;
 }
 
+/** Stepped ground profile [z, y] from the lethal hazard bands: one flat terrace per band, 0.2 m under the lethal top. */
+export function terrainProfile(hazards: readonly Box[]): [number, number][] {
+  const bands = hazards.slice().sort((a, b) => b.max[2] - a.max[2]);
+  const profile: [number, number][] = [];
+  for (let k = 0; k < bands.length; k++) {
+    const y = bands[k].max[1] - HAZARD_LIP;
+    const zHi = k === 0 ? bands[k].max[2] : bands[k].max[2] - SLOPE_M / 2;
+    const zLo = k === bands.length - 1 ? bands[k].min[2] : bands[k].min[2] + SLOPE_M / 2;
+    if (profile.length === 0 || zHi < profile[profile.length - 1][0]) profile.push([zHi, y]);
+    if (zLo < profile[profile.length - 1][0]) profile.push([zLo, y]);
+  }
+  if (profile.length === 0) profile.push([0, 0]);
+  if (profile.length < 2) profile.push([profile[0][0] - 1, profile[0][1]]);
+  return profile;
+}
+
 export function dressNagarkotHome(s: StrategyLevel): HomeDressing {
   const houses: HouseSpec[] = [];
   const perNode: number[] = [];
@@ -180,7 +197,17 @@ export function dressNagarkotHome(s: StrategyLevel): HomeDressing {
       for (let f = 0; f < 4; f++) if (!used[f]) guard.push((bent ? BEND_FACE[f] : f) as Face);
     }
     const balc: Face | -1 = n.balc >= 0 ? ((bent ? BEND_FACE[2] : 2) as Face) : -1;
-    const tiles = tileFootprint(n.x0, n.x1, n.z0, n.z1, groundY, storeys, houses.length, guard, balc);
+    const tiles = tileFootprint(
+      n.x0,
+      n.x1,
+      n.z0,
+      n.z1,
+      groundY,
+      storeys,
+      houses.length,
+      guard,
+      balc,
+    );
     for (let k = 0; k < tiles.length; k++) houses.push(tiles[k]);
     perNode.push(tiles.length);
     // the collider deck slab on this footprint (style 2, same rect, top at n.y)
@@ -199,20 +226,7 @@ export function dressNagarkotHome(s: StrategyLevel): HomeDressing {
     }
   }
 
-  // Ground: one flat terrace per hazard band, 0.2 m under the lethal top, stepping between bands.
-  const bands = (s.world?.local.hazards ?? s.level.hazards ?? [])
-    .slice()
-    .sort((a, b) => b.max[2] - a.max[2]);
-  const profile: [number, number][] = [];
-  for (let k = 0; k < bands.length; k++) {
-    const y = bands[k].max[1] - HAZARD_LIP;
-    const zHi = k === 0 ? bands[k].max[2] : bands[k].max[2] - SLOPE_M / 2;
-    const zLo = k === bands.length - 1 ? bands[k].min[2] : bands[k].min[2] + SLOPE_M / 2;
-    if (profile.length === 0 || zHi < profile[profile.length - 1][0]) profile.push([zHi, y]);
-    if (zLo < profile[profile.length - 1][0]) profile.push([zLo, y]);
-  }
-  if (profile.length === 0) profile.push([0, 0]);
-  if (profile.length < 2) profile.push([profile[0][0] - 1, profile[0][1]]);
+  const profile = terrainProfile(s.world?.local.hazards ?? s.level.hazards ?? []);
 
   // sanity: kit decks must match the collider decks
   for (let i = 0; i < houses.length; i++) deckY(houses[i]);

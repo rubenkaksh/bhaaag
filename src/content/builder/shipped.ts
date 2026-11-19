@@ -32,3 +32,7 @@ export function compileShipped(id: string): LevelJson | null {
   const l = shippedBuilderLevels().find((x) => x.id === id);
   return l === undefined ? null : compileLevel(l);
 }
+
+export function shippedSource(id: string): BuilderLevel | null {
+  return shippedBuilderLevels().find((x) => x.id === id) ?? null;
+}

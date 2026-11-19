@@ -21,9 +21,9 @@ import {
   zipOk,
   zoneCentre,
 } from '../strategy/graph';
-import type { BuilderEdge, BuilderHouse, BuilderLevel } from './format';
+import type { BuilderEdge, BuilderHouse, BuilderLevel, GapVia } from './format';
 import { HOUSE_HALF, STOREY_HEIGHT, TOUCH_EPS } from './format';
-import { houseById, overlaps } from './model';
+import { addEdge, houseById, overlaps } from './model';
 
 // Geometry shared with the generator's emitter (kept numerically identical, gen.ts is frozen).
 const ZONE_OFF = 2; // zip zone centre, left of the house centre
@@ -119,13 +119,25 @@ export interface EdgeCheck {
   note: string;
 }
 
+/** One finding, with where it is (house and edge ids) and what to do about it, in plain words. */
+export interface Problem {
+  level: 'error' | 'warn';
+  key: string; // stable id of the cause (kind + houses/edge), so edits can tell new problems from old
+  text: string;
+  fix: string;
+  houses: number[];
+  edges: number[];
+}
+
 export interface Report {
   ok: boolean; // no errors (warnings allowed)
   errors: string[];
   warnings: string[];
+  problems: Problem[];
   edgeChecks: EdgeCheck[];
   touching: [number, number][]; // house id pairs whose footprints touch
   declaredReach: boolean; // start -> goal over valid declared edges + touching houses
+  checked: boolean; // false when validate stopped at the basic errors (links and routes not examined)
   derivedReach: boolean; // start -> goal over every move the model allows
   deadEnds: number[]; // house ids reachable from start with no way to the goal
   unreached: number[]; // house ids start cannot reach at all
@@ -168,6 +180,25 @@ function gapNote(a: MazeNode, b: MazeNode, why: string): string {
       ? 'no shared lane'
       : 'gap ' + rel.gap.toFixed(1) + ' m, drop ' + (a.y - b.y).toFixed(1) + ' m';
   return why + ' (' + gap + ')';
+}
+
+const VIA_NAME: Record<string, string> = {
+  zip: 'Zipline',
+  jump: 'Jump',
+  tramp: 'Trampoline',
+  cushion: 'Cushion drop',
+  boxes: 'Box steps',
+  stairs: 'Stairs',
+};
+export const viaName = (k: string): string => VIA_NAME[k] ?? k;
+
+function edgeFix(e: BuilderEdge): string {
+  if (e.kind === 'zip')
+    return 'Move the houses closer, make the start roof higher, or pick another link type.';
+  const via = e.via ?? 'jump';
+  if (via === 'boxes' || via === 'stairs')
+    return 'Steps need houses that face each other with a short, low gap. Move them, or use a zipline or jump.';
+  return 'Move the houses closer or lower the drop, or switch to a zipline, trampoline or cushion.';
 }
 
 function checkEdge(e: BuilderEdge, ns: NodeSet): EdgeCheck {
@@ -220,18 +251,41 @@ export function validate(l: BuilderLevel): Report {
     ok: true,
     errors: [],
     warnings: [],
+    problems: [],
     edgeChecks: [],
     touching: [],
     declaredReach: false,
+    checked: false,
     derivedReach: false,
     deadEnds: [],
     unreached: [],
     escapePaths: 0,
   };
+  const add = (
+    level: 'error' | 'warn',
+    key: string,
+    tech: string,
+    text: string,
+    fix: string,
+    houses: number[] = [],
+    edges: number[] = [],
+  ): void => {
+    (level === 'error' ? r.errors : r.warnings).push(tech);
+    r.problems.push({ level, key, text, fix, houses, edges });
+  };
   for (let i = 0; i < l.houses.length; i++) {
     for (let j = i + 1; j < l.houses.length; j++) {
+      const a = l.houses[i].id;
+      const b = l.houses[j].id;
       if (overlaps(l.houses[i], l.houses[j]))
-        r.errors.push('houses ' + l.houses[i].id + ' and ' + l.houses[j].id + ' overlap');
+        add(
+          'error',
+          'overlap:' + a + ':' + b,
+          'houses ' + a + ' and ' + b + ' overlap',
+          'House ' + a + ' and house ' + b + ' overlap.',
+          'Drag one of them apart (touching is fine, overlapping is not).',
+          [a, b],
+        );
     }
   }
   for (const h of l.houses) {
@@ -245,8 +299,13 @@ export function validate(l: BuilderLevel): Report {
         o.z + HOUSE_HALF > h.z + HOUSE_HALF,
     );
     if (hit !== undefined)
-      r.errors.push(
+      add(
+        'error',
+        'balcony:' + h.id,
         'house ' + h.id + ' balcony runs into house ' + hit.id + ' (move it or drop the balcony)',
+        'House ' + h.id + "'s balcony runs into house " + hit.id + '.',
+        'Move house ' + hit.id + ' away, or untick the balcony on house ' + h.id + '.',
+        [h.id, hit.id],
       );
   }
   for (const e of l.edges) {
@@ -269,7 +328,9 @@ export function validate(l: BuilderLevel): Report {
         o.z - HOUSE_HALF < z1,
     );
     if (third !== undefined)
-      r.errors.push(
+      add(
+        'error',
+        'steps:' + e.id,
         'edge ' +
           e.a +
           ' -> ' +
@@ -279,16 +340,57 @@ export function validate(l: BuilderLevel): Report {
           '): house ' +
           third.id +
           ' stands in the steps',
+        viaName(e.via ?? '') +
+          ' from house ' +
+          e.a +
+          ' to ' +
+          e.b +
+          ' are blocked by house ' +
+          third.id +
+          '.',
+        'Move house ' + third.id + ' out of the strip between them, or remove these steps.',
+        [e.a, e.b, third.id],
+        [e.id],
       );
   }
-  if (l.houses.length < 2) r.errors.push('need at least 2 houses');
-  if (l.start === -1) r.errors.push('no start house');
-  if (l.goal === -1) r.errors.push('no goal house');
-  if (l.start !== -1 && l.start === l.goal) r.errors.push('start and goal are the same house');
+  if (l.houses.length < 2)
+    add(
+      'error',
+      'few',
+      'need at least 2 houses',
+      'A level needs at least 2 houses.',
+      'Pick Add house and click the canvas.',
+    );
+  if (l.start === -1)
+    add(
+      'error',
+      'nostart',
+      'no start house',
+      'No start house is set.',
+      'Click a house, then press Set start.',
+    );
+  if (l.goal === -1)
+    add(
+      'error',
+      'nogoal',
+      'no goal house',
+      'No goal house is set.',
+      'Click a house, then press Set goal.',
+    );
+  if (l.start !== -1 && l.start === l.goal)
+    add(
+      'error',
+      'samesg',
+      'start and goal are the same house',
+      'Start and goal are the same house.',
+      'Choose a different house for the goal.',
+      [l.start],
+    );
   if (r.errors.length > 0) {
     r.ok = false;
     return r;
   }
+  r.checked = true;
   const ns = buildNodeSet(l);
   const roofs = l.houses.map((h) => ns.nodes[ns.roofOf.get(h.id) as number]);
   const declared: MazeEdge[] = [];
@@ -297,7 +399,22 @@ export function validate(l: BuilderLevel): Report {
     const c = checkEdge(e, ns);
     r.edgeChecks.push(c);
     if (!c.ok) {
-      r.errors.push('edge ' + e.a + ' -> ' + e.b + ' (' + (e.via ?? 'zip') + '): ' + c.note);
+      add(
+        'error',
+        'edge:' + e.id,
+        'edge ' + e.a + ' -> ' + e.b + ' (' + (e.via ?? 'zip') + '): ' + c.note,
+        viaName(e.kind === 'zip' ? 'zip' : (e.via ?? 'jump')) +
+          ' from house ' +
+          e.a +
+          ' to ' +
+          e.b +
+          " doesn't work: " +
+          c.note +
+          '.',
+        edgeFix(e),
+        [e.a, e.b],
+        [e.id],
+      );
       continue;
     }
     const from = ns.roofOf.get(e.a) as number;
@@ -339,13 +456,62 @@ export function validate(l: BuilderLevel): Report {
     .filter((nd) => nd.kind === NODE_ROOF && !stats.reach[nd.id])
     .map((nd) => nd.house);
   if (!r.declaredReach)
-    r.errors.push('no drawn path from start to goal (check edges and touching houses)');
+    add(
+      'error',
+      'nopath',
+      'no drawn path from start to goal (check edges and touching houses)',
+      'There is no route from the start to the goal.',
+      'Link houses with ziplines, jumps or steps (or touch them) so the start leads to the goal.',
+      [l.start, l.goal],
+    );
   if (r.declaredReach && !r.derivedReach)
-    r.warnings.push('drawn path exists but the model finds none: re-check edges');
+    add(
+      'warn',
+      'noderived',
+      'drawn path exists but the model finds none: re-check edges',
+      'Your drawn route exists, but the physics model finds no way along it.',
+      'Re-check the links on the route; one may only just work.',
+    );
   if (r.unreached.length > 0)
-    r.warnings.push(r.unreached.length + ' house(s) cannot be reached from the start');
+    add(
+      'warn',
+      'unreached',
+      r.unreached.length + ' house(s) cannot be reached from the start',
+      'House ' +
+        r.unreached.join(', ') +
+        (r.unreached.length > 1 ? ' cannot' : ' cannot') +
+        ' be reached from the start.',
+      'Link them in, or delete them if they are not part of the level.',
+      r.unreached,
+    );
   r.ok = r.errors.length === 0;
   return r;
+}
+
+/** The first error that `next` has and `prev` did not (tied to a house or edge), else null. Edits that add one are refused. */
+export function newProblem(prev: Report, next: Report): Problem | null {
+  // The earlier state stopped at basic errors (overlap, no start...): its link checks never ran, so what
+  // they now report is not something this edit caused. Fixing the basics must not be refused.
+  if (!prev.checked) return null;
+  const had = new Set(prev.problems.map((p) => p.key));
+  return (
+    next.problems.find(
+      (p) => p.level === 'error' && (p.houses.length > 0 || p.edges.length > 0) && !had.has(p.key),
+    ) ?? null
+  );
+}
+
+export type LinkChoice = 'zip' | GapVia;
+
+/** Which link types a→b would be accepted for (adds no problem). Used for hints and refusal messages. */
+export function linkOptions(l: BuilderLevel, a: number, b: number): Record<LinkChoice, boolean> {
+  const before = validate(l);
+  const out = {} as Record<LinkChoice, boolean>;
+  for (const k of ['zip', 'jump', 'tramp', 'cushion', 'boxes', 'stairs'] as const) {
+    const next = k === 'zip' ? addEdge(l, a, b, 'zip') : addEdge(l, a, b, 'gap', k);
+    out[k] = next !== l && newProblem(before, validate(next)) === null;
+  }
+  return out;
 }
 
 type Box = { min: [number, number, number]; max: [number, number, number] };
