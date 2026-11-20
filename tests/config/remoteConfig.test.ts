@@ -83,7 +83,7 @@ describe('resolveCfg with a remote overlay', () => {
     const h = (c = resolveCfg('classic')) => cfgHash('l1', l1.version, c);
     const a = await h();
     expect(await h()).toBe(a);
-    expect(a).toBe('8fe22192c3687801');
+    expect(a).toBe('ff48b1ef5a571571');
     const b = await h(resolveCfg('classic', rowsToOverrides(rows({ 'hero.sprintSpeed': 12 }))));
     expect(b).not.toBe(a);
     expect(await h(resolveCfg('classic', rowsToOverrides(rows({ 'hero.sprintSpeed': 12 }))))).toBe(

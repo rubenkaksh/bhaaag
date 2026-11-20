@@ -68,8 +68,8 @@ describe('Dragon Chase board (L7)', () => {
     );
     expect(a).not.toBe(b);
     expect(await cfgHash('endless', 1, t, ['chase'])).toBe(a);
-    // the migration seeds this exact value (supabase/migrations/20261119000500_chase_board.sql)
-    expect(a).toBe('1f497a591d9ba73a');
+    // the migration seeds this exact value (supabase/migrations/20261120000000_seed_cfg_versions_sprint.sql)
+    expect(a).toBe('e3734a98eae3643e');
   });
   it('leaves the Classic hash unchanged (no extra sections)', async () => {
     const t = resolveCfg('classic');
