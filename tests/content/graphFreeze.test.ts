@@ -20,6 +20,8 @@ const FROZEN: Record<string, string> = {
   // launch zone, spawn moved 2.8 m left of it. A shipped-level edit by explicit owner-reported bug; future changes are new levels.
   'valley-1': '2bd8c4e1',
   'home-street': 'da373009',
+  // New 2026-11-20 (Hay Run, kit v2 archetypes C1/C2/C3 over placer v1); frozen from here on.
+  'hay-run': '688106b4',
 };
 
 describe('graph level freeze', () => {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { compileLevel } from '../../src/content/builder/compile';
-import { sampleLevel } from '../../src/content/builder/sample';
+import { kitSampleLevel, sampleLevel } from '../../src/content/builder/sample';
 import { compileShipped, shippedBuilderLevels } from '../../src/content/builder/shipped';
 import {
   hasLocalBuilderLevel,
@@ -47,6 +47,13 @@ describe('builder hand-off (production path)', () => {
   it('shipped builder levels (content/builders) all validate and compile', () => {
     for (const l of shippedBuilderLevels()) expect(compileShipped(l.id)).not.toBeNull();
     expect(compileShipped('no-such-level')).toBeNull();
+  });
+  it('a kit v2 level round-trips through the production hand-off', () => {
+    // @ts-expect-error minimal Storage stub
+    globalThis.localStorage = new MemStorage();
+    const lv = compileLevel(kitSampleLevel());
+    expect(savePlayLevel(lv)).toBe(true);
+    expect(readLocalBuilderLevel()).toEqual(JSON.parse(JSON.stringify(lv)));
   });
 
   it('rejects a stored level that fails the world schema', () => {

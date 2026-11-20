@@ -70,7 +70,9 @@ for (const entry of GRAPH_LEVELS) {
     it('places awnings on decoy houses only where nothing else stands (review S4)', () => {
       const withAwning = placed.houses.filter((h) => h.awnings.length > 0);
       expect(withAwning.length).toBeGreaterThan(0);
-      for (const h of withAwning) expect(h.id).toBeGreaterThanOrEqual(100);
+      // route houses only carry an awning when their kit v2 archetype (C1 lean-to) asks for one
+      const arch = new Set(g.nodes.filter((n) => n.archetype !== undefined).map((n) => n.id));
+      for (const h of withAwning) expect(h.id >= 100 || arch.has(h.id)).toBe(true);
     });
 
     it('zip source roofs have real geometry: not a party wall, windows kept, gap cut in the parapet', () => {

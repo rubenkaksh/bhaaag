@@ -24,6 +24,7 @@ export const MODE_OVERRIDES: Record<GameMode, TuningOverride> = {
   home: {},
   'g:valley-1': {},
   'g:home-street': {},
+  'g:hay-run': {},
 };
 
 /**

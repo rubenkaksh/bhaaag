@@ -8,7 +8,9 @@ import { FLAGS } from './placeDecor';
 import {
   HK,
   balconyDoor,
+  balconyPosts,
   balconyRails,
+  balconyWidth,
   deckY,
   faceNormal,
   faceRect,
@@ -101,7 +103,9 @@ const c = (hex: string): Color => new Color(hex);
 class Out {
   readonly kit: DecorKit;
   readonly boxes: HouseDecorBox[] = [];
+  readonly home: boolean;
   constructor(houses: number, home = false) {
+    this.home = home;
     this.kit = new DecorKit(houses, home);
   }
   box(
@@ -324,7 +328,7 @@ function dressHouse(
   // Balcony deck and rails.
   if (h.balcony !== -1) {
     const b = h.balcony;
-    const hw = HK.balconyW / 2;
+    const hw = balconyWidth(h) / 2;
     const top = g + HK.balconyTop;
     o.rect(
       'deck',
@@ -354,6 +358,20 @@ function dressHouse(
       }
     }
   }
+
+  // Verandah posts of a full-width balcony (wood, same rects as the solids).
+  if (h.balcony !== -1) {
+    const posts = balconyPosts(h);
+    for (let i = 0; i < posts.length; i++) {
+      const pp = posts[i];
+      const r = faceRect(h, h.balcony, pp.s0, pp.s1, pp.d0, pp.d1);
+      o.rect('body', 'post', r, g, g + HK.balconyTop - HK.balconyThick, wood, h.id);
+    }
+  }
+
+  if (h.eave === true && h.roof !== 'gable') eaveSkirt(o, h);
+  if (h.roof === 'gable') gableRoof(o, h, plaster, home);
+  if (h.ladder !== undefined) ladderDecor(o, h, h.ladder);
 
   // Outside stairs: 16 tread blocks along the ramp (tops on the ramp surface at mid-tread).
   if (h.stairs !== null) {
@@ -422,6 +440,114 @@ function dressHouse(
   }
 }
 
+const EAVE_OUT = 0.5; // skirt hangs this far out and down from the deck edge
+const GABLE_OVERHANG = 0.3;
+
+/**
+ * Render only: a clay-tiled skirt, a 45 degree slab hanging 0.5 m out and down from each non-party
+ * deck edge, below the parapet. No collider, so it never reads as standable above the deck height.
+ * The clay map goes on the skirt only, never on the walkable deck (terracotta means danger).
+ */
+function eaveSkirt(o: Out, h: HouseSpec): void {
+  const k = HK.half;
+  const deck = deckY(h);
+  const len = Math.hypot(EAVE_OUT, EAVE_OUT);
+  for (let f = 0; f < 4; f++) {
+    if (h.party[f]) continue;
+    const face = f as Face;
+    const n = faceNormal(face);
+    const d = k + EAVE_OUT / 2;
+    const ok = o.kit.add(
+      // 'roof' takes the clay tile (look 'home'); other looks keep a flat tint
+      o.home ? 'roof' : 'cornice',
+      h.cx + n[0] * d,
+      deck - 0.12 - EAVE_OUT / 2 - 0.04,
+      h.cz + n[1] * d,
+      2 * k + 2 * EAVE_OUT,
+      0.08,
+      len,
+      yawOf(face),
+      c(HOME_CLAY),
+      Math.PI / 4,
+    );
+    if (ok) {
+      const r = faceRect(h, face, -k - EAVE_OUT, k + EAVE_OUT, k, k + EAVE_OUT);
+      o.boxes.push({
+        kind: 'eave',
+        min: [r.x0, deck - 0.12 - EAVE_OUT, r.z0],
+        max: [r.x1, deck - 0.12, r.z1],
+        house: h.id,
+      });
+    }
+  }
+}
+
+/** Render only: the gable roof (two tin slabs, ridge along x) and the stepped plaster gable ends. */
+function gableRoof(o: Out, h: HouseSpec, plaster: Color, home: boolean): void {
+  const k = HK.half;
+  const deck = deckY(h);
+  const rise = HK.gableRise;
+  const len = Math.hypot(k, rise) + GABLE_OVERHANG;
+  const pitch = Math.atan2(rise, k);
+  for (const face of [2, 3] as Face[]) {
+    const n = faceNormal(face);
+    const d = k / 2 + GABLE_OVERHANG / 2;
+    const ok = o.kit.add(
+      home ? 'homeTin' : 'cornice',
+      h.cx + n[0] * d,
+      deck + (rise * (k - d)) / k - 0.04,
+      h.cz + n[1] * d,
+      2 * k + 0.6,
+      0.08,
+      len,
+      yawOf(face),
+      c(HOME_TIN),
+      pitch,
+    );
+    if (ok) {
+      const r = faceRect(h, face, -k - 0.3, k + 0.3, 0, k + GABLE_OVERHANG);
+      o.boxes.push({
+        kind: 'gable',
+        min: [r.x0, deck, r.z0],
+        max: [r.x1, deck + rise, r.z1],
+        house: h.id,
+      });
+    }
+  }
+  // gable ends: three stepped slabs filling the triangle under the roof (both x ends are walls)
+  for (let i = 0; i < 3; i++) {
+    const hw = k * (1 - (i + 1) / 3);
+    o.box(
+      'body',
+      'gableEnd',
+      h.cx - k,
+      deck + (rise * i) / 3,
+      h.cz - hw,
+      h.cx + k,
+      deck + (rise * (i + 1)) / 3,
+      h.cz + hw,
+      plaster,
+      h.id,
+    );
+  }
+}
+
+/** Render only: a ladder on a wall face, two rails and rungs up to the deck. No collider. */
+function ladderDecor(o: Out, h: HouseSpec, f: Face): void {
+  const k = HK.half;
+  const g = h.groundY;
+  const top = deckY(h) - 0.2;
+  const wood = c(WOOD[1]);
+  for (const s of [-0.28, 0.28]) {
+    const r = faceRect(h, f, s - 0.03, s + 0.03, k + 0.02, k + 0.1);
+    o.rect('body', 'ladderRail', r, g, top, wood, h.id);
+  }
+  for (let y = g + 0.4; y < top; y += 0.4) {
+    const r = faceRect(h, f, -0.25, 0.25, k + 0.04, k + 0.08);
+    o.rect('body', 'ladderRung', r, y, y + 0.04, wood, h.id);
+  }
+}
+
 /**
  * Rects (world xz) of a deck where a render-only rooftop tank must not stand: a strip along every
  * takeoff, run-out and party edge, the zipline launch zone (3 x 3 m, 2 m toward -z of the centre,
@@ -449,7 +575,7 @@ export function tankKeepOut(h: HouseSpec): Rect[] {
 
 /** look 'home': a water tank in one free deck corner of some 2-storey houses (seeded). Render only. */
 function roofTank(o: Out, h: HouseSpec, seed: number): void {
-  if (h.storeys !== 2) return;
+  if (h.storeys !== 2 || h.roof === 'gable') return;
   const rng = mulberry32((h.id * 104729 + seed * 31 + 7) >>> 0);
   const roll = rng();
   const start = Math.floor(rng() * 4);
@@ -484,6 +610,7 @@ function roofTank(o: Out, h: HouseSpec, seed: number): void {
  * or roof-stairs edge, and never within 3 m of the zipline pole anchor.
  */
 function flagLine(o: Out, h: HouseSpec, seed: number): void {
+  if (h.roof === 'gable') return;
   const rng = mulberry32((h.id * 15485863 + seed * 17 + 3) >>> 0);
   const roll = rng();
   const start = Math.floor(rng() * 4);
@@ -730,6 +857,26 @@ function hayCover(o: Out, p: PropSpec): void {
   for (let i = 0; i < bands.length; i++) {
     // `tank` is the home kit's straw-textured unit box (DecorKit, named decor_homeStraw)
     ok = o.kit.add('tank', p.x, g + bands[i], p.z, wide, 0.12, wide, p.yaw, c(HOME_STRAW)) && ok;
+  }
+  // Medium/High only (`trim` is hidden on Low): a stepped straw dome on the cushion top. Render only;
+  // the cushion slab the sim reads is unchanged, so a landing just sinks into the dome.
+  if (ok) {
+    let y = top + 0.02;
+    const steps: [number, number][] = [
+      [0.72, 0.1],
+      [0.5, 0.1],
+      [0.28, 0.08],
+    ];
+    for (const [f, hgt] of steps) {
+      const w = HK.haySize * f;
+      ok = o.kit.add('trim', p.x, y, p.z, w, hgt, w, p.yaw, c(HOME_STRAW)) && ok;
+      y += hgt;
+    }
+    o.boxes.push({
+      kind: 'hayDome',
+      min: [p.x - HK.haySize * 0.36, top + 0.02, p.z - HK.haySize * 0.36],
+      max: [p.x + HK.haySize * 0.36, y, p.z + HK.haySize * 0.36],
+    });
   }
   if (ok) {
     o.boxes.push({

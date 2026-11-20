@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_TUNING } from '../../src/core/config';
+import { HeroState } from '../../src/core/hero';
+import { InputFrame } from '../../src/core/input';
+import { step } from '../../src/core/sim';
+import { planeY } from '../../src/content/strategy/gen';
 import { loadWorldFromObject } from '../../src/content/load';
-import { compileLevel, validate } from '../../src/content/builder/compile';
+import { compileLevel, roofHeight, validate } from '../../src/content/builder/compile';
 import { addEdge, addHouse, setGoal, setStart } from '../../src/content/builder/model';
-import { emptyLevel, parseBuilderLevel } from '../../src/content/builder/format';
+import {
+  emptyLevel,
+  parseBuilderLevel,
+  serializeBuilderLevel,
+} from '../../src/content/builder/format';
 import type { BuilderLevel } from '../../src/content/builder/format';
-import { sampleLevel } from '../../src/content/builder/sample';
+import { kitSampleLevel, sampleLevel } from '../../src/content/builder/sample';
 
 function two(
   gapZ: number,
@@ -114,6 +123,57 @@ describe('compileLevel', () => {
     l.houses[1].x = 4;
     l.houses[1].z = 0;
     expect(() => compileLevel(l)).toThrow(/overlap/);
+  });
+});
+
+describe('kit v2 archetype houses', () => {
+  it('a house without archetype compiles exactly as before (sample is byte-identical in shape)', () => {
+    const l = sampleLevel();
+    expect(l.houses.every((h) => h.archetype === undefined)).toBe(true);
+    expect(roofHeight(l.houses[0])).toBe(planeY(0) + 11);
+  });
+
+  it('archetype houses use the kit decks 3.2 / 6.0 m and the sample validates', () => {
+    const l = kitSampleLevel();
+    const r = validate(l);
+    expect(r.errors).toEqual([]);
+    expect(roofHeight(l.houses[2])).toBeCloseTo(planeY(-30) + 0.4 + 2.8, 5);
+    expect(roofHeight(l.houses[1])).toBeCloseTo(planeY(-30) + 0.4 + 5.6, 5);
+  });
+
+  it('emits through emitHouse: parapets, party walls and a loadable level', () => {
+    const l = kitSampleLevel();
+    const json = compileLevel(l);
+    const w = loadWorldFromObject(json);
+    expect(w.lines.length).toBe(1);
+    expect((json.ramps ?? []).length).toBeGreaterThan(0); // C1 and C3 ramps/awnings
+    const plain = compileLevel(sampleLevel());
+    expect(plain.ramps).toEqual([]);
+    // touching C2hi/C2lo share a wall: fewer parapets than two isolated copies
+    const solo = { ...l, houses: [l.houses[1], l.houses[4]], edges: [], start: 1, goal: 4 };
+    const pair = { ...l, houses: [l.houses[1], { ...l.houses[2] }], edges: [], start: 1, goal: 2 };
+    expect(compileLevel(pair).solids.length).toBeLessThan(compileLevel(solo).solids.length);
+  });
+
+  it('rejects an invalid kit spec and an unknown archetype', () => {
+    const l = kitSampleLevel();
+    expect(() =>
+      parseBuilderLevel(JSON.stringify({ ...l, houses: [{ ...l.houses[0], archetype: 'Z9' }] })),
+    ).toThrow(/invalid builder level/);
+    expect(parseBuilderLevel(serializeBuilderLevel(l))).toEqual(l);
+  });
+
+  it('the start deck holds the hero: spawn stands on the C1 roof', () => {
+    const json = compileLevel(kitSampleLevel());
+    const w = loadWorldFromObject(json);
+    const s = new HeroState();
+    s.px = w.spawn.x;
+    s.py = w.spawn.y;
+    s.pz = w.spawn.z;
+    const y0 = s.py;
+    for (let i = 0; i < 120; i++) step(s, new InputFrame(), w, DEFAULT_TUNING);
+    expect(s.dead).toBe(0);
+    expect(Math.abs(s.py - y0)).toBeLessThan(0.1);
   });
 });
 

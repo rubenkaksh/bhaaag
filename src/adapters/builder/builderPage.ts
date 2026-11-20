@@ -23,6 +23,7 @@ import {
   History,
   addEdge,
   addHouse,
+  archetypeStoreys,
   blocked,
   houseById,
   moveHouse,
@@ -33,7 +34,9 @@ import {
   snapPosition,
   updateHouse,
 } from '../../content/builder/model';
-import { sampleLevel } from '../../content/builder/sample';
+import { ARCHETYPE_IDS } from '../../content/house/archetypes';
+import type { ArchetypeId } from '../../content/house/archetypes';
+import { kitSampleLevel, sampleLevel } from '../../content/builder/sample';
 import { loadDraft, saveDraft } from '../../content/builder/draft';
 import { savePlayLevel } from '../../content/builder/store';
 import {
@@ -121,6 +124,7 @@ export function mountBuilder(root: HTMLElement): void {
   let tool: Tool = 'select';
   let via: GapVia = 'jump';
   let storeys: 1 | 2 = 1;
+  let newArch: ArchetypeId | undefined; // palette pick for new houses; undefined = plain box
   let sel = -1;
   let report: Report = validate(hist.present);
   let msg = '';
@@ -448,7 +452,7 @@ export function mountBuilder(root: HTMLElement): void {
         setStatus('Not allowed: that spot overlaps another house.', 'bad');
         return;
       }
-      const next = addHouse(l, s.x, s.z, storeys);
+      const next = addHouse(l, s.x, s.z, storeys, newArch);
       sel = next.houses[next.houses.length - 1].id;
       commit(next);
       return;
@@ -707,13 +711,15 @@ export function mountBuilder(root: HTMLElement): void {
           ? '<div class="note">Solid gold line = fixed zipline, from a higher roof down to a lower one.</div>'
           : '') +
       `<h3>New house size</h3><div class="grid"><button class="big ${storeys === 1 ? 'on' : ''}" data-st="1">${icon('house1', 26)}1 storey</button><button class="big ${storeys === 2 ? 'on' : ''}" data-st="2">${icon('house2', 26)}2 storeys</button></div>
+      New houses: <select data-f="newarch"><option value="">plain box (uses size above)</option>${ARCHETYPE_IDS.map((a) => `<option ${a === newArch ? 'selected' : ''}>${a}</option>`).join('')}</select>
       <div class="note">Cream bar between houses = they touch (adjoining).</div>
       <h3>${h === undefined ? 'House' : 'House #' + h.id}</h3>` +
       (h === undefined
         ? '<div class="note">Click a house to edit it.</div>'
-        : `<div class="grid"><button class="big ${h.storeys === 1 ? 'on' : ''}" data-sto="1">${icon('house1', 26)}1 storey</button><button class="big ${h.storeys === 2 ? 'on' : ''}" data-sto="2">${icon('house2', 26)}2 storeys</button></div>
+        : `<div class="grid"><button class="big ${h.storeys === 1 ? 'on' : ''}" data-sto="1" ${h.archetype === undefined ? '' : 'disabled'}>${icon('house1', 26)}1 storey</button><button class="big ${h.storeys === 2 ? 'on' : ''}" data-sto="2" ${h.archetype === undefined ? '' : 'disabled'}>${icon('house2', 26)}2 storeys</button></div>
            lift <input type="number" step="0.5" min="0" max="12" data-f="lift" value="${h.lift}"> m &nbsp; roof ${roofHeight(h).toFixed(1)} m
-           <label class="row">${icon('balcony', 18)}<input type="checkbox" data-f="balcony" ${h.balcony ? 'checked' : ''}> balcony</label>
+           <label class="row">${icon('balcony', 18)}<input type="checkbox" data-f="balcony" ${h.balcony ? 'checked' : ''} ${h.archetype === undefined ? '' : 'disabled'}> balcony</label>
+            type <select data-f="arch"><option value="">plain box</option>${ARCHETYPE_IDS.map((a) => `<option ${a === h.archetype ? 'selected' : ''}>${a}</option>`).join('')}</select><br>
            ${btn('start', 'start', 'Set start')}${btn('goal', 'goal', 'Set goal')}${btn('del', 'del', 'Delete')}`) +
       `<h3>Edit</h3>${btn('undo', 'undo', 'Undo', hist.canUndo ? '' : 'disabled')}${btn('redo', 'redo', 'Redo', hist.canRedo ? '' : 'disabled')}
       <h3>Check</h3><div class="row ${r.ok ? 'ok' : 'err'}">${icon(r.ok ? 'ok' : 'error', 20)}<b>${r.ok ? 'Valid: start reaches goal' : nErr + ' problem' + (nErr === 1 ? '' : 's') + ' to fix'}</b></div>` +
@@ -725,7 +731,7 @@ export function mountBuilder(root: HTMLElement): void {
       ${btn('copy', 'copy', 'Copy report')}
       <details><summary>Report text (select to copy)</summary><textarea readonly data-f="report">${esc(reportText())}</textarea></details>
       <h3>File</h3>${btn('play', 'play', 'Play this level')}${btn('export', 'download', 'Download JSON')}
-      ${btn('import', 'import', 'Import…')}${btn('new', 'new', 'New')}${btn('sample', 'sample', 'Sample')}
+      ${btn('import', 'import', 'Import…')}${btn('new', 'new', 'New')}${btn('sample', 'sample', 'Sample')}${btn('kit', 'sample', 'Kit sample')}
       <input type="file" accept=".json,application/json" data-f="file" hidden>
       <h3>Library</h3>${btn('save', 'save', 'Save to library')}` +
       (readLibrary().length === 0
@@ -830,6 +836,9 @@ export function mountBuilder(root: HTMLElement): void {
     } else if (d.act === 'new') {
       sel = -1;
       return commit(emptyLevel('level-' + Date.now().toString(36), 'New level'));
+    } else if (d.act === 'kit') {
+      sel = -1;
+      return commit(kitSampleLevel());
     } else if (d.act === 'sample') {
       sel = -1;
       return commit(sampleLevel());
@@ -857,7 +866,19 @@ export function mountBuilder(root: HTMLElement): void {
       void commitChecked(
         updateHouse(l, sel, { lift: Math.max(0, Math.min(12, Number(t.value) || 0)) }),
       );
-    else if (f === 'balcony' && sel !== -1)
+    else if (f === 'newarch') newArch = t.value === '' ? undefined : (t.value as ArchetypeId);
+    else if (f === 'arch' && sel !== -1) {
+      const a = t.value === '' ? undefined : (t.value as ArchetypeId);
+      void commitChecked(
+        updateHouse(
+          l,
+          sel,
+          a === undefined
+            ? { archetype: undefined }
+            : { archetype: a, storeys: archetypeStoreys(a) },
+        ),
+      );
+    } else if (f === 'balcony' && sel !== -1)
       void commitChecked(updateHouse(l, sel, { balcony: t.checked }));
     else if (f === 'file' && t.files !== null && t.files[0] !== undefined) {
       void t.files[0].text().then((text) => {

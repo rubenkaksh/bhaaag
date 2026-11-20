@@ -1,5 +1,7 @@
 // Graph level file format (ADR 0013 section 3.1).
 import { z } from 'zod';
+import { ARCHETYPE_IDS } from '../house/archetypes';
+import type { ArchetypeId } from '../house/archetypes';
 
 const node = z.object({
   id: z.number().int().min(1),
@@ -7,6 +9,10 @@ const node = z.object({
   balcony: z.boolean().optional(), // else rng (2-storey only)
   /** Optional camera heading override in degrees (0 faces +z, +90 faces +x); only path-camera levels read it. */
   heading: z.number().min(-360).max(360).optional(),
+  /** Optional kit v2 archetype (A1-C3): fixes storeys, balcony, awnings, roof etc. Absent = the placer's rng house. */
+  archetype: z.enum(ARCHETYPE_IDS as [ArchetypeId, ...ArchetypeId[]]).optional(),
+  /** Optional ladder decor on this face (0 +x, 1 -x, 2 +z, 3 -z; node's own frame). Render only. */
+  ladder: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]).optional(),
 });
 
 const edge = z.object({

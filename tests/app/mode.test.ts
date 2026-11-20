@@ -30,6 +30,7 @@ describe('game modes', () => {
       'home',
       'g:valley-1',
       'g:home-street',
+      'g:hay-run',
     ]);
     expect(BEST_KEYS['g:valley-1']).toBe('bhagdori.best.g.valley-1');
     expect(parseMode('g:valley-1')).toBe('g:valley-1');

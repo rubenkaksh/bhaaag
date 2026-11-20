@@ -1,5 +1,6 @@
 import valley1 from '../../../content/graphs/valley-1.graph.json';
 import homeStreet from '../../../content/graphs/home-street.graph.json';
+import hayRun from '../../../content/graphs/hay-run.graph.json';
 import { parseGraph } from './format';
 import type { GraphLevel } from './format';
 import { GRAPH_INFO } from './info';
@@ -9,7 +10,11 @@ export interface GraphEntry extends GraphInfo {
   file: unknown;
 }
 
-const FILES: Record<string, unknown> = { 'valley-1': valley1, 'home-street': homeStreet };
+const FILES: Record<string, unknown> = {
+  'valley-1': valley1,
+  'home-street': homeStreet,
+  'hay-run': hayRun,
+};
 
 /** Metadata (info.ts) paired with each level's JSON file. Loaded lazily (T345). */
 export const GRAPH_LEVELS: readonly GraphEntry[] = GRAPH_INFO.map((g) => ({

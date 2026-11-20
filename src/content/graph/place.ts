@@ -1,10 +1,19 @@
 // Graph level placer v1 (ADR 0013 section 3.3). Pure TS: graph file + seed -> houses, props, patches,
 // lines and the level JSON. Frozen once a level ships (`placer: 1`); see tests/content/graphFreeze.test.ts.
+import { archetype, archetypeRoof, archetypeStoreys } from '../house/archetypes';
 import { emitHouse, emitProp, newDraft } from '../house/houseKit';
 import { HK, RUNOUT_GAP, deckY, poleAnchor, round6 } from '../house/houseSpec';
 import type { Face, HouseSpec, PropSpec } from '../house/houseSpec';
 import type { LevelJson } from '../load';
 import type { GraphEdge, GraphLevel } from './format';
+
+type GraphNode = GraphLevel['nodes'][number];
+
+/** Storeys a node fixes: its archetype's, else its own `storeys`, else undefined (the placer rolls). */
+function nodeStoreys(n: GraphNode | undefined): 1 | 2 | undefined {
+  if (n === undefined) return undefined;
+  return n.archetype !== undefined ? archetypeStoreys(n.archetype) : n.storeys;
+}
 
 export type P3 = [number, number, number];
 
@@ -175,7 +184,7 @@ function layout(g: GraphLevel, seed: number, opt?: SegOpt): Layout {
   const nodeDef = new Map(g.nodes.map((n) => [n.id, n]));
 
   const rollStoreys = (id: number): 1 | 2 => {
-    const d = nodeDef.get(id)?.storeys;
+    const d = nodeStoreys(nodeDef.get(id));
     const r = rng();
     return d ?? (r < 0.5 ? 1 : 2);
   };
@@ -208,7 +217,7 @@ function layout(g: GraphLevel, seed: number, opt?: SegOpt): Layout {
   const placeEdge = (e: GraphEdge, a: HouseSpec, bid: number, flip: boolean): void => {
     let tries = 0;
     for (;;) {
-      const def = nodeDef.get(bid)?.storeys;
+      const def = nodeStoreys(nodeDef.get(bid));
       const sb: 1 | 2 = def ?? (rng() < 0.5 ? 1 : 2);
       tries++;
       try {
@@ -275,7 +284,7 @@ function layout(g: GraphLevel, seed: number, opt?: SegOpt): Layout {
         }
         houses.set(bid, b);
         const dy = deckY(b) - deckA;
-        if (dy < -6.0 || dy > 2.8) throw new Fail('touch roof difference ' + dy);
+        if (dy < -6.0 || dy > 2.8 + 1e-6) throw new Fail('touch roof difference ' + dy);
         pe.up = dy > 0.3;
         pe.takeoff = [a.cx, deckA, a.cz];
         pe.landing = [b.cx, deckY(b), b.cz];
@@ -567,6 +576,33 @@ function layout(g: GraphLevel, seed: number, opt?: SegOpt): Layout {
     }
   }
 
+  // kit v2 archetypes and ladder decor on nodes that ask for them; placement keeps party, takeoff,
+  // run-out, pole and the lethal-side parapets. No rng draw, so nodes without one are unchanged.
+  for (const h of all()) {
+    if (h.id === handoff) continue; // already dressed by the previous run
+    const def = nodeDef.get(h.id);
+    if (def === undefined) continue;
+    if (def.archetype !== undefined) {
+      const over: Partial<HouseSpec> = {
+        party: h.party,
+        takeoff: h.takeoff,
+        runout: h.runout,
+        pole: h.pole,
+        poleFace: h.poleFace,
+      };
+      if (archetypeRoof(def.archetype) !== 'gable') over.tall = h.tall;
+      else over.runout = undefined;
+      Object.assign(h, archetype(def.archetype, h.id, h.cx, h.cz, h.groundY, over));
+      // a balcony cannot sit on a party wall either: mirror it to the opposite face
+      if (h.balcony >= 0 && h.party[h.balcony as Face]) h.balcony = (h.balcony ^ 1) as Face;
+      // an awning cannot sit on a party wall: mirror it to the opposite face, else drop it
+      h.awnings = h.awnings
+        .map((f) => (h.party[f] ? ((f ^ 1) as Face) : f))
+        .filter((f) => !h.party[f]);
+    }
+    if (def.ladder !== undefined) h.ladder = def.ladder;
+  }
+
   return { houses, props, patches, edges, hayPos: hayOut };
 }
 
@@ -719,6 +755,7 @@ function moveSpec(h: HouseSpec, map: MapXZ, kf: number): HouseSpec {
   const rf = (f: Face): Face => rotFace(f, kf);
   return {
     ...h,
+    ...(h.ladder !== undefined ? { ladder: rf(h.ladder) } : {}),
     cx,
     cz,
     party,
@@ -728,7 +765,7 @@ function moveSpec(h: HouseSpec, map: MapXZ, kf: number): HouseSpec {
     awnings: h.awnings.map(rf),
     takeoff: h.takeoff.map(rf),
     tall: h.tall.map(rf),
-    runout: (h.runout ?? []).map((r) => ({ ...r, face: rf(r.face) })),
+    runout: h.runout === undefined ? undefined : h.runout.map((r) => ({ ...r, face: rf(r.face) })),
   };
 }
 
@@ -791,7 +828,7 @@ function placeSegmentedOnce(g: GraphLevel, base: number): PlacedLevel {
       if (i > 0) start = moveSpec(world.get(sg.nodes[0]) as HouseSpec, loc, back);
       else {
         const r = mulberry32(base + t + 7777);
-        const def = g.nodes.find((n) => n.id === sg.nodes[0])?.storeys;
+        const def = nodeStoreys(g.nodes.find((n) => n.id === sg.nodes[0]));
         start = newHouse(sg.nodes[0], 0, 0, gyLocal(0), def ?? (r() < 0.5 ? 1 : 2));
       }
       const opt: SegOpt = {
