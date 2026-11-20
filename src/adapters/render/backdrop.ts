@@ -22,6 +22,7 @@ import {
   SRGBColorSpace,
   TextureLoader,
   type Fog,
+  type PerspectiveCamera,
   type Texture,
 } from 'three';
 
@@ -68,7 +69,13 @@ const PLATE_EYE_ROW_1 = 0.6; // eyeRow of the unscaled plate (see buildLayer: th
  * Lift of the whole plate in image heights (2026-11-19). The camera looks down at the hero, so in landscape the
  * frame top is only ~5-10 degrees above the horizon and the snow (0-4 degrees) hid behind the terrain rim.
  */
-export const PLATE_LIFT = -0.14;
+export const PLATE_LIFT = -0.17; // landscape nudged up a tad (owner 2026-11-20)
+/** Extra plate height in portrait (owner 2026-11-20: taller mountains). Blends in below aspect 1.2, full at 0.6. */
+export const PORTRAIT_PLATE_STRETCH = 0.4;
+export function plateStretch(aspect: number): number {
+  const t = Math.min(1, Math.max(0, (1.2 - aspect) / 0.6));
+  return 1 + PORTRAIT_PLATE_STRETCH * t;
+}
 const plateEyeRow = (s: number): number =>
   1 - PLATE_ANCHOR - (1 - PLATE_EYE_ROW_1 - PLATE_ANCHOR) / s - PLATE_LIFT;
 const tile = (r: number, n: number): number => (TAU * r) / n;
@@ -157,6 +164,12 @@ function buildLayer(spec: BackdropSpec, map: Texture | null): Mesh {
   mesh.onBeforeRender = (_r, scene, camera) => {
     // ride on the camera position only (ignores the parent group's offset and any rotation)
     mesh.matrixWorld.makeTranslation(camera.position.x, camera.position.y + dy, camera.position.z);
+    if (spec.name === 'plate') {
+      // portrait: stretch the plate upward, keeping its bottom edge (hidden behind the terrain) fixed
+      const sy = plateStretch((camera as PerspectiveCamera).aspect ?? 1);
+      mesh.matrixWorld.elements[13] += ((sy - 1) * spec.height) / 2;
+      mesh.matrixWorld.elements[5] = sy;
+    }
     if (spec.fogTint > 0) {
       const fog = scene.fog as Fog | null;
       mat.color.copy(whiteTint);

@@ -124,7 +124,7 @@ import type { ViewportLayout } from './viewport';
 
 const RESTART_ACCEPT_S = 0.3; // death: accept restart input after this
 const RESTART_AUTO_S = 0.8; // death: auto-restart after this
-const PAN_S = 2.5; // opening flyover from the goal back to the hero
+const PAN_S = 3.5; // opening drone shot from high above the run down to the hero
 const CHASE_PAN_S = 3.2; // chase opening: the dragon reveal, then back behind the hero
 const CHASE_OVER_DELAY_S = 1.1; // caught: the camera turns back before the card shows
 const CLOUD_FOG_COLOR = '#cdd0da';
@@ -938,9 +938,18 @@ export function startGame(
   const goalCy = (world.goal.min.y + world.goal.max.y) / 2;
   const goalCz = (world.goal.min.z + world.goal.max.z) / 2;
   const hasGoal = world.goal.max.y > world.goal.min.y;
-  const panStart = hasGoal
-    ? new Vec3(goalCx + 14, goalCy + 16, goalCz - 16)
-    : new Vec3(world.spawn.x + 14, world.spawn.y + 16, world.spawn.z - 30);
+  // Opening drone shot (owner 2026-11-20): starts high above the middle of the run, looking down at
+  // everything from spawn to goal, then settles behind the hero.
+  const panMidX = hasGoal ? (world.spawn.x + goalCx) / 2 : world.spawn.x;
+  const panMidY = hasGoal ? (world.spawn.y + goalCy) / 2 : world.spawn.y;
+  const panMidZ = hasGoal ? (world.spawn.z + goalCz) / 2 : world.spawn.z - 20;
+  const panExtent = hasGoal ? Math.hypot(goalCx - world.spawn.x, goalCz - world.spawn.z) : 40;
+  const panStart = new Vec3(
+    panMidX,
+    Math.max(world.spawn.y, hasGoal ? goalCy : world.spawn.y) + Math.min(260, Math.max(60, panExtent * 0.8)),
+    panMidZ + Math.min(120, panExtent * 0.35),
+  );
+  const panLook = new Vec3(panMidX, panMidY, panMidZ);
 
   /** Marker on the next route anchor, then the goal; hidden in pan/dead/won and within 3 m. */
   function updateWaypoint(fx: number, fy: number, fz: number): void {
@@ -1216,7 +1225,7 @@ export function startGame(
     if (phase === 'pan') {
       const k = smooth((panT + alpha * stepDt) / (cs !== null ? CHASE_PAN_S : PAN_S));
       const ps = cs !== null ? chasePanStart : panStart;
-      const pl = cs !== null ? chasePanLook : world.spawn;
+      const pl = cs !== null ? chasePanLook : panLook;
       camX = ps.x + (camX - ps.x) * k;
       camY = ps.y + (camY - ps.y) * k;
       camZ = ps.z + (camZ - ps.z) * k;
