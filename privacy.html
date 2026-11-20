@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bhaaag privacy</title>
+    <style>
+      body { font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; color: #221a14; background: #fff6e4; }
+      h1, h2 { line-height: 1.2; }
+      code { background: rgba(0, 0, 0, 0.07); padding: 0 0.25em; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <h1>Bhaaag privacy</h1>
+    <p>Bhaaag is a free browser game. You can play it without giving us anything. This page says what is stored if you choose to post a time to the leaderboard.</p>
+
+    <h2>What is stored on this device</h2>
+    <p>Your best times and settings, and, if you post a time, a random player id, a secret key and the name you typed (browser local storage, keys starting with <code>bhagdori.</code>). The secret key proves the id is yours.</p>
+
+    <h2>What is stored on our server</h2>
+    <p>Only if you post a time or use an invite link: your player id, a one-way hash of the secret key (never the key), the display name you typed, your finish times, an invite code, and who you are friends with. There is no email, login, password, location or advertising id. The server is a Supabase project hosted in Sydney, Australia.</p>
+
+    <h2>Who can see it</h2>
+    <p>Your display name and best Classic time are public on the leaderboard. Your friends list is visible only to you; friends boards show names and times only. Do not use your real name if you do not want it shown.</p>
+
+    <h2>Deleting your data</h2>
+    <p>After posting a time, open the win screen and choose <strong>Delete my data</strong> under the leaderboard. That removes your player, times and friend links from the server and forgets the id on this device. If you no longer have the device, you cannot prove the id is yours; contact the game owner through the GitHub repository (<code>rubenkaksh/bhaaag</code>) with your display name and we will remove it.</p>
+
+    <h2>Age and changes</h2>
+    <p>The game is for ages 13 and over. We will update this page if what is stored changes.</p>
+    <p><a href="./">Back to the game</a></p>
+  </body>
+</html>

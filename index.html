@@ -1,33 +1,19 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39; &#39;unsafe-inline&#39;; img-src &#39;self&#39; data: blob:; connect-src &#39;self&#39; https://ugnciyijcltlagilvtgl.supabase.co; font-src &#39;self&#39; data:; worker-src &#39;self&#39; blob:; base-uri &#39;self&#39;; form-action &#39;self&#39;; object-src &#39;none&#39;">
+
     <meta charset="UTF-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
     />
     <title>Bhaaag</title>
-    <script>
-      // ?debug shows uncaught errors on screen (phone testing without devtools).
-      if (location.search.indexOf('debug') >= 0) {
-        var dbg = function (m) {
-          var d = document.createElement('pre');
-          d.style.cssText =
-            'position:fixed;left:0;right:0;top:0;z-index:999;margin:0;padding:6px;background:#900;color:#fff;font:11px monospace;white-space:pre-wrap;max-height:60%;overflow:auto';
-          d.textContent = m;
-          (document.body || document.documentElement).appendChild(d);
-        };
-        window.addEventListener('error', function (e) {
-          dbg('ERR ' + e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno);
-        });
-        window.addEventListener('unhandledrejection', function (e) {
-          dbg('REJ ' + ((e.reason && e.reason.stack) || e.reason));
-        });
-      }
-    </script>
+    <script src="/bhaaag/debug.js"></script>
     <style>html,body{touch-action:none;-webkit-user-select:none;user-select:none;overscroll-behavior:none;background:#1d3a5c;width:100%;height:100%;margin:0;overflow:hidden}canvas#game{touch-action:none;width:100%;height:100%;display:block;position:fixed;inset:0}</style>
-    <script type="module" crossorigin src="/bhaaag/assets/index-DcOJ9aZf.js"></script>
-    <link rel="stylesheet" crossorigin href="/bhaaag/assets/index-BEWv31xp.css">
+    <script type="module" crossorigin src="/bhaaag/assets/index-C-esVf9a.js"></script>
+    <link rel="modulepreload" crossorigin href="/bhaaag/assets/schemas-OFkPvHgW.js">
+    <link rel="stylesheet" crossorigin href="/bhaaag/assets/index-BNYrOeam.css">
   </head>
   <body>
     <canvas id="game"></canvas>
