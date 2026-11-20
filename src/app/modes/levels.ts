@@ -30,9 +30,16 @@ export const SHOW_LEGACY_LEVELS = false;
 
 const HOME_LEVEL: LevelEntry = { id: DEFAULT_LEVEL, label: 'Nagarkot Home', key: 'home' };
 
+/** Hay Run (2026-11-20): the parkour-first graph level ships in the default Classic row, flag or not. */
+const HAY_LEVEL: LevelEntry = { id: 'hay-run', label: 'Hay Run', key: 'g:hay-run' };
+
 const LEGACY_LEVELS: readonly LevelEntry[] = [
   { id: 'l1', label: 'Descent', key: 'classic' },
-  ...GRAPH_LEVELS.map((g): LevelEntry => ({ id: g.id, label: g.label, key: `g:${g.id}` })),
+  ...GRAPH_LEVELS.filter((g) => g.id !== HAY_LEVEL.id).map((g): LevelEntry => ({
+    id: g.id,
+    label: g.label,
+    key: `g:${g.id}`,
+  })),
   { id: 'nagarkot', label: 'Nagarkot Run', key: 'strategy' },
   { id: 'village', label: 'Cloud Village', key: 'village' },
 ];
@@ -44,16 +51,14 @@ export function classicLevels(
   library: readonly LibraryMeta[] = visibleLibrary(),
 ): LevelEntry[] {
   // Saved builder levels flagged visible are listed whatever the legacy flag says.
-  const saved = library.map(
-    (b): LevelEntry => ({
-      id: LIBRARY_PREFIX + b.id,
-      label: b.name,
-      key: 'strategy',
-      builder: 'library',
-    }),
-  );
-  if (!showLegacy) return [HOME_LEVEL, ...saved];
-  const out: LevelEntry[] = [HOME_LEVEL, ...LEGACY_LEVELS];
+  const saved = library.map((b): LevelEntry => ({
+    id: LIBRARY_PREFIX + b.id,
+    label: b.name,
+    key: 'strategy',
+    builder: 'library',
+  }));
+  if (!showLegacy) return [HOME_LEVEL, HAY_LEVEL, ...saved];
+  const out: LevelEntry[] = [HOME_LEVEL, HAY_LEVEL, ...LEGACY_LEVELS];
   for (const b of shippedBuilderMeta()) {
     out.push({ id: 'b:' + b.id, label: b.name, key: 'strategy', builder: 'shipped' });
   }

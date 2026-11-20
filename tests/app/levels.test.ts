@@ -23,11 +23,12 @@ function memStore(init: Record<string, string> = {}) {
 const q = (s: string) => new URLSearchParams(s);
 
 describe('SHOW_LEGACY_LEVELS flag (T340)', () => {
-  it('ships off, with nagarkot-home the default', () => {
+  it('ships off, with nagarkot-home the default and Hay Run listed', () => {
     expect(SHOW_LEGACY_LEVELS).toBe(false);
     expect(DEFAULT_LEVEL).toBe('nagarkot-home');
-    expect(classicLevels(true).map((l) => l.id)).toEqual(['nagarkot-home']);
-    expect(classicLevels(false, false).map((l) => l.id)).toEqual(['nagarkot-home']);
+    expect(classicLevels(true).map((l) => l.id)).toEqual(['nagarkot-home', 'hay-run']);
+    expect(classicLevels(false, false).map((l) => l.id)).toEqual(['nagarkot-home', 'hay-run']);
+    expect(classicLevels(false, true).filter((l) => l.id === 'hay-run')).toHaveLength(1);
   });
   it('flag on: home first, legacy and builder levels back', () => {
     const ids = classicLevels(true, true).map((l) => l.id);

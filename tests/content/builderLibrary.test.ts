@@ -49,9 +49,9 @@ describe('builder library', () => {
   });
 
   it('lobby lists only visible saved levels, even with legacy levels off', () => {
-    expect(classicLevels(false, false, []).map((e) => e.id)).toEqual(['nagarkot-home']);
+    expect(classicLevels(false, false, []).map((e) => e.id)).toEqual(['nagarkot-home', 'hay-run']);
     const row = classicLevels(false, false, [{ id: 'x', name: 'X', visible: true }]);
-    expect(row.map((e) => e.id)).toEqual(['nagarkot-home', 'l:x']);
-    expect(row[1].builder).toBe('library');
+    expect(row.map((e) => e.id)).toEqual(['nagarkot-home', 'hay-run', 'l:x']);
+    expect(row[2].builder).toBe('library');
   });
 });
