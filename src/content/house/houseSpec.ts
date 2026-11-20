@@ -31,6 +31,14 @@ export interface HouseSpec {
    * tangent offset `s`, where the rope chord leaves the deck. The rest of the face stays closed.
    */
   runout?: { face: Face; s: number; w?: number }[];
+  /** Balcony as wide as the front (7.6 m) with 3 solid posts under it (archetype C1). Needs `balcony`, no stairs. */
+  balconyFull?: boolean;
+  /** 'gable': two slip-1 ramps instead of a deck, no parapets (archetype C3). Default 'flat'. */
+  roof?: 'flat' | 'gable';
+  /** Render only: clay-tiled eave skirt hanging off each non-party deck edge (archetype C2). */
+  eave?: boolean;
+  /** Render only: ladder decor (two rails and rungs, no collider) on this face. */
+  ladder?: Face;
 }
 
 export const RUNOUT_GAP = 1.6;
@@ -87,6 +95,9 @@ export const HK = {
   parapetTall: 1.2, // not vaultable
   balconyW: 3.0,
   balconyD: 1.2,
+  balconyFullW: 7.6, // full-width verandah balcony
+  postW: 0.25, // verandah post, square
+  gableRise: 2.3, // 30 degree gable over a 4 m half span
   balconyThick: 0.2,
   balconyTop: 3.2, // above ground: first floor line
   railH: 0.9,
@@ -204,6 +215,15 @@ export function validateHouse(h: HouseSpec): void {
     if (h.storeys !== 2) fail('balcony needs 2 storeys');
     open(h.balcony, 'balcony');
   }
+  if (h.balconyFull === true) {
+    if (h.balcony === -1) fail('balconyFull needs a balcony');
+    if (h.stairs !== null) fail('balconyFull and stairs on one house');
+  }
+  if (h.roof === 'gable') {
+    if (h.pole || h.takeoff.length > 0 || h.tall.length > 0 || h.runout !== undefined)
+      fail('a gable roof has no pole, takeoff, tall parapet or runout');
+    if (h.stairs !== null && h.stairs.to === 'roof') fail('no roof stairs on a gable roof');
+  }
   if (h.stairs !== null) {
     open(h.stairs.face, 'stairs');
     if (h.stairs.to === 'balcony') {
@@ -255,7 +275,7 @@ function subtract(spans: Span[], cut: Span): Span[] {
  * corner where the x face has its own strip, so strips never overlap.
  */
 export function parapetSegments(h: HouseSpec, f: Face): Span[] {
-  if (h.party[f]) return [];
+  if (h.party[f] || h.roof === 'gable') return [];
   const half = HK.half;
   let lo = -half;
   let hi = half;
@@ -295,10 +315,24 @@ export interface RailRect {
   d1: number;
 }
 
+/** Balcony width: 3.0 m, or 7.6 m with `balconyFull`. */
+export function balconyWidth(h: HouseSpec): number {
+  return h.balconyFull === true ? HK.balconyFullW : HK.balconyW;
+}
+
+/** The three verandah posts under a full balcony (tangent and depth rects on the balcony face); none otherwise. */
+export function balconyPosts(h: HouseSpec): RailRect[] {
+  if (h.balcony === -1 || h.balconyFull !== true) return [];
+  const front = HK.half + HK.balconyD;
+  const w = HK.postW;
+  const at = [-(balconyWidth(h) / 2 - w / 2 - 0.05), 0, balconyWidth(h) / 2 - w / 2 - 0.05];
+  return at.map((s) => ({ s0: s - w / 2, s1: s + w / 2, d0: front - w - 0.05, d1: front - 0.05 }));
+}
+
 /** Rails on the three open sides of the balcony; a 1.0 m gap on the stairs side. */
 export function balconyRails(h: HouseSpec): RailRect[] {
   if (h.balcony === -1) return [];
-  const hw = HK.balconyW / 2;
+  const hw = balconyWidth(h) / 2;
   const front = HK.half + HK.balconyD;
   const t = HK.railThick;
   const out: RailRect[] = [{ s0: -hw, s1: hw, d0: front - t, d1: front }];

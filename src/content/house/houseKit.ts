@@ -8,7 +8,9 @@ import {
   STYLE_PARAPET,
   STYLE_PROP,
   axisIntoWall,
+  balconyPosts,
   balconyRails,
+  balconyWidth,
   deckY,
   faceRect,
   parapetHeight,
@@ -77,7 +79,7 @@ export function emitHouse(h: HouseSpec, out: LevelJsonDraft): void {
   // Balcony: deck and rails.
   if (h.balcony !== -1) {
     const b = h.balcony;
-    const hw = HK.balconyW / 2;
+    const hw = balconyWidth(h) / 2;
     const top = g + HK.balconyTop;
     solid(
       out,
@@ -91,6 +93,38 @@ export function emitHouse(h: HouseSpec, out: LevelJsonDraft): void {
       const rr = rails[i];
       solid(out, faceRect(h, b, rr.s0, rr.s1, rr.d0, rr.d1), top, top + HK.railH, STYLE_PARAPET);
     }
+    // Verandah posts: solid, so the hero cannot run through what he sees.
+    const posts = balconyPosts(h);
+    for (let i = 0; i < posts.length; i++) {
+      const pp = posts[i];
+      solid(
+        out,
+        faceRect(h, b, pp.s0, pp.s1, pp.d0, pp.d1),
+        g,
+        top - HK.balconyThick,
+        STYLE_PARAPET,
+      );
+    }
+  }
+
+  // Gable roof: two slip-1 ramps rising to a ridge along x (faces 2 and 3 slope up toward the centre).
+  if (h.roof === 'gable') {
+    ramp(
+      out,
+      { x0: h.cx - k, x1: h.cx + k, z0: h.cz, z1: h.cz + k },
+      deck,
+      deck + HK.gableRise,
+      3,
+      1,
+    );
+    ramp(
+      out,
+      { x0: h.cx - k, x1: h.cx + k, z0: h.cz - k, z1: h.cz },
+      deck,
+      deck + HK.gableRise,
+      2,
+      1,
+    );
   }
 
   // Outside stairs: one walkable ramp along the face, rising toward the wall end.

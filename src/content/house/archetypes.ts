@@ -3,15 +3,27 @@
 // house, ADR 0013 section 1.1); gables, set-back storeys and tin roofs are visual only.
 import type { HouseSpec } from './houseSpec';
 
-export type ArchetypeId = 'A1' | 'A2' | 'A3' | 'A4' | 'B1' | 'B2';
+export type ArchetypeId = 'A1' | 'A2' | 'A3' | 'A4' | 'B1' | 'B2' | 'C1' | 'C2lo' | 'C2hi' | 'C3';
 
 /** The spec fields an archetype fixes; placement (id, position, ground height, party walls) is the caller's. */
 export type ArchetypePreset = Pick<
   HouseSpec,
   'storeys' | 'balcony' | 'stairs' | 'awnings' | 'takeoff' | 'pole' | 'tall'
->;
+> &
+  Partial<Pick<HouseSpec, 'balconyFull' | 'roof' | 'eave'>>;
 
-export const ARCHETYPE_IDS: readonly ArchetypeId[] = ['A1', 'A2', 'A3', 'A4', 'B1', 'B2'];
+export const ARCHETYPE_IDS: readonly ArchetypeId[] = [
+  'A1',
+  'A2',
+  'A3',
+  'A4',
+  'B1',
+  'B2',
+  'C1',
+  'C2lo',
+  'C2hi',
+  'C3',
+];
 
 const PRESETS: Record<ArchetypeId, ArchetypePreset> = {
   // A1 rural two-storey house with entrance canopy: the canopy is the kit awning (slip 1) on face 3.
@@ -50,6 +62,50 @@ const PRESETS: Record<ArchetypeId, ArchetypePreset> = {
     pole: true,
     tall: [],
   },
+  // C1 verandah house (hay-run verdict 2026-11-20): flat roof, full-width first-floor balcony with 3
+  // solid posts, side lean-to awning over the side door (face 0).
+  C1: {
+    storeys: 2,
+    balcony: 2,
+    balconyFull: true,
+    stairs: null,
+    awnings: [0],
+    takeoff: [],
+    pole: false,
+    tall: [],
+  },
+  // C2 stepped house: two touching houses (the caller sets `party`); eave skirts on both decks.
+  C2lo: {
+    storeys: 1,
+    balcony: -1,
+    stairs: null,
+    awnings: [],
+    takeoff: [],
+    pole: false,
+    tall: [],
+    eave: true,
+  },
+  C2hi: {
+    storeys: 2,
+    balcony: -1,
+    stairs: null,
+    awnings: [],
+    takeoff: [],
+    pole: false,
+    tall: [],
+    eave: true,
+  },
+  // C3 plain tin gable: two slip-1 roof ramps over 2 storeys, no balcony, not walkable (filler, decoy).
+  C3: {
+    storeys: 2,
+    balcony: -1,
+    stairs: null,
+    awnings: [],
+    takeoff: [],
+    pole: false,
+    tall: [],
+    roof: 'gable',
+  },
 };
 
 /**
@@ -78,6 +134,9 @@ export function archetype(
     takeoff: p.takeoff.slice(),
     pole: p.pole,
     tall: p.tall.slice(),
+    ...(p.balconyFull !== undefined ? { balconyFull: p.balconyFull } : {}),
+    ...(p.roof !== undefined ? { roof: p.roof } : {}),
+    ...(p.eave !== undefined ? { eave: p.eave } : {}),
     ...over,
   };
 }

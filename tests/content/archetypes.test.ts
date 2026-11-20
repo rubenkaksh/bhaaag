@@ -5,7 +5,7 @@ import { emitHouse, newDraft } from '../../src/content/house/houseKit';
 import { deckY, validateHouse } from '../../src/content/house/houseSpec';
 import { STYLE_BALCONY } from '../../src/content/house/houseSpec';
 
-const DECK: Record<ArchetypeId, number> = { A1: 6, A2: 3.2, A3: 3.2, A4: 6, B1: 6, B2: 6 };
+const DECK: Record<ArchetypeId, number> = { A1: 6, A2: 3.2, A3: 3.2, A4: 6, B1: 6, B2: 6, C1: 6, C2lo: 3.2, C2hi: 6, C3: 6 };
 
 describe('home archetype presets (handoff H1)', () => {
   it('every preset passes validateHouse and emits without throwing', () => {

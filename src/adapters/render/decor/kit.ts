@@ -78,7 +78,7 @@ export const PIECE_CAP: Record<PieceId, number> = {
   body: 150,
   cornice: 50,
   window: 250,
-  roof: 20,
+  roof: 40,
   rail: 170,
   deck: 28,
   tank: 50,
@@ -604,8 +604,13 @@ export class DecorKit {
           m.userData.tierMaps = { rich: { map: 'tin', normal: 'tin' }, boost: 2.4 };
         if (id === 'tank')
           m.userData.tierMaps = { rich: { map: 'straw', normal: 'straw' }, boost: 2.2 };
+        // clay tile on sloped / non-walkable roofs and eave skirts (hay-run verdict, never on a deck)
         if (id === 'roof')
-          m.userData.tierMaps = { rich: { map: 'roof_home', normal: 'roof_home' }, boost: 2.2 };
+          m.userData.tierMaps = {
+            low: { map: 'roof_clay_128' },
+            rich: { map: 'roof_clay' },
+            boost: 2.2,
+          };
         if (id === 'wallPlaster')
           m.userData.tierMaps = {
             low: { map: 'wall_plaster' },
