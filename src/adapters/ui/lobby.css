@@ -21,7 +21,7 @@
   text-align: center;
   user-select: none;
   -webkit-user-select: none;
-  touch-action: none;
+  touch-action: pan-y;
 }
 #lobby.off {
   display: none;
@@ -36,6 +36,20 @@
 #lobby > :not(#lobby-art) {
   position: relative;
   z-index: 1;
+  flex-shrink: 0;
+}
+/* Landscape phones (owner 2026-11-20: the mode / level / graphics rows fell below the fold and could not be reached):
+   the lobby scrolls, and the controls list steps aside on short screens. */
+@media (orientation: landscape) {
+  #lobby {
+    overflow-y: auto;
+    gap: 1.4vh;
+  }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  #lobby > .how {
+    display: none;
+  }
 }
 #lobby h1 {
   margin: 0;
@@ -257,18 +271,18 @@
     gap: 1.2vh;
   }
   #lobby-mode,
-#lobby-level,
+  #lobby-level,
   #lobby-gfx,
-#lobby-orient {
+  #lobby-orient {
     flex-wrap: wrap;
     justify-content: center;
     font-size: clamp(13px, 3.8vw, 18px);
     gap: 0.4em;
   }
   #lobby-mode button,
-#lobby-level button,
+  #lobby-level button,
   #lobby-gfx button,
-#lobby-orient button {
+  #lobby-orient button {
     min-height: 44px;
     min-width: 44px;
     padding: 0.2em 1em;

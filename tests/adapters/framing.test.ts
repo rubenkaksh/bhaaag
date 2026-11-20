@@ -17,6 +17,7 @@ describe('framingFor', () => {
     const r = f(w, h);
     expect(r.camera).toBe(base);
     expect(r.lensShiftY).toBe(0);
+    expect(r.pitchLiftRad).toBeCloseTo((4 * Math.PI) / 180, 8); // landscape range lift
   });
 
   it('portrait 390x844 uses fov 88 and the B1 table', () => {
@@ -30,6 +31,7 @@ describe('framingFor', () => {
     expect(r.camera.downhillBias).toBeCloseTo(12, 5);
     expect(Math.abs(r.lensShiftY)).toBeCloseTo(0.14, 5);
     expect(r.lensShiftY).toBeLessThan(0); // image moves down: hero low in frame
+    expect(r.pitchLiftRad).toBeCloseTo(0, 8); // portrait keeps the original pitch
   });
 
   it('horizontal fov stays between 45 and 55 degrees on phones', () => {

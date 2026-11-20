@@ -29,7 +29,8 @@ export interface MazeNode {
   z0: number; // downhill edge (smaller z)
   z1: number; // uphill edge
   y: number; // standing surface height
-  cushion: boolean; // whole surface is a cushion: any fall is safe
+  cushion: boolean; // has a cushion: a landing on it is safe at any speed (all of the surface unless `pad` is set)
+  pad?: { x0: number; x1: number; z0: number; z1: number }; // nagarkot-home: the cushion is only this rect of the surface
   tramps: number[]; // x centres of tramp pads on the downhill edge strip
   zipTo: number; // node id the zone on the downhill edge lines to, or -1
   zipX: number; // x centre of that zone
@@ -74,6 +75,22 @@ const G = T.physics.g;
 const DRAG = T.physics.airDrag;
 const R = T.hero.radius;
 
+// Sprint reach (nagarkot-home, T336a). Derived from tuning.hero.sprint* and the distances measured in
+// docs/adr/0018-sprint.md (flat ground, DEFAULT_TUNING, 60 Hz). Test: "graph sprint constants == tuning".
+export const SPRINT_SPEED = T.hero.sprintSpeed; // m/s
+export const SPRINT_STREAK_M = T.hero.sprintStreakM; // 6 m of running before the sprint engages
+export const SPRINT_RAMP_M = 12.2; // run -> full sprint ramp at sprintAccel 3.5 (analytic 12.14; gradual build, owner 2026-11-19)
+export const SPRINT_JUMP_VY = T.hero.jump; // sprint take-off speed: unchanged by T334 (same 0.93 s airborne)
+const RUN_UP_M = (T.hero.run * T.hero.run) / (2 * Math.min(T.hero.runAccel, T.hero.accel)); // standing start at the run-up accel
+export const SPRINT_RUNWAY_M = RUN_UP_M + SPRINT_STREAK_M + SPRINT_RAMP_M; // ~20.45 m from standing
+export const LEAK_SPEEDS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, SPRINT_SPEED];
+
+/** Optional edge model: extra launches and grab approach speeds (nagarkot-home leak model). Undefined = the frozen rules. */
+export interface EdgeOpts {
+  launches: ReadonlyArray<readonly [number, number]>;
+  grab: readonly number[];
+}
+
 export interface Flight {
   dist: number; // horizontal distance travelled when the feet reach dy
   vLand: number; // downward speed at that moment
@@ -114,6 +131,23 @@ export function relation(a: MazeNode, b: MazeNode): Rel | null {
   return null;
 }
 
+/** Distance range [lo, hi] past b's near lip (along the move) covered by b's cushion pad, or null (whole surface / no pad). */
+export function padSpan(a: MazeNode, b: MazeNode, rel: Rel): [number, number] | null {
+  const p = b.pad;
+  if (!b.cushion || p === undefined) return null;
+  if (rel.lateral) {
+    return b.x0 >= a.x1 ? [p.x0 - b.x0, p.x1 - b.x0] : [b.x1 - p.x1, b.x1 - p.x0];
+  }
+  return rel.downhill ? [b.z1 - p.z1, b.z1 - p.z0] : [p.z0 - b.z0, p.z1 - b.z0];
+}
+
+const PAD_EDGE = 0.3; // a landing centre must be this far inside the pad's edge
+
+/** True when a landing d metres past the near lip is on the pad (centre inside, with a margin). */
+export function onPad(span: readonly [number, number], d: number): boolean {
+  return d >= span[0] + PAD_EDGE && d <= span[1] - PAD_EDGE;
+}
+
 const LAUNCHES: ReadonlyArray<readonly [number, number]> = [
   [0, T.hero.walk], // walk off: gentlest landing
   [0, T.hero.run], // run off
@@ -121,14 +155,24 @@ const LAUNCHES: ReadonlyArray<readonly [number, number]> = [
 ];
 
 /** Jump/drop edge A -> B: the gentlest launch that makes the distance decides lethality. */
-export function jumpOk(a: MazeNode, b: MazeNode, rel: Rel): boolean {
+export function jumpOk(a: MazeNode, b: MazeNode, rel: Rel, opts?: EdgeOpts): boolean {
   const dy = b.y - a.y;
   if (dy > STEP_MAX) return false;
   const need = rel.gap + 2 * R + LAND_MARGIN;
-  for (let i = 0; i < LAUNCHES.length; i++) {
-    const f = flight(LAUNCHES[i][0], LAUNCHES[i][1], dy);
+  let L = opts === undefined ? LAUNCHES : LAUNCHES.concat(opts.launches);
+  // A long straight (a joined terrace) gives the sprint its runway: run-jump at sprint speed (nagarkot-home).
+  const along = rel.lateral ? a.x1 - a.x0 : a.z1 - a.z0;
+  if (along - 2 * R >= SPRINT_RUNWAY_M) L = L.concat([[SPRINT_JUMP_VY, SPRINT_SPEED]]);
+  for (let i = 0; i < L.length; i++) {
+    const f = flight(L[i][0], L[i][1], dy);
     if (f === null || f.dist < need) continue;
-    return b.cushion || f.vLand <= T.landing.vyRoll - VLAND_MARGIN;
+    const soft = f.vLand <= T.landing.vyRoll - VLAND_MARGIN;
+    if (!b.cushion) return soft;
+    const span = padSpan(a, b, rel);
+    if (span === null) return true;
+    // A pad covers only part of the surface: this launch must land on it (or land softly anyway);
+    // a longer launch may still reach it.
+    if (soft || onPad(span, f.dist - rel.gap)) return true;
   }
   return false;
 }
@@ -150,12 +194,13 @@ export function trampOk(a: MazeNode, b: MazeNode, rel: Rel): boolean {
   if (dy > apex - STEP_MAX) return false;
   const f = flight(vy, T.hero.run * TRAMP_APPROACH, dy);
   if (f === null) return false;
+  const span = padSpan(a, b, rel);
   // Launch from the pad centre, PAD_DEPTH/2 inside the lip; do not fly past the far lip either
   // (a balcony has its house wall as a backstop).
   const lip = rel.gap + PAD_DEPTH / 2;
   if (f.dist < lip + R + LAND_MARGIN) return false;
   if (b.kind !== NODE_BALCONY && f.dist > lip + (b.z1 - b.z0) - R) return false;
-  return b.cushion || f.vLand <= T.landing.vyRoll - VLAND_MARGIN;
+  return landsSafe(b, span, f, lip, T.landing.vyRoll - VLAND_MARGIN);
 }
 
 // State of a launch (vy0, vh) after d metres of horizontal travel: feet height over the launch
@@ -178,35 +223,61 @@ function grabFrom(vy0: number, vh: number, d: number, dy: number): boolean {
   return s[1] >= -(T.climb.vyMax - GRAB_VY_MARGIN);
 }
 
+// A landing `lip` metres from the launch point: safe on the pad (or anywhere on a whole-surface cushion),
+// else only when the falling speed is inside `vSafe`.
+function landsSafe(
+  b: MazeNode,
+  span: readonly [number, number] | null,
+  f: Flight,
+  lip: number,
+  vSafe: number,
+): boolean {
+  if (f.vLand <= vSafe) return true;
+  if (!b.cushion) return false;
+  return span === null || onPad(span, f.dist - lip);
+}
+
 // A launch whose arc is over the far lip when the hero's centre gets there (lip = distance from
 // the launch point to the lip), lands on the platform and survives it.
-function lipFrom(vy0: number, vh: number, lip: number, b: MazeNode, dy: number): boolean {
+function lipFrom(
+  vy0: number,
+  vh: number,
+  lip: number,
+  b: MazeNode,
+  dy: number,
+  span: readonly [number, number] | null,
+): boolean {
   const f = flight(vy0, vh, dy);
   if (f === null || f.dist < lip) return false;
   const s = atDistance(vy0, vh, lip - R);
   if (s === null || s[0] < dy) return false;
   if (b.kind !== NODE_BALCONY && f.dist > lip + (b.z1 - b.z0) - R) return false;
-  return b.cushion || f.vLand <= T.landing.vyRoll; // the sim's own limit: no comfort margin here
+  return landsSafe(b, span, f, lip, T.landing.vyRoll); // the sim's own limit: no comfort margin here
 }
 
 /** Tight edge A -> B: a lip landing the sim allows but the comfort margins of jumpOk/trampOk refuse. */
-export function tightOk(a: MazeNode, b: MazeNode, rel: Rel): boolean {
+export function tightOk(a: MazeNode, b: MazeNode, rel: Rel, opts?: EdgeOpts): boolean {
   const dy = b.y - a.y;
-  for (let i = 0; i < LAUNCHES.length; i++) {
-    if (lipFrom(LAUNCHES[i][0], LAUNCHES[i][1], rel.gap, b, dy)) return true;
+  const span = padSpan(a, b, rel);
+  const L = opts === undefined ? LAUNCHES : LAUNCHES.concat(opts.launches);
+  for (let i = 0; i < L.length; i++) {
+    if (lipFrom(L[i][0], L[i][1], rel.gap, b, dy, span)) return true;
   }
   if (rel.downhill && padAligned(a, b)) {
-    return lipFrom(T.tramp.vUp, T.hero.run * TRAMP_APPROACH, rel.gap + PAD_DEPTH / 2, b, dy);
+    return lipFrom(T.tramp.vUp, T.hero.run * TRAMP_APPROACH, rel.gap + PAD_DEPTH / 2, b, dy, span);
   }
   return false;
 }
 
 /** Grab edge A -> B: reach B's wall with its ledge in climb reach, then mantle (ADR 0011). */
-export function grabOk(a: MazeNode, b: MazeNode, rel: Rel): boolean {
+export function grabOk(a: MazeNode, b: MazeNode, rel: Rel, opts?: EdgeOpts): boolean {
   // A balcony covers its roof's uphill face: from uphill you meet the balcony, not the roof wall.
   if (b.kind === NODE_ROOF && b.balc >= 0 && rel.downhill) return false;
   const dy = b.y - a.y;
-  if (grabFrom(T.hero.jump, T.hero.run, rel.gap - R, dy)) return true;
+  const gs = opts === undefined ? [T.hero.run] : opts.grab;
+  for (let i = 0; i < gs.length; i++) {
+    if (grabFrom(T.hero.jump, gs[i], rel.gap - R, dy)) return true;
+  }
   if (rel.downhill && padAligned(a, b)) {
     return grabFrom(T.tramp.vUp, T.hero.run * TRAMP_APPROACH, rel.gap + PAD_DEPTH / 2 - R, dy);
   }
@@ -261,28 +332,28 @@ export function zipOk(a: MazeNode, b: MazeNode, nodes: MazeNode[]): boolean {
 }
 
 /** The move that takes A to B, or -1. One edge per ordered pair; plain moves win over features. */
-export function moveOf(a: MazeNode, b: MazeNode, nodes: MazeNode[]): number {
+export function moveOf(a: MazeNode, b: MazeNode, nodes: MazeNode[], opts?: EdgeOpts): number {
   if (a.id === b.id) return -1;
   if (a.kind === NODE_BALCONY && a.up === b.id) return MOVE_CLIMB;
   const rel = relation(a, b);
   // A balcony hangs on the uphill face: its own house blocks every downhill move off it.
   if (rel !== null && !(a.kind === NODE_BALCONY && rel.downhill)) {
-    if (jumpOk(a, b, rel)) return MOVE_JUMP;
+    if (jumpOk(a, b, rel, opts)) return MOVE_JUMP;
     if (trampOk(a, b, rel)) return MOVE_TRAMP;
-    if (grabOk(a, b, rel)) return MOVE_GRAB;
+    if (grabOk(a, b, rel, opts)) return MOVE_GRAB;
   }
   if (zipOk(a, b, nodes)) return MOVE_ZIP;
-  if (rel !== null && !(a.kind === NODE_BALCONY && rel.downhill) && tightOk(a, b, rel))
+  if (rel !== null && !(a.kind === NODE_BALCONY && rel.downhill) && tightOk(a, b, rel, opts))
     return MOVE_TIGHT;
   return -1;
 }
 
 /** All edges of a node set, recomputed from geometry. */
-export function buildEdges(nodes: MazeNode[]): MazeEdge[] {
+export function buildEdges(nodes: MazeNode[], opts?: EdgeOpts): MazeEdge[] {
   const edges: MazeEdge[] = [];
   for (let i = 0; i < nodes.length; i++) {
     for (let j = 0; j < nodes.length; j++) {
-      const move = moveOf(nodes[i], nodes[j], nodes);
+      const move = moveOf(nodes[i], nodes[j], nodes, opts);
       if (move >= 0) edges.push({ from: nodes[i].id, to: nodes[j].id, move });
     }
   }
@@ -372,4 +443,160 @@ export function analyze(g: MazeGraph): MazeStats {
   const deadEnds: number[] = [];
   for (let i = 0; i < g.n; i++) if (reach[i] && !canFinish[i]) deadEnds.push(i);
   return { reach, canFinish, deadEnds, escapePaths: escapePaths(g), goalReached: reach[g.goal] };
+}
+
+/** Edges a route may be built on: the generator never routes on a grab or a lip landing. */
+export function isRouteMove(move: number): boolean {
+  return move === MOVE_JUMP || move === MOVE_TRAMP || move === MOVE_ZIP || move === MOVE_CLIMB;
+}
+
+/**
+ * Internally node-disjoint start -> goal paths (node-split unit-capacity max flow), counted up to cap.
+ * `free` nodes (start, goal, road terraces) have unlimited capacity: every route must cross a road, so a literal
+ * pair of node-disjoint S-G paths cannot exist; this counts disjoint paths in each section between them.
+ */
+export function nodeDisjointPaths(
+  g: MazeGraph,
+  free: readonly number[],
+  routeOnly: boolean,
+  cap: number = 8,
+): number {
+  const n = g.n;
+  const isFree: boolean[] = new Array<boolean>(n).fill(false);
+  isFree[g.start] = true;
+  isFree[g.goal] = true;
+  for (let i = 0; i < free.length; i++) isFree[free[i]] = true;
+  // Node v is v_in = 2v and v_out = 2v + 1 with a v_in -> v_out arc of capacity 1 (or "infinite").
+  const N = 2 * n;
+  const c = new Int32Array(N * N);
+  for (let v = 0; v < n; v++) c[2 * v * N + 2 * v + 1] = isFree[v] ? 1000 : 1;
+  for (let i = 0; i < g.edges.length; i++) {
+    const e = g.edges[i];
+    if (e.from === e.to || (routeOnly && !isRouteMove(e.move))) continue;
+    c[(2 * e.from + 1) * N + 2 * e.to] = 1000;
+  }
+  const s = 2 * g.start;
+  const t = 2 * g.goal + 1;
+  const prev = new Int32Array(N);
+  let flow = 0;
+  while (flow < cap) {
+    prev.fill(-1);
+    prev[s] = s;
+    const q: number[] = [s];
+    for (let h = 0; h < q.length && prev[t] < 0; h++) {
+      const u = q[h];
+      for (let v = 0; v < N; v++) {
+        if (prev[v] < 0 && c[u * N + v] > 0) {
+          prev[v] = u;
+          q.push(v);
+        }
+      }
+    }
+    if (prev[t] < 0) break;
+    for (let v = t; v !== s; v = prev[v]) {
+      const u = prev[v];
+      c[u * N + v]--;
+      c[v * N + u]++;
+    }
+    flow++;
+  }
+  return flow;
+}
+
+export interface RouteEstimate {
+  metres: number; // horizontal metres of run, flight and rope chord
+  seconds: number;
+  path: number[]; // node ids start .. goal
+}
+
+/** Mean rope speed over a drop: (launch + speed at the end, capped at terminal) / 2. */
+export function meanZipSpeed(drop: number): number {
+  const v1 = Math.min(
+    T.rope.terminal,
+    Math.sqrt(T.rope.launchSpeed * T.rope.launchSpeed + 2 * G * Math.max(0, drop)),
+  );
+  return (T.rope.launchSpeed + v1) / 2;
+}
+
+function xOverlapCentre(a: MazeNode, b: MazeNode): number {
+  return (Math.max(a.x0, b.x0) + Math.min(a.x1, b.x1)) / 2;
+}
+
+/**
+ * Shortest start -> goal time over route-grade edges (Dijkstra). Cost of an edge = run from where the hero arrived
+ * on the node to the departure lip, plus the flight gap or rope chord, plus 1 s per climb. Run and flight at
+ * hero.run; the rope at its mean speed. Estimate only: no hesitation, one arrival x per node.
+ */
+/** `extra(u, v, arrX, dep)` adds metres of run to an edge (nagarkot-home: the walk round the bend corner). */
+export function estimateRoute(
+  g: MazeGraph,
+  nodes: MazeNode[],
+  extra?: (u: number, v: number, arrX: number, dep: number) => number,
+): RouteEstimate | null {
+  const n = g.n;
+  const dist: number[] = new Array<number>(n).fill(Infinity);
+  const metres: number[] = new Array<number>(n).fill(0);
+  const from: number[] = new Array<number>(n).fill(-1);
+  const arrX: number[] = new Array<number>(n).fill(0);
+  const done: boolean[] = new Array<boolean>(n).fill(false);
+  dist[g.start] = 0;
+  arrX[g.start] = (nodes[g.start].x0 + nodes[g.start].x1) / 2;
+  for (;;) {
+    let u = -1;
+    for (let i = 0; i < n; i++)
+      if (!done[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
+    if (u < 0 || u === g.goal) break;
+    done[u] = true;
+    const a = nodes[u];
+    for (let k = 0; k < g.edges.length; k++) {
+      const e = g.edges[k];
+      if (e.from !== u || !isRouteMove(e.move) || done[e.to]) continue;
+      const b = nodes[e.to];
+      let run = 0;
+      let air = 0;
+      let sec: number;
+      let dep: number;
+      let arrive = arrX[u];
+      if (e.move === MOVE_CLIMB) {
+        sec = 1;
+      } else if (e.move === MOVE_ZIP) {
+        dep = a.zipX;
+        const zc = zoneCentre(a);
+        const an = anchorPos(a, b);
+        const dx = an[0] - zc[0];
+        const dz = an[2] - zc[2];
+        const horiz = Math.sqrt(dx * dx + dz * dz);
+        const drop = zc[1] + T.rope.handToFeet - an[1];
+        const len = Math.sqrt(horiz * horiz + drop * drop);
+        run = Math.abs(dep - arrX[u]) + (a.z1 - a.z0) - PAD_DEPTH / 2;
+        air = len;
+        sec = run / T.hero.run + len / meanZipSpeed(drop);
+        arrive = an[0];
+      } else {
+        const rel = relation(a, b);
+        if (rel === null) continue;
+        dep = e.move === MOVE_TRAMP && a.tramps.length > 0 ? a.tramps[0] : xOverlapCentre(a, b);
+        const along = rel.lateral ? a.x1 - a.x0 : a.z1 - a.z0;
+        run =
+          Math.abs(dep - arrX[u]) +
+          along / 2 +
+          (extra === undefined ? 0 : extra(u, e.to, arrX[u], dep));
+        air = rel.gap;
+        sec = (run + air) / T.hero.run;
+        arrive = dep;
+      }
+      const d = dist[u] + sec;
+      if (d < dist[e.to]) {
+        dist[e.to] = d;
+        metres[e.to] = metres[u] + run + air;
+        from[e.to] = u;
+        arrX[e.to] = arrive;
+      }
+    }
+  }
+  if (dist[g.goal] === Infinity) return null;
+  const path: number[] = [];
+  for (let v = g.goal; v >= 0; v = from[v]) path.push(v);
+  path.reverse();
+  return { metres: metres[g.goal], seconds: dist[g.goal], path };
 }

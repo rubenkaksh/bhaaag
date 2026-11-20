@@ -60,3 +60,7 @@ Altitude stays z-derived plus lift; per-level best times are not needed.
 
 Roads, terrain-following house placement beyond the plane, sim-verified stairs/boxes, momentum carry,
 phone feel, best-time storage for builder levels (they share the strategy best key).
+
+## Addendum 2026-11-19: saved library with a lobby flag
+
+Builder "Save to library" stores named levels (source + compiled `LevelJson`) in localStorage under `bhaaag.builder.library` (`src/content/builder/library.ts`, no builder runtime imports so the game bundle stays clean). New entries are hidden. A per-level "Show in lobby" flag lists the level in Classic's level row as `l:<id>` (play key `strategy`, shared best time, as for other builder levels), independent of `SHOW_LEGACY_LEVELS`. Route stays `?builder`; `?level=l:<id>` plays a visible saved level. Hidden levels stay builder-only.

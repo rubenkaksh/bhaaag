@@ -31,7 +31,10 @@ p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
 await p.goto(mode ? `${base}?mode=${mode}&gfx=low` : `${base}?gfx=low`);
 await p.waitForTimeout(3500);
 if (mode) {
-  await p.locator('#lobby-play').click({ timeout: 4000 }).catch(() => {});
+  await p
+    .locator('#lobby-play')
+    .click({ timeout: 4000 })
+    .catch(() => {});
   await p.waitForTimeout(4000);
 }
 await p.screenshot({ path: `art/shots/auto/${tag}.png` });

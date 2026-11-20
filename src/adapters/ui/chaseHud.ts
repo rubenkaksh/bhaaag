@@ -21,6 +21,8 @@ export class ChaseHud {
   private readonly gap: HTMLElement;
   private readonly over: HTMLElement;
   private readonly overBody: HTMLElement;
+  /** Where the online board (boardPanel) mounts under the score card. */
+  readonly boardHost: HTMLElement;
   private scoreV = -1;
   private distV = -1;
   private gapPct = -1;
@@ -46,9 +48,10 @@ export class ChaseHud {
     this.gap.innerHTML = '<i class="fill"></i><span class="lbl">DRAGON</span>';
     this.over = el(root, 'div', 'chase-over', 'off');
     this.over.innerHTML =
-      '<h1>Swallowed by the cloud</h1><div class="big">0</div><p class="detail"></p><p class="best"></p>' +
+      '<h1>Swallowed by the cloud</h1><div class="big">0</div><p class="detail"></p><p class="best"></p><div class="chase-board win-extra"></div>' +
       '<div class="row"><button type="button" class="retry">RETRY</button><button type="button" class="alt menu">MENU</button></div>';
     this.overBody = this.over;
+    this.boardHost = this.over.querySelector('.chase-board') as HTMLElement;
     (this.over.querySelector('.retry') as HTMLButtonElement).addEventListener('click', onRetry);
     (this.over.querySelector('.menu') as HTMLButtonElement).addEventListener('click', () => {
       window.dispatchEvent(new CustomEvent('zt-menu'));
@@ -140,7 +143,14 @@ export class ChaseHud {
     }
   }
 
-  showOver(score: number, metres: number, hops: number, best: number, isBest: boolean, why: string): void {
+  showOver(
+    score: number,
+    metres: number,
+    hops: number,
+    best: number,
+    isBest: boolean,
+    why: string,
+  ): void {
     (this.overBody.querySelector('h1') as HTMLElement).textContent = why;
     (this.overBody.querySelector('.big') as HTMLElement).textContent = String(Math.floor(score));
     (this.overBody.querySelector('.detail') as HTMLElement).textContent =
@@ -153,6 +163,7 @@ export class ChaseHud {
   }
 
   hideOver(): void {
+    this.boardHost.replaceChildren();
     this.over.classList.add('off');
     document.body.classList.remove('chase-card');
   }

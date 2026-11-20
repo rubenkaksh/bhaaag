@@ -17,6 +17,7 @@ export type Tuning = {
     handToFeet: number;
     hookSpeed: number;
     brakeDecel: number;
+    legHazardKill: number; // 1: hazard volumes kill the feet while riding the rope; 0: they do not (owner order 2026-11-18)
   };
   aim: {
     magnetDegDesktop: number;
@@ -51,6 +52,7 @@ export type Tuning = {
     vhStumble: number;
     pad: number;
     carryCap: number;
+    carryDecay: number; // m/s^2 the speed above run falls while the stick is held its way; 0 = keeps the momentum
     rollSec: number;
     chainWindowMs: number;
     edgeGrabH: number;
@@ -76,8 +78,16 @@ export type Tuning = {
     height: number;
     accel: number;
     friction: number;
+    runAccel: number; // m/s^2 the grounded hero speeds up along its heading (a smooth run-up); >= accel = abrupt
     airSteer: number; // m/s^2 the stick turns horizontal velocity while airborne (not after a bounce)
     airSteerCap: number; // horizontal speed it pulls toward at full stick, m/s; faster heroes keep their speed
+    // Sprint (ADR 0018). sprintSpeed <= run turns it off. Remote-config shaped: plain numbers, clamp on read.
+    sprintSpeed: number; // m/s the grounded run ramps to once the streak is earned
+    sprintStreakM: number; // metres run at >= 0.98 x run before sprint starts (gradual build, owner 2026-11-19)
+    sprintAccel: number; // m/s^2 of the ramp from run to sprintSpeed
+    sprintCadence: number; // extra run-cycle rate at full sprint (0.2 = 20% faster), render only
+    sprintFov: number; // extra camera fov in degrees at full sprint, render only
+    diveMinFall: number; // m above a cushion top before the swan dive pose starts, render only
   };
   camera: {
     dist: number;
@@ -101,12 +111,14 @@ export type Tuning = {
     sideYawSpeed: number; // sideways speed that reaches the full offset, m/s
     sideYawEase: number; // per fixed tick ease toward a larger side-look target
     sideYawEaseBack: number; // per fixed tick ease back toward 0 (slower = smoother return)
-    overviewHeight: number; // hold-MAP bird's eye: camera height above the framed centre, m (before span gain)
-    overviewPullBack: number; // extra metres the overview camera sits back from the framed centre
-    overviewPitchDeg: number; // nominal overview pitch down, deg (sets the base back-off from the height)
+    pathLookahead: number; // path camera (nagarkot-home): aim this many m ahead along the route so corners turn early; 0 = off
+    pathTurnDeg: number; // path camera turn speed, deg/s
+    overviewHeight: number; // hold-MAP view: minimum camera height above the framed centre, m
+    overviewPitchDeg: number; // hold-MAP pitch down, deg (steep oblique)
     overviewEase: number; // per fixed tick ease of the overview blend (0..1) in and out
     overviewMaxExtent: number; // max horizontal reach from the hero that the overview frames, m
-    overviewSpanScale: number; // extra camera height per metre of framed span, so a long run still fits
+    overviewNodes: number; // hold-MAP frames this many nearest nodes ahead (pads, anchors, goal)
+    overviewMargin: number; // hold-MAP framing margin multiplier on the node bounds
     tiltDeg: number; // render-only pitch-down of the view (deg), all modes; ?tilt= overrides for debugging
   };
   validator: {
@@ -187,6 +199,14 @@ export type Tuning = {
     autoMantleSec: number; // stick held this long while hanging mantles, s
     stickDot: number; // stick/heading dot needed for the auto moves
   };
+  // Hillside ground (owner 2026-11-18): hazard volumes hold a soft landing instead of killing.
+  hazard: {
+    killImpact: number; // m/s of impact speed above which a hazard landing still kills; 0 = hazards always kill (old rule)
+    groundWalkSpeed: number; // m/s the hero can walk on the hillside (no sprint, no carried momentum)
+    climbHoldSec: number; // s the stick is held into a house wall on the hillside before the climb starts
+    climbSpeed: number; // m/s the hero climbs the wall up to the ledge
+    climbMaxH: number; // tallest ledge above the feet the hillside climb can reach, m
+  };
 };
 
 export const DEFAULT_TUNING: Tuning = {
@@ -208,6 +228,7 @@ export const DEFAULT_TUNING: Tuning = {
     handToFeet: 2.0,
     hookSpeed: 320,
     brakeDecel: 10,
+    legHazardKill: 0,
   },
   aim: {
     magnetDegDesktop: 4,
@@ -242,6 +263,7 @@ export const DEFAULT_TUNING: Tuning = {
     vhStumble: 16,
     pad: 0.5,
     carryCap: 12,
+    carryDecay: 0,
     rollSec: 0.35,
     chainWindowMs: 400,
     edgeGrabH: 0.6,
@@ -267,8 +289,15 @@ export const DEFAULT_TUNING: Tuning = {
     height: 1.8,
     accel: 40,
     friction: 30,
+    runAccel: 8,
     airSteer: 14,
     airSteerCap: 6,
+    sprintSpeed: 11,
+    sprintStreakM: 6,
+    sprintAccel: 3.5,
+    sprintCadence: 0.2,
+    sprintFov: 6,
+    diveMinFall: 6,
   },
   camera: {
     dist: 4.5,
@@ -292,12 +321,14 @@ export const DEFAULT_TUNING: Tuning = {
     sideYawSpeed: 2.5,
     sideYawEase: 0.07,
     sideYawEaseBack: 0.035,
-    overviewHeight: 45,
-    overviewPullBack: 12,
-    overviewPitchDeg: 60,
+    pathLookahead: 30,
+    pathTurnDeg: 60,
+    overviewHeight: 30,
+    overviewPitchDeg: 65,
     overviewEase: 0.08,
     overviewMaxExtent: 120,
-    overviewSpanScale: 0.35,
+    overviewNodes: 15,
+    overviewMargin: 1.3,
     tiltDeg: 20,
   },
   validator: {
@@ -363,4 +394,5 @@ export const DEFAULT_TUNING: Tuning = {
   },
   slide: { minSpeed: 7, sec: 0.6, height: 1.0, decel: 4, minKeep: 2 },
   parkour: { airStepUp: 0.5, grabProbe: 0.3, autoMantleSec: 0.25, stickDot: 0.7 },
+  hazard: { killImpact: 10, groundWalkSpeed: 2, climbHoldSec: 0.4, climbSpeed: 2.5, climbMaxH: 14 },
 };

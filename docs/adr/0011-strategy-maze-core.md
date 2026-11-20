@@ -100,8 +100,8 @@ This is NOT the dropped sim validator (lean-scope item 2) and NOT a deploy gate.
 One merged mesh per feature: line zones (gold pads), rope lines (one `LineSegments`) + posts, tramps
 (cream slab, dark rim), cushions (cream thick slab). Per-anchor spheres and rings are skipped when
 `lineOnly` (100 anchor draws would break the 55-call Low budget). House dressing (`dressHouses`,
-laundry, flags) is off for the maze (`houseDress: false`). Hazards are not drawn (terracotta ground
-tint is a renderer-track follow-up). Budget estimate: 100 houses x ~2 boxes + roofs merged by style =
+laundry, flags) is off for the maze (`houseDress: false`). Hazards are drawn as lethal ground by
+`gully.ts` (ADR 0015). Budget estimate: 100 houses x ~2 boxes + roofs merged by style =
 5-7 draws; features 4-5 draws; well inside Low 55 calls; triangles ~25k.
 
 ## Consequences

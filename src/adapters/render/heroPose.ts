@@ -29,6 +29,8 @@ export interface HeroPoseInput {
   win: number; // 1 = level complete
   hookFlying: number; // 1 = hook in flight
   sliding: boolean; // landing slide in progress (core slideT > 0)
+  sprint: number; // extra run cycle rate, 0 = none (core sprintFrac x hero.sprintCadence)
+  dive: boolean; // swan dive toward a cushion (render only, see diveTrigger.ts)
 }
 
 export function newHeroPoseInput(): HeroPoseInput {
@@ -49,6 +51,8 @@ export function newHeroPoseInput(): HeroPoseInput {
     win: 0,
     hookFlying: 0,
     sliding: false,
+    sprint: 0,
+    dive: false,
   };
 }
 
@@ -150,6 +154,7 @@ const BREATH_HZ = 0.28;
 
 // Event bits (mirror animEvents.ts; kept local so this file has no imports).
 const EV_LAND = 1;
+const EV_CUSHION = 2048;
 const EV_JUMP = 2;
 const EV_RELEASE = 4;
 const EV_ATTACH = 16;
@@ -165,6 +170,10 @@ const VAULT_TAU_ON = 0.04;
 const VAULT_TAU_OFF = 0.08;
 const SLIDE_TAU_ON = 0.05;
 const SLIDE_TAU_OFF = 0.1;
+const DIVE_TAU_ON = 0.12;
+const DIVE_TAU_OFF = 0.18;
+const CUSHION_LAND_AMP = 0.9; // any cushion landing sinks into the pad this deep, however short the fall
+const DIVE_LAND_AMP = 0.85; // a landing out of a dive absorbs at least this deep (soft cushion crouch)
 
 // Static pose rows (channels not listed are 0).
 function row(values: number[][]): Float64Array {
@@ -448,6 +457,7 @@ export class HeroPoseState {
   tMantle = -1;
   vaultW = 0; // 0..1 blend of the vault pose over the base pose
   slideW = 0; // 0..1 blend of the slide pose
+  diveW = 0; // 0..1 blend of the swan-dive pose
   landA = 0; // landing amplitude of the running LAND overlay
   landRoll = 0; // 1 if the landing was a roll
   attachS = 1;
@@ -487,11 +497,14 @@ function copyRow(st: HeroPoseState, pose: number, src: Float64Array): number {
   return o;
 }
 
+// Run amplitude ceiling: 1 = the 6 m/s run, up to 1.6 for a sprint (ADR 0018, was clamped at 1).
+const RUN_AMP_MAX = 1.6;
+
 function writeRun(st: HeroPoseState, speed: number): void {
   const r = st.rows;
   const o = pose0(POSE_RUN);
   for (let c = 0; c < CH_COUNT; c++) r[o + c] = 0;
-  const amp = clamp(speed / 6, 0.3, 1);
+  const amp = clamp(speed / 6, 0.3, RUN_AMP_MAX);
   const a = st.phase * TWO_PI;
   const s = Math.sin(a);
   const k = Math.cos(a);
@@ -675,6 +688,7 @@ function resetPose(st: HeroPoseState, target: number, speed: number, yaw: number
   st.tMantle = -1;
   st.vaultW = 0;
   st.slideW = 0;
+  st.diveW = 0;
   st.initialized = 1;
 }
 
@@ -702,7 +716,9 @@ function startOverlays(st: HeroPoseState, inp: HeroPoseInput): void {
   if ((ev & EV_LAND) !== 0) {
     const a = (inp.impact - 2) / 9;
     st.landA = a < 0 ? 0 : a > 1 ? 1 : a;
-    st.landRoll = inp.rolling ? 1 : 0;
+    if (st.diveW > 0.3 && st.landA < DIVE_LAND_AMP) st.landA = DIVE_LAND_AMP;
+    if ((ev & EV_CUSHION) !== 0 && st.landA < CUSHION_LAND_AMP) st.landA = CUSHION_LAND_AMP;
+    st.landRoll = inp.rolling && (ev & EV_CUSHION) === 0 ? 1 : 0;
     st.tLand = 0;
   }
   if ((ev & EV_ATTACH) !== 0) {
@@ -870,6 +886,28 @@ function applyParkour(st: HeroPoseState, inp: HeroPoseInput, dt: number): void {
     const sg = inp.sliding && inp.state === GROUNDED ? 1 : 0;
     st.slideW += (sg - st.slideW) * (1 - Math.exp(-dt / (sg === 1 ? SLIDE_TAU_ON : SLIDE_TAU_OFF)));
   }
+  const dg = inp.dive && inp.state === AIRBORNE ? 1 : 0;
+  if (dt > 0) st.diveW += (dg - st.diveW) * (1 - Math.exp(-dt / (dg === 1 ? DIVE_TAU_ON : DIVE_TAU_OFF)));
+  const dv = st.diveW;
+  if (dv > 0.001) {
+    // Swan dive: body near horizontal, arms reaching ahead, legs trailing, head up.
+    lerpCh(ch, CH_BODY_PITCH, 1.35, dv);
+    lerpCh(ch, CH_HIPS_Y, -0.05, dv);
+    lerpCh(ch, CH_SPINE_PITCH, -0.12, dv);
+    lerpCh(ch, CH_HEAD_PITCH, -0.35, dv);
+    lerpCh(ch, CH_SHOULDER_FLEX_L, 2.9, dv);
+    lerpCh(ch, CH_SHOULDER_FLEX_R, 2.9, dv);
+    lerpCh(ch, CH_SHOULDER_RAISE_L, 0.18, dv);
+    lerpCh(ch, CH_SHOULDER_RAISE_R, 0.18, dv);
+    lerpCh(ch, CH_ELBOW_L, 0.05, dv);
+    lerpCh(ch, CH_ELBOW_R, 0.05, dv);
+    lerpCh(ch, CH_HIP_FLEX_L, -0.1, dv);
+    lerpCh(ch, CH_HIP_FLEX_R, -0.15, dv);
+    lerpCh(ch, CH_KNEE_L, 0.12, dv);
+    lerpCh(ch, CH_KNEE_R, 0.2, dv);
+    lerpCh(ch, CH_HIP_SPREAD_L, 0.04, dv);
+    lerpCh(ch, CH_HIP_SPREAD_R, 0.04, dv);
+  }
   const v = st.vaultW;
   if (v > 0.001) {
     lerpCh(ch, CH_BODY_PITCH, 0.3, v);
@@ -924,7 +962,7 @@ export function stepHeroPose(st: HeroPoseState, inp: HeroPoseInput, yaw: number)
   st.active = target;
   if (target === POSE_WIN && prevActive !== POSE_WIN) st.tWin = 0;
   st.time += dt;
-  st.phase += runCadence(speed) * dt;
+  st.phase += runCadence(speed) * (1 + inp.sprint) * dt;
   st.phase -= Math.floor(st.phase);
   st.rollT = inp.rolling ? st.rollT + dt : 0;
 

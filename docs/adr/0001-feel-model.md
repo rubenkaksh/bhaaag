@@ -19,7 +19,7 @@ The senior review (`docs/work-breakdown.md` section 1, findings #1, #2, #3, #8, 
 
 **Cling threshold.** `vCling` 7-8; default tuning value 7.5. **Decoy-cling rule (validator V9):** a decoy that ends in a cling must have `vImpact <= vCling - 1 m/s` (margin). The L1a facade beat is authored as a grazing approach (<= 20 degrees) or a brake tutorial.
 
-**Momentum carry.** Landing turns horizontal speed into run speed, capped at about 8 m/s; a roll keeps it. **Chain window:** firing the hook within 0.4 s after landing seeds `v0` from the carried speed. The validator also samples run-up `v0`.
+**Momentum carry.** Landing turns horizontal speed into run speed, capped at `landing.carryCap` (12 m/s); a roll keeps it. (Was "about 8"; the real cap is `carryCap`, applied in `sim.ts`. Sprint, ADR 0018, tops out at 11, below the cap.) **Chain window:** firing the hook within 0.4 s after landing seeds `v0` from the carried speed. The validator also samples run-up `v0`.
 
 **Aim while moving.** Aiming works at full movement speed; the 50% slowdown applies only when standing still.
 

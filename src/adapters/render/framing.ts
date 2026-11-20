@@ -10,10 +10,14 @@ import type { ViewportLayout } from '../../app/viewport';
 // to camera.setViewOffset as +y. A NEGATIVE value moves the image (and the principal point) DOWN,
 // so portrait returns a negative number. The principal point sits at 50% - lensShiftY of the
 // height; CSS uses `calc(50% - var(--lens-shift) * 100%)`.
-export type Framing = { camera: Tuning['camera']; lensShiftY: number };
+// pitchLiftRad is a render-only tilt added to the camera pitch (the sim pitch, and so the aim, is
+// untouched). Landscape lifts the view 4 deg (owner-approved 2026-11-19, equal to frontPitchDeg -12 -> -8)
+// so the Himalaya range clears the top edge; it fades to 0 as portrait takes over.
+export type Framing = { camera: Tuning['camera']; lensShiftY: number; pitchLiftRad: number };
 
 const PORTRAIT_ASPECT = 0.6;
 const LENS_SHIFT_PORTRAIT = -0.14;
+const LANDSCAPE_PITCH_LIFT_DEG = 4;
 const DEG = Math.PI / 180;
 
 function lerp(a: number, b: number, t: number): number {
@@ -27,7 +31,7 @@ export function portraitBlend(aspect: number): number {
 }
 
 export function framingFor(v: ViewportLayout, base: Tuning['camera']): Framing {
-  if (v.aspect >= 1) return { camera: base, lensShiftY: 0 };
+  if (v.aspect >= 1) return { camera: base, lensShiftY: 0, pitchLiftRad: LANDSCAPE_PITCH_LIFT_DEG * DEG };
   const t = portraitBlend(v.aspect);
   const aspect = Math.max(0.2, v.aspect);
   const fovP = Math.min(88, Math.max(60, (2 * Math.atan(Math.tan(26 * DEG) / aspect)) / DEG));
@@ -45,5 +49,6 @@ export function framingFor(v: ViewportLayout, base: Tuning['camera']): Framing {
       downhillBias: lerp(base.downhillBias, 12, t),
     },
     lensShiftY: LENS_SHIFT_PORTRAIT * t,
+    pitchLiftRad: LANDSCAPE_PITCH_LIFT_DEG * DEG * (1 - t),
   };
 }

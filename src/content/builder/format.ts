@@ -56,7 +56,16 @@ const levelSchema = z
       if (ids.has(h.id)) ctx.addIssue({ code: 'custom', message: 'duplicate house id ' + h.id });
       ids.add(h.id);
     }
+    const edgeIds = new Set<number>();
+    const zipFrom = new Set<number>();
     for (const e of l.edges) {
+      if (edgeIds.has(e.id)) ctx.addIssue({ code: 'custom', message: 'duplicate edge id ' + e.id });
+      edgeIds.add(e.id);
+      if (e.kind === 'zip') {
+        if (zipFrom.has(e.a))
+          ctx.addIssue({ code: 'custom', message: 'house ' + e.a + ' has more than one zip' });
+        zipFrom.add(e.a);
+      }
       if (!ids.has(e.a) || !ids.has(e.b) || e.a === e.b) {
         ctx.addIssue({ code: 'custom', message: 'edge ' + e.id + ': bad house reference' });
       }

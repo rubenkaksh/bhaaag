@@ -21,6 +21,7 @@ const schema = z.strictObject({
     handToFeet: num,
     hookSpeed: num,
     brakeDecel: num,
+    legHazardKill: num,
   }),
   aim: z.strictObject({
     magnetDegDesktop: num,
@@ -55,6 +56,7 @@ const schema = z.strictObject({
     vhStumble: num,
     pad: num,
     carryCap: num,
+    carryDecay: num,
     rollSec: num,
     chainWindowMs: num,
     edgeGrabH: num,
@@ -73,8 +75,15 @@ const schema = z.strictObject({
     height: num,
     accel: num,
     friction: num,
+    runAccel: num,
     airSteer: num,
     airSteerCap: num,
+    sprintSpeed: num,
+    sprintStreakM: num,
+    sprintAccel: num,
+    sprintCadence: num,
+    sprintFov: num,
+    diveMinFall: num,
   }),
   camera: z.strictObject({
     dist: num,
@@ -98,12 +107,14 @@ const schema = z.strictObject({
     sideYawSpeed: num,
     sideYawEase: num,
     sideYawEaseBack: num,
+    pathLookahead: num,
+    pathTurnDeg: num,
     overviewHeight: num,
-    overviewPullBack: num,
     overviewPitchDeg: num,
     overviewEase: num,
     overviewMaxExtent: num,
-    overviewSpanScale: num,
+    overviewNodes: num,
+    overviewMargin: num,
     tiltDeg: num,
   }),
   validator: z.strictObject({
@@ -157,6 +168,13 @@ const schema = z.strictObject({
   }),
   slide: z.strictObject({ minSpeed: num, sec: num, height: num, decel: num, minKeep: num }),
   parkour: z.strictObject({ airStepUp: num, grabProbe: num, autoMantleSec: num, stickDot: num }),
+  hazard: z.strictObject({
+    killImpact: num,
+    groundWalkSpeed: num,
+    climbHoldSec: num,
+    climbSpeed: num,
+    climbMaxH: num,
+  }),
 });
 
 describe('tuning.json', () => {

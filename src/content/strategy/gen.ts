@@ -24,6 +24,7 @@ import {
   buildEdges,
   moveOf,
   zoneCentre,
+  type EdgeOpts,
   type MazeGraph,
   type MazeNode,
   type MazeStats,
@@ -42,7 +43,7 @@ export function planeY(z: number): number {
 }
 
 export const LANES: readonly number[] = [-24, -12, 0, 12, 24];
-const HOUSE_HALF = 4; // 8 m square footprint, so 4 m between neighbours in a row
+export const HOUSE_HALF = 4; // 8 m square footprint, so 4 m between neighbours in a row
 const STOREY = 4; // roof heights differ by whole storeys: one up sideways is out of grab reach
 const H_LOW = 7;
 const H_MID = H_LOW + STOREY;
@@ -63,19 +64,20 @@ const ZONE_OFF = 2; // zip zone centre, left of the lane centre
 const PAD_OFF = 2; // tramp pad centre, right of the lane centre (never under the zone)
 const SLAB = 0.3; // roof and balcony slab thickness (style 2)
 const FOOT = 6; // house boxes reach this far under the centre-line ground
+export const CUSHION_HALF = 2.5; // nagarkot-home cushion pad half side (m): a 5 m pad mid-roof, not the whole roof
 const THIN = 0.02; // cushion and tramp slab thickness (inside the sim's slab tolerance)
 const ZONE_THICK = 0.05;
 const HAZARD_STRIP = 4; // lethal ground in strips this deep, stepped down the hill
-const HAZARD_DEPTH = 6;
-const HAZARD_LIP = 0.2;
-const HAZARD_HALF_W = 60;
-const HAZARD_PAST = 8; // strips run this far past the first and last row
+export const HAZARD_DEPTH = 6;
+export const HAZARD_LIP = 0.2;
+export const HAZARD_HALF_W = 60;
+export const HAZARD_PAST = 8; // strips run this far past the first and last row
 export const DEAD_MIN = 8; // dead-end roofs wanted in a level
 export const DEAD_MAX = 20;
 export const MIN_ESCAPES = 2; // edge-disjoint spawn -> goal routes wanted
 export const UNREACHED_MAX = 2; // roofs nobody can get to (scenery) tolerated
 const REPAIR_MAX = 80;
-const MAX_SEED_TRIES = 64;
+export const MAX_SEED_TRIES = 64;
 const GOAL_REACH = 3; // goal volume height over the last roof
 
 // Link kinds, also the order of a segment's `mix` weights.
@@ -84,7 +86,7 @@ const K_BALCONY = 1;
 const K_CUSHION = 2;
 const K_TRAMP = 3;
 
-interface Segment {
+export interface Segment {
   name: string;
   houses: number; // quota; the spawn tower counts in the first, the goal in the last
   perBand: readonly [number, number];
@@ -165,13 +167,68 @@ const ZIP_ONLY: readonly number[] = [0, 0, 0, 0, 1];
 const GOAL_MIX: readonly number[] = [1, 0, 0, 1, 1];
 const OPEN_MIX: readonly number[] = [0, 0, 1, 1, 1]; // what may open a dead end
 
+// ---- nagarkot-home (T336a): the kit-height variant. Same generator, its own parameter set. ----------------
+export const NAGARKOT_HOME_SEED = 20261117;
+export const TERRACE_STEP = 1.2; // one retaining-wall step of the stepped ground
+export const TERRACE_MAX = 4; // steps a single row boundary may take while repairing leaks
+const LONG_GAP = 11; // gaps this wide get no terrace step (their rise already clears the grab ceiling)
+const ROAD_THICK = 12;
+export const HOME_REPAIR_PASSES = 8;
+
+export interface GenParams {
+  home: boolean;
+  storey: number; // storey step used by side-steps and decoy traps
+  balconyDrop: number;
+  balconyDepth: number;
+  balconyMin: number; // a balcony needs a roof at least this tall over its ground (frozen: no limit)
+  roadUnder: number; // > 0: deck this far under the front row's ground (home); 0: ROAD_LIFT over the plane
+  roadFront: readonly number[];
+  roadBack: readonly number[] | null; // heights allowed on the row after a road
+  spawnH: number;
+  goalH: number;
+  segments: readonly Segment[];
+  houses: number;
+  deadMin: number;
+  deadMax: number;
+  edge: EdgeOpts | undefined; // measure model (undefined = the frozen rules)
+  longRows?: readonly number[]; // row indices built as 4-house terraces (32 m straight runs for the sprint)
+}
+
+export const NAGARKOT_PARAMS: GenParams = {
+  home: false,
+  storey: STOREY,
+  balconyDrop: BALCONY_DROP,
+  balconyDepth: BALCONY_DEPTH,
+  balconyMin: -Infinity,
+  roadUnder: 0,
+  roadFront: ROAD_FRONT_HEIGHTS,
+  roadBack: null,
+  spawnH: SPAWN_H,
+  goalH: GOAL_H,
+  segments: SEGMENTS,
+  houses: HOUSE_COUNT,
+  deadMin: DEAD_MIN,
+  deadMax: DEAD_MAX,
+  edge: undefined,
+};
+
+let GP: GenParams = NAGARKOT_PARAMS; // the parameter set in force while a level is generated
+
+function sub(a: number, b: number): number {
+  return GP.home ? Math.round((a - b) * 100) / 100 : a - b;
+}
+
+function hasBalc(h: House): boolean {
+  return h.balcony && h.h - GP.balconyDrop >= GP.balconyMin;
+}
+
 export const ROLE_DECOY = 0;
 export const ROLE_A = 1;
 export const ROLE_B = 2;
 export const ROLE_SPAWN = 3;
 export const ROLE_GOAL = 4;
 
-const NONE = -1;
+export const NONE = -1;
 // A move source or zip target is a house index (>= 0), NONE, or a road as -2 - roadIndex.
 function roadRef(i: number): number {
   return -2 - i;
@@ -188,12 +245,20 @@ export interface House {
   row: number;
   seg: number;
   role: number; // ROLE_*
+  drop: number; // ground under this house lies this far below the plane (nagarkot-home terraces; 0 = frozen)
+  len?: number; // joined 8 m houses in a terrace run downhill from the uphill edge (nagarkot-home); unset = 1
+}
+
+/** Downhill (smaller z) edge of a house: a joined terrace of `len` houses runs 8 m each past the uphill one. */
+export function houseZ0(h: House): number {
+  return h.zc - HOUSE_HALF - 2 * HOUSE_HALF * ((h.len ?? 1) - 1);
 }
 
 export interface Road {
   zc: number;
   tramps: number[]; // x centres of pads on the downhill edge
   row: number;
+  top?: number; // deck height; unset = the frozen ROAD_LIFT formula
 }
 
 export const ROW_BAND = 0;
@@ -212,6 +277,7 @@ export interface Layout {
   houses: House[];
   roads: Road[];
   rows: Row[];
+  rowDrop: number[]; // per row: terrace drop of its ground under the plane (all 0 for the frozen level)
 }
 
 export interface NodeIndex {
@@ -240,9 +306,29 @@ export interface StrategySummary {
   balconies: number;
   zMin: number; // downhill end of the level (terrain must reach it)
   length: number;
+  // nagarkot-home only (strict route edges, no sprint or leak launches):
+  routeDisjoint?: number; // node-disjoint start -> goal paths with the roads uncapped
+  routeM?: number; // metres of the shortest route
+  routeS?: number; // seconds of the shortest route
+  routeRuns?: number; // route roofs with a straight run of 25 m or more along the move axis (sprint runs)
+  sprintGaps?: number; // route jumps that only a sprint launch from a long run can make
+  deadBranches?: number; // weakly connected groups of dead-end nodes (leak model)
+  leakPasses?: number;
+}
+
+/** nagarkot-home bend (T337): the generator works in a straight local frame; `level` and `world.nodes` are the bent world. */
+export interface BendFrame {
+  pivotNode: number; // road node the descent turns on
+  z0: number; // local downhill edge of that road
+  zr: number; // local centre z of that road (world Z of the lane centre line after the turn)
+  xEast: number; // world X of the widened road's east end; the turned run starts here
+  nodes: MazeNode[]; // world rectangles, in node order (same ids as `nodes`)
+  tail: boolean[]; // node id -> lies after the pivot (rotated)
+  local: LevelJson; // the straight level before the turn (profile and checks)
 }
 
 export interface StrategyLevel {
+  world?: BendFrame;
   level: LevelJson;
   layout: Layout;
   nodes: MazeNode[];
@@ -322,13 +408,26 @@ function split(rng: Rng, quota: number, min: number, max: number): number[] {
 }
 
 export function roofY(h: House): number {
-  return planeY(h.zc) + h.h;
+  return planeY(h.zc) - h.drop + h.h;
 }
 
 export function roadY(r: Road): number {
+  if (r.top !== undefined) return r.top;
   // Flat terrace cut into the slope: the deck sits ROAD_LIFT above the ground at its uphill
   // edge. A plain deck, not a cushion: a drop from a mid-height roof onto it kills.
   return planeY(r.zc + ROAD_HALF) + ROAD_LIFT;
+}
+
+/** The nagarkot-home cushion pad on a house roof (x centre `x`): a small slab mid-roof, behind the tramp strip if any. */
+function homePad(h: House, x: number): { x0: number; x1: number; z0: number; z1: number } {
+  const z0 = houseZ0(h);
+  const zm = (z0 + h.zc + HOUSE_HALF) / 2;
+  return {
+    x0: x - CUSHION_HALF,
+    x1: x + CUSHION_HALF,
+    z0: Math.max(zm - CUSHION_HALF, h.tramp ? z0 + PAD_DEPTH : -Infinity),
+    z1: zm + CUSHION_HALF,
+  };
 }
 
 /** Nodes for a layout: roof (and balcony) per house, one per road. Ids are stable per call. */
@@ -348,10 +447,11 @@ export function buildNodes(layout: Layout): NodeIndex {
       house: i,
       x0: x - HOUSE_HALF,
       x1: x + HOUSE_HALF,
-      z0: h.zc - HOUSE_HALF,
+      z0: houseZ0(h),
       z1: h.zc + HOUSE_HALF,
       y: roofY(h),
       cushion: h.cushion,
+      pad: h.cushion && GP.home ? homePad(h, x) : undefined,
       tramps: h.tramp ? [x + PAD_OFF] : [],
       zipTo: -1,
       zipX: x - ZONE_OFF,
@@ -361,7 +461,7 @@ export function buildNodes(layout: Layout): NodeIndex {
   }
   for (let i = 0; i < layout.houses.length; i++) {
     const h = layout.houses[i];
-    if (!h.balcony) continue;
+    if (!hasBalc(h)) continue;
     const x = LANES[h.lane];
     balcOf[i] = nodes.length;
     nodes[roofOf[i]].balc = nodes.length;
@@ -372,8 +472,8 @@ export function buildNodes(layout: Layout): NodeIndex {
       x0: x - HOUSE_HALF,
       x1: x + HOUSE_HALF,
       z0: h.zc + HOUSE_HALF,
-      z1: h.zc + HOUSE_HALF + BALCONY_DEPTH,
-      y: roofY(h) - BALCONY_DROP,
+      z1: h.zc + HOUSE_HALF + GP.balconyDepth,
+      y: roofY(h) - GP.balconyDrop,
       cushion: false,
       tramps: [],
       zipTo: -1,
@@ -544,15 +644,19 @@ function lateral(
   const P = L.houses[from];
   const H = L.houses[to];
   const own = H.h; // the seeded storey count first, then level with the neighbour or one lower
-  const opts = rng() < 0.5 ? [own, P.h, P.h - STOREY] : [own, P.h - STOREY, P.h];
+  const base = H.drop;
+  const opts = rng() < 0.5 ? [own, P.h, sub(P.h, GP.storey)] : [own, sub(P.h, GP.storey), P.h];
   for (let i = 0; i < opts.length; i++) {
     if (heights.indexOf(opts[i]) < 0) continue;
     H.h = opts[i];
+    // Home: a side-step down is also a terrace step, so the way back is out of grab reach.
+    H.drop = GP.home && opts[i] < P.h - 0.01 ? L.rowDrop[H.row] + TERRACE_STEP : base;
     const nb = buildNodes(L);
     if (moveOf(nb.nodes[nb.roofOf[from]], nb.nodes[nb.roofOf[to]], nb.nodes) === MOVE_JUMP)
       return true;
   }
   H.h = own;
+  H.drop = base;
   return false;
 }
 
@@ -592,12 +696,21 @@ function attach(
         if (done[j] && Math.abs(o.lane - me.lane) === 1) nbs.push(o);
       }
       if (nbs.length === 0) continue;
-      const nbh = pick(rng, nbs).h;
+      const nbo = pick(rng, nbs);
+      const nbh = nbo.h;
       // Keep the seeded storey count when it is no taller than the neighbour (a decoy taller than
       // the house it hangs off could not be reached); a taller one is pulled level, or a storey
       // under on a trap roll.
       if (me.h > nbh)
-        me.h = rng() < trap && heights.indexOf(nbh - STOREY) >= 0 ? nbh - STOREY : nbh;
+        me.h =
+          rng() < trap && heights.indexOf(sub(nbh, GP.storey)) >= 0 ? sub(nbh, GP.storey) : nbh;
+      // Home: a decoy also sits on a lower terrace than the house it hangs off, so the way back up is out of grab
+      // reach, and (on a trap roll) deep enough that its own drop to the next row is too far to survive.
+      if (GP.home) {
+        const deep = rng() < trap;
+        const steps = me.h < nbh - 0.01 ? (deep ? 2 : 1) : deep ? 3 : 0;
+        if (steps > 0) me.drop = nbo.drop + steps * TERRACE_STEP;
+      }
       done[i] = true;
       progress = true;
     }
@@ -626,7 +739,7 @@ function decoZip(L: Layout, rng: Rng, i: number): void {
   if (moveOf(nb.nodes[nb.roofOf[i]], b, nb.nodes) !== MOVE_ZIP) h.zipTo = NONE;
 }
 
-interface Measure {
+export interface Measure {
   nb: NodeIndex;
   graph: MazeGraph;
   stats: MazeStats;
@@ -634,11 +747,11 @@ interface Measure {
   unreached: number;
 }
 
-function measure(L: Layout): Measure {
+export function measure(L: Layout): Measure {
   const nb = buildNodes(L);
   const graph: MazeGraph = {
     n: nb.nodes.length,
-    edges: buildEdges(nb.nodes),
+    edges: buildEdges(nb.nodes, GP.edge),
     start: nb.roofOf[0],
     goal: nb.roofOf[L.houses.length - 1],
   };
@@ -675,10 +788,26 @@ function openDead(L: Layout, rng: Rng, d: number, m: Measure): boolean {
   return false;
 }
 
-type Box = { min: [number, number, number]; max: [number, number, number] };
+export type Box = { min: [number, number, number]; max: [number, number, number] };
 
-function bx(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): Box {
+export function bx(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): Box {
   return { min: [x0, y0, z0], max: [x1, y1, z1] };
+}
+
+/** The nagarkot-home-only passes live in home.ts so the shipped bundle only carries them when a level asks (T336a). */
+export interface HomeHooks {
+  hazards(L: Layout, out: Box[]): void;
+  repair(L: Layout): boolean;
+  leaks(L: Layout, m: Measure): number;
+  summarize(m: Measure, summary: StrategySummary): void;
+}
+let HH: HomeHooks | null = null;
+export function setHomeHooks(h: HomeHooks): void {
+  HH = h;
+}
+function homeHooks(): HomeHooks {
+  if (HH === null) throw new Error('nagarkot-home: import ./home before generating it');
+  return HH;
 }
 
 /** Geometry for a layout. Spawn on the first house, goal on the last. */
@@ -696,20 +825,24 @@ export function layoutToLevel(layout: Layout): LevelJson {
     const h = layout.houses[i];
     const x = LANES[h.lane];
     const y = roofY(h);
-    const z0 = h.zc - H;
+    const z0 = houseZ0(h);
     const z1 = h.zc + H;
-    solids.push(bx(x - H, planeY(h.zc) - FOOT, z0, x + H, y - SLAB, z1));
+    solids.push(bx(x - H, planeY(z0 + H) - h.drop - FOOT, z0, x + H, y - SLAB, z1));
     style.push(1);
     solids.push(bx(x - H, y - SLAB, z0, x + H, y, z1));
     style.push(2);
-    if (h.balcony) {
-      const by = y - BALCONY_DROP;
-      solids.push(bx(x - H, by - SLAB, z1, x + H, by, z1 + BALCONY_DEPTH));
+    if (hasBalc(h)) {
+      const by = y - GP.balconyDrop;
+      solids.push(bx(x - H, by - SLAB, z1, x + H, by, z1 + GP.balconyDepth));
       style.push(2);
     }
     const px0 = x + PAD_OFF - PAD_HALF;
     const px1 = x + PAD_OFF + PAD_HALF;
-    if (h.cushion && !h.tramp) {
+    if (h.cushion && GP.home) {
+      // A small pad mid-roof; beside a tramp it starts behind the tramp strip so the pad always bounces.
+      const cp = homePad(h, x);
+      cushions.push(bx(cp.x0, y, cp.z0, cp.x1, y + THIN, cp.z1));
+    } else if (h.cushion && !h.tramp) {
       cushions.push(bx(x - H, y, z0, x + H, y + THIN, z1));
     } else if (h.cushion) {
       // Keep the cushion off the tramp pad so the pad always bounces.
@@ -733,7 +866,16 @@ export function layoutToLevel(layout: Layout): LevelJson {
     const r = layout.roads[i];
     const y = roadY(r);
     const z0 = r.zc - ROAD_HALF;
-    solids.push(bx(-ROAD_HALF_W, planeY(z0) - FOOT, z0, ROAD_HALF_W, y, r.zc + ROAD_HALF));
+    solids.push(
+      bx(
+        -ROAD_HALF_W,
+        GP.home ? y - ROAD_THICK : planeY(z0) - FOOT,
+        z0,
+        ROAD_HALF_W,
+        y,
+        r.zc + ROAD_HALF,
+      ),
+    );
     style.push(0);
     for (let k = 0; k < r.tramps.length; k++) {
       const x = r.tramps[k];
@@ -745,17 +887,23 @@ export function layoutToLevel(layout: Layout): LevelJson {
   const first = layout.houses[0];
   const last = layout.houses[layout.houses.length - 1];
   const zEnd = last.zc - H - HAZARD_PAST;
-  for (let z = first.zc + H + HAZARD_PAST; z > zEnd; z -= HAZARD_STRIP) {
-    const top = planeY(z) + HAZARD_LIP;
-    hazards.push(bx(-HAZARD_HALF_W, top - HAZARD_DEPTH, z - HAZARD_STRIP, HAZARD_HALF_W, top, z));
+  let lowest = 0;
+  if (GP.home) {
+    homeHooks().hazards(layout, hazards);
+    for (let i = 0; i < layout.houses.length; i++) lowest = Math.max(lowest, layout.houses[i].drop);
+  } else {
+    for (let z = first.zc + H + HAZARD_PAST; z > zEnd; z -= HAZARD_STRIP) {
+      const top = planeY(z) + HAZARD_LIP;
+      hazards.push(bx(-HAZARD_HALF_W, top - HAZARD_DEPTH, z - HAZARD_STRIP, HAZARD_HALF_W, top, z));
+    }
   }
   const lx = LANES[last.lane];
   const ly = roofY(last);
-  return {
+  const level: LevelJson = {
     version: 1,
     spawn: [LANES[first.lane], roofY(first) + 0.01, first.zc],
     spawnYaw: Math.PI,
-    killPlaneY: planeY(zEnd) - 40,
+    killPlaneY: planeY(zEnd) - lowest - 40,
     solids,
     style,
     ramps: [],
@@ -769,12 +917,35 @@ export function layoutToLevel(layout: Layout): LevelJson {
     cushions,
     hazards,
   };
+  if (GP.home) level.parkour = 1;
+  return level;
 }
 
 /** One generation attempt for exactly this seed. Null when route A could not be completed. */
-export function attemptStrategy(seed: number): StrategyLevel | null {
+export function attemptStrategy(
+  seed: number,
+  params: GenParams = NAGARKOT_PARAMS,
+): StrategyLevel | null {
+  const before = GP;
+  GP = params;
+  try {
+    return attemptInner(seed);
+  } finally {
+    GP = before;
+  }
+}
+
+// Terrace step a new row takes under the previous one (home only): rows after a short gap or a road
+// stand one step lower, so a 1-storey house uphill of a 2-storey one cannot be grabbed from below.
+function rowStep(prevKind: number, gap: number): number {
+  if (!GP.home) return 0;
+  return prevKind === ROW_ROAD || gap < LONG_GAP ? TERRACE_STEP : 0;
+}
+
+function attemptInner(seed: number): StrategyLevel | null {
   const rng = makeRng(seed);
-  const L: Layout = { houses: [], roads: [], rows: [] };
+  const L: Layout = { houses: [], roads: [], rows: [], rowDrop: [0] };
+  let extra = 0; // cumulative terrace drop of the row being built
   const addHouse = (
     lane: number,
     zc: number,
@@ -794,28 +965,38 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
       row,
       seg,
       role,
+      drop: L.rowDrop[row],
     });
     return L.houses.length - 1;
   };
-  addHouse(SPAWN_LANE, 0, SPAWN_H, 0, 0, ROLE_SPAWN);
+  addHouse(SPAWN_LANE, 0, GP.spawnH, 0, 0, ROLE_SPAWN);
   L.rows.push({ kind: ROW_BAND, z0: -HOUSE_HALF, z1: HOUSE_HALF, houses: [0], road: -1, seg: 0 });
   let curA = 0; // where each route stands: a house, a road ref, or NONE when B is lost
   let curB = 0;
   let lostB = 0;
 
-  for (let si = 0; si < SEGMENTS.length; si++) {
-    const seg = SEGMENTS[si];
-    const lastSeg = si === SEGMENTS.length - 1;
+  for (let si = 0; si < GP.segments.length; si++) {
+    const seg = GP.segments[si];
+    const lastSeg = si === GP.segments.length - 1;
     const quota = seg.houses - (si === 0 ? 1 : 0) - (lastSeg ? 1 : 0);
     const counts = split(rng, quota, seg.perBand[0], seg.perBand[1]);
     for (let bi = 0; bi < counts.length; bi++) {
       const k = counts[bi];
       const front = seg.roadAfter && bi === counts.length - 1;
-      const heights = front ? ROAD_FRONT_HEIGHTS : seg.heights;
       const prev = L.rows[L.rows.length - 1];
+      const afterRoad = prev.kind === ROW_ROAD && GP.roadBack !== null;
+      const heights = front
+        ? afterRoad
+          ? (GP.roadBack as readonly number[])
+          : GP.roadFront
+        : afterRoad
+          ? (GP.roadBack as readonly number[])
+          : seg.heights;
       const fromTower = L.rows.length === 1;
       const gap = prev.kind === ROW_ROAD ? ROAD_GAP : fromTower ? SPAWN_GAP : pick(rng, seg.gaps);
       const zc = prev.z0 - gap - HOUSE_HALF;
+      extra += rowStep(prev.kind, gap);
+      L.rowDrop[L.rows.length] = extra;
 
       // Lanes: where each route enters, an optional side-step each, then decoys alongside.
       const occ: boolean[] = [];
@@ -874,9 +1055,12 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
         at[lane] = addHouse(lane, zc, pick(rng, heights), row, si, role);
         ids.push(at[lane]);
       }
+      // A long row: every house in it is a 4-house terrace, so the row's lanes stay aligned (one row, one z extent).
+      const longRow = GP.longRows !== undefined && GP.longRows.indexOf(row) >= 0;
+      if (longRow) for (let i = 0; i < ids.length; i++) L.houses[ids[i]].len = 4;
       L.rows.push({
         kind: ROW_BAND,
-        z0: zc - HOUSE_HALF,
+        z0: longRow ? houseZ0(L.houses[ids[0]]) : zc - HOUSE_HALF,
         z1: zc + HOUSE_HALF,
         houses: ids,
         road: -1,
@@ -910,7 +1094,12 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
       const prev = L.rows[L.rows.length - 1];
       const zc = prev.z0 - ROAD_GAP - ROAD_HALF;
       const ri = L.roads.length;
-      L.roads.push({ zc, tramps: [], row: L.rows.length });
+      const road: Road = { zc, tramps: [], row: L.rows.length };
+      // Home: the deck sits under the front row's ground, so a 1-storey front roof drops 5.9 onto it.
+      if (GP.home)
+        road.top = planeY(prev.z0 + HOUSE_HALF) - L.rowDrop[L.rows.length - 1] - GP.roadUnder;
+      L.rowDrop[L.rows.length] = extra;
+      L.roads.push(road);
       L.rows.push({
         kind: ROW_ROAD,
         z0: zc - ROAD_HALF,
@@ -920,7 +1109,9 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
         seg: si,
       });
       if (!linkRoad(L, curA, ri)) return null;
-      if (curB !== NONE && !linkRoad(L, curB, ri)) lostB++;
+      if (curB !== NONE && !linkRoad(L, curB, ri)) {
+        lostB++;
+      }
       curA = roadRef(ri);
       curB = roadRef(ri); // both routes meet on the road, and B starts afresh from it
     }
@@ -931,7 +1122,9 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
     const prev = L.rows[L.rows.length - 1];
     const zc = prev.z0 - GOAL_GAP - HOUSE_HALF;
     const lane = curA >= 0 ? L.houses[curA].lane : SPAWN_LANE;
-    const g = addHouse(lane, zc, GOAL_H, L.rows.length, SEGMENTS.length - 1, ROLE_GOAL);
+    extra += rowStep(prev.kind, GOAL_GAP);
+    L.rowDrop[L.rows.length] = extra;
+    const g = addHouse(lane, zc, GP.goalH, L.rows.length, GP.segments.length - 1, ROLE_GOAL);
     L.houses[g].cushion = true;
     L.rows.push({
       kind: ROW_BAND,
@@ -939,28 +1132,34 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
       z1: zc + HOUSE_HALF,
       houses: [g],
       road: -1,
-      seg: SEGMENTS.length - 1,
+      seg: GP.segments.length - 1,
     });
     if (!link(L, rng, curA, g, [], GOAL_MIX, true)) return null;
-    if (curB !== NONE && !link(L, rng, curB, g, [], ZIP_ONLY, true)) lostB++;
+    if (curB !== NONE && !link(L, rng, curB, g, [], GP.home ? GOAL_MIX : ZIP_ONLY, true)) {
+      lostB++;
+    }
   }
 
   // Decoys get their own cushions, balconies, pads and lines: some rescue, some mislead.
   for (let i = 0; i < L.houses.length; i++) {
     const h = L.houses[i];
     if (h.role !== ROLE_DECOY) continue;
-    const deco = SEGMENTS[h.seg].deco;
+    const deco = GP.segments[h.seg].deco;
     if (rng() < deco[0]) h.cushion = true;
     if (rng() < deco[1]) h.balcony = true;
     if (rng() < deco[2]) h.tramp = true;
     if (rng() < deco[3]) decoZip(L, rng, i);
   }
 
+  // Home: no step may lead back uphill. Lower the lower decoy of a side-step pair, or step the rows under a
+  // cross-row leak; a leak on a route house or the spawn row cannot be mended here, so this seed fails.
+  if (GP.home && !homeHooks().repair(L)) return null;
+
   // Too many dead ends: open some, one at a time, until the count is in range.
   let m = measure(L);
   let repairs = 0;
   const tried: boolean[] = [];
-  for (let guard = 0; guard < REPAIR_MAX && m.deadRoofs.length > DEAD_MAX; guard++) {
+  for (let guard = 0; guard < REPAIR_MAX && m.deadRoofs.length > GP.deadMax; guard++) {
     const open: number[] = [];
     for (let i = 0; i < m.deadRoofs.length; i++)
       if (!tried[m.deadRoofs[i]]) open.push(m.deadRoofs[i]);
@@ -972,6 +1171,8 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
       m = measure(L);
     }
   }
+
+  if (GP.home && homeHooks().leaks(L, m) > 0) return null; // dead-end opening must not have reopened a way up
 
   const moves: number[] = [];
   for (let i = 0; i < MOVE_NAMES.length; i++) moves.push(0);
@@ -1009,6 +1210,7 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
     zMin,
     length: L.rows[0].z1 - zMin,
   };
+  if (GP.home) homeHooks().summarize(m, summary);
   return {
     level: layoutToLevel(L),
     layout: L,
@@ -1020,18 +1222,18 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
   };
 }
 
-function deadInRange(s: StrategyLevel): boolean {
-  return s.summary.deadRoofs >= DEAD_MIN && s.summary.deadRoofs <= DEAD_MAX;
+export function deadInRange(s: StrategyLevel, p: GenParams = NAGARKOT_PARAMS): boolean {
+  return s.summary.deadRoofs >= p.deadMin && s.summary.deadRoofs <= p.deadMax;
 }
 
 /** The level a seed must reach: goal reachable, two disjoint routes, dead ends in range. */
-export function levelValid(s: StrategyLevel): boolean {
+export function levelValid(s: StrategyLevel, p: GenParams = NAGARKOT_PARAMS): boolean {
   return (
     s.stats.goalReached &&
-    s.summary.houses === HOUSE_COUNT &&
+    s.summary.houses === p.houses &&
     s.stats.escapePaths >= MIN_ESCAPES &&
     s.summary.unreachedRoofs <= UNREACHED_MAX &&
-    deadInRange(s)
+    deadInRange(s, p)
   );
 }
 

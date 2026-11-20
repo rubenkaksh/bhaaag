@@ -158,15 +158,16 @@ export class TouchInput {
     out.moveX = quantizeAxis(this.stickX);
     out.moveY = quantizeAxis(this.stickY);
 
-
     // Held buttons derive from the live pointer id, so pointercancel and blur release them.
     const now = performance.now();
     let buttons = 0;
     if (this.jumpId !== -1) {
       if (this.pressMode === 'jump') buttons |= BTN_JUMP | BTN_ACTION;
       else if (this.pressMode === 'hook') buttons |= BTN_HOOK | BTN_ACTION;
-      else if (this.pressMode === 'brake' && this.tapper.holding(now, BRAKE_HOLD_MS)) buttons |= BTN_REEL;
-      else if (this.pressMode === 'climb' && this.tapper.holding(now, CLIMB_HOLD_MS)) buttons |= BTN_CLIMB;
+      else if (this.pressMode === 'brake' && this.tapper.holding(now, BRAKE_HOLD_MS))
+        buttons |= BTN_REEL;
+      else if (this.pressMode === 'climb' && this.tapper.holding(now, CLIMB_HOLD_MS))
+        buttons |= BTN_CLIMB;
     }
     // Completed tap sequence: double tap = Hook (jump context only), triple tap = Drop.
     const taps = this.tapper.poll(now);
@@ -420,7 +421,8 @@ export class TouchInput {
     this.jumpId = -1;
     const dur = this.tapper.release(e.timeStamp);
     // Deferred jump: off a wall a short tap jumps, a hold climbs. On the rope JUMP is ignored.
-    if (this.pressMode === 'climb' && dur >= 0 && dur < CLIMB_HOLD_MS) this.pressedPending |= BTN_JUMP;
+    if (this.pressMode === 'climb' && dur >= 0 && dur < CLIMB_HOLD_MS)
+      this.pressedPending |= BTN_JUMP;
   };
 
   private readonly onJumpCancel = (e: PointerEvent): void => {

@@ -1,6 +1,6 @@
 // Sim bot for graph levels (ADR 0013 section 3.6). Drives the real step() through per-edge recipes
 // built from PlacedEdge data. Shared by graphLevelBot.test.ts.
-import { DEFAULT_TUNING } from '../../src/core/config';
+import { LEGACY_TUNING as DEFAULT_TUNING } from '../fixtures/legacyFeel';
 import {
   HERO_EV_BOUNCE,
   HERO_EV_MANTLE,

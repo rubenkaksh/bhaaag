@@ -20,7 +20,9 @@ for (let i = 0; i < 50; i++) {
     await new Promise((r) => setTimeout(r, 200));
   }
 }
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch({
+  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+});
 let errors = 0;
 for (const tier of ['low', 'medium', 'high']) {
   for (const [name, vp, touch] of [
@@ -42,7 +44,11 @@ for (const tier of ['low', 'medium', 'high']) {
     });
     await page.goto(`${base}?mode=strategy&gfx=${tier}&debug`);
     await page.waitForTimeout(2500);
-    await page.getByText('PLAY', { exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+    await page
+      .getByText('PLAY', { exact: true })
+      .first()
+      .click({ timeout: 3000 })
+      .catch(() => {});
     await page.waitForTimeout(2500);
     await page.screenshot({ path: `art/shots/auto/${label}-strategy-${tier}-${name}.png` });
     await ctx.close();
@@ -58,7 +64,11 @@ for (const tier of ['low', 'medium', 'high']) {
   });
   await page.goto(`${base}?mode=strategy&gfx=medium&debug`);
   await page.waitForTimeout(2500);
-  await page.getByText('PLAY', { exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+  await page
+    .getByText('PLAY', { exact: true })
+    .first()
+    .click({ timeout: 3000 })
+    .catch(() => {});
   await page.waitForTimeout(2000);
   await page.keyboard.down('KeyE');
   await page.waitForTimeout(150);

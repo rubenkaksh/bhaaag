@@ -12,15 +12,26 @@ import {
 
 // The visible hillside: one merged vertex-coloured mesh over terrainY. Inside |x| <= HILL_HALF_X it
 // is exactly the collider plane (the hero's feet touch the drawn surface); outside it wooded
-// foothills rise toward the mountain ranges. Stock Lambert material, no textures, no shaders.
+// foothills rise toward the mountain ranges. Stock Lambert material, tier-swapped grey terrace tile (userData.tierMaps), no shaders.
 
-const EARTH = '#678a3c'; // muted olive grass around the village
-const EARTH_ALT = '#7c8c42'; // ochre fallow strips
+const EARTH = '#6b8a3e'; // muted olive grass around the village
+const TERRACE_LIP = '#8f8a4c'; // dry terrace edge
 const DIRT = '#857a50';
-const FOREST_LOW = '#43763a';
-const FOREST_MID = '#3f5a33';
-const CONIFER = '#2f4a2f';
-const ROCK = '#6f6a5c';
+const FOREST_LOW = '#46703a';
+const FOREST_MID = '#3d5634';
+const CONIFER = '#2e452d';
+const FAR_HAZE = '#7f8a5e'; // plate foothill green seen through haze
+const FALLOW = '#c4a45a'; // ochre fallow / harvested terrace
+
+// Module-level colours: groundColor runs once per vertex, so no Color is allocated in it.
+const C_EARTH = new Color(EARTH);
+const C_TERRACE_LIP = new Color(TERRACE_LIP);
+const C_DIRT = new Color(DIRT);
+const C_FOREST_LOW = new Color(FOREST_LOW);
+const C_FOREST_MID = new Color(FOREST_MID);
+const C_CONIFER = new Color(CONIFER);
+const C_FAR_HAZE = new Color(FAR_HAZE);
+const C_FALLOW = new Color(FALLOW);
 
 /** Grid lines along one axis: `fine` m near `centre`, growing by `grow` per step toward the ends. */
 function axis(
@@ -60,32 +71,46 @@ export function groundColor(x: number, z: number, y: number, out: Color, h: numb
   const ax = Math.abs(x);
   // altitude above the village plane: forest green deepens, then conifer, then bare rock
   const up = y - planeY(z);
-  const stripe = Math.floor((z + 400) / 9) % 3; // contour fields: olive, fallow, olive
-  out.set(EARTH);
-  if (stripe === 1) out.lerp(new Color(EARTH_ALT), 0.7);
+  // terraces: 3.5 m height bands alternate green and ochre fallow, each band's top gets a thin dry
+  // lip line, and ~20 m field patches (hash of the 20 m cell) shift individual terraces
+  const yy = y + 1000;
+  const bandIdx = Math.floor(yy / 3.5);
+  const patch = hash(Math.floor(x / 20) + 500, Math.floor(z / 20) + 500 + bandIdx);
+  out.copy(C_EARTH);
+  if (bandIdx % 2 === 1) out.lerp(C_FALLOW, 0.65 + 0.3 * patch);
+  else if (patch > 0.6) out.lerp(C_FALLOW, 0.3 * (patch - 0.6) * 2.5);
+  if (yy % 3.5 > 3.0) out.lerp(C_TERRACE_LIP, 0.6);
   // faint wandering dirt tint near the lane keeps it from looking mowed
-  if (ax < 14) out.lerp(new Color(DIRT), 0.18 * h);
+  if (ax < 14) out.lerp(C_DIRT, 0.18 * h);
   // the village grass gives way to forest between x = 36 and 70
   const f1 = Math.min(1, Math.max(0, (ax - 36) / 40));
-  out.lerp(new Color(FOREST_LOW), f1 * (0.5 + 0.5 * h));
-  const f2 = Math.min(1, Math.max(0, (up - 18) / 50));
-  out.lerp(new Color(FOREST_MID), f2);
-  const f3 = Math.min(1, Math.max(0, (up - 55) / 70));
-  out.lerp(new Color(CONIFER), f3);
-  const f4 = Math.min(1, Math.max(0, (up - 110) / 60));
-  out.lerp(new Color(ROCK), f4 * 0.6);
+  out.lerp(C_FOREST_LOW, f1 * (0.5 + 0.5 * h));
+  // conifer fractions come from distance off the lane, or from altitude, whichever is greater
+  const f2 = Math.max(
+    Math.min(1, Math.max(0, (up - 18) / 50)),
+    Math.min(1, Math.max(0, (ax - 50) / 60)),
+  );
+  out.lerp(C_FOREST_MID, f2);
+  const f3 = Math.max(
+    Math.min(1, Math.max(0, (up - 55) / 70)),
+    Math.min(1, Math.max(0, (ax - 110) / 90)),
+  );
+  out.lerp(C_CONIFER, f3);
+  // far tint so the ground meets the cards in hue
+  const far = Math.min(1, Math.max(0, (Math.hypot(x, z) - 160) / 160));
+  out.lerp(C_FAR_HAZE, 0.55 * far);
   // the valley floor below the last house is green meadow
   return out.multiplyScalar(0.92 + 0.14 * h);
 }
 
 export function buildGroundMesh(): Mesh {
-  const xs = axis(-TERRAIN_HALF_X, TERRAIN_HALF_X, 3, -42, 42, 1.22, [
+  const xs = axis(-TERRAIN_HALF_X, TERRAIN_HALF_X, 3, -42, 42, 1.12, [
     -HILL_HALF_X,
     HILL_HALF_X,
     0,
   ]);
   const zMin = terrainZMin();
-  let zs = axis(zMin, TERRAIN_Z_MAX, 3, -156, 46, 1.22, [40, terrainValleyZ(), -104, 26]);
+  let zs = axis(zMin, TERRAIN_Z_MAX, 3, -156, 46, 1.12, [40, terrainValleyZ(), -104, 26]);
   if (zMin < TERRAIN_Z_MIN) {
     // long level (strategy maze): a coarse 12 m strip down the linear plane to the valley
     for (let z = -156; z > terrainValleyZ() - 12; z -= 12) zs.push(z);
@@ -96,6 +121,7 @@ export function buildGroundMesh(): Mesh {
   const nz = zs.length;
   const pos: number[] = [];
   const col: number[] = [];
+  const uv: number[] = [];
   const idx: number[] = [];
   const c = new Color();
   for (let i = 0; i < nz; i++) {
@@ -104,6 +130,8 @@ export function buildGroundMesh(): Mesh {
       const x = xs[j];
       const y = terrainY(x, z);
       pos.push(x, y, z);
+      // Top-down planar grass tile: the old y-contour mapping stretched into long streaks on the steep hill.
+      uv.push(x / 7, z / 7);
       groundColor(x, z, y, c, hash(i, j));
       col.push(c.r, c.g, c.b);
     }
@@ -120,9 +148,12 @@ export function buildGroundMesh(): Mesh {
   const geo = new BufferGeometry();
   geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
   geo.setAttribute('color', new Float32BufferAttribute(col, 3));
+  geo.setAttribute('uv', new Float32BufferAttribute(uv, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
   const m = new Mesh(geo, new MeshLambertMaterial({ vertexColors: true }));
   m.name = 'decor_ground';
+  // grey terrace tile multiplies the vertex colour; Low 128 px, Medium/High 256 px (+ normal on High)
+  m.userData.tierMaps = { low: { map: 'terrace' }, rich: { map: 'terrace_hi', normal: 'terrace_hi' } };
   return m;
 }

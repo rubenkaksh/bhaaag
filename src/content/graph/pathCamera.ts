@@ -19,6 +19,8 @@ export interface PathCamCfg {
   forkMax: number;
   /** A landing within this of a node centre belongs to that node, m. */
   nodeReach: number;
+  /** Look this far ahead of the hero along the route (T346); 0 = off, heading only re-aims on landing. */
+  lookahead: number;
 }
 
 export const PATH_CAM_CFG: PathCamCfg = {
@@ -28,6 +30,7 @@ export const PATH_CAM_CFG: PathCamCfg = {
   commitOff: 1.5,
   forkMax: 75 * DEG,
   nodeReach: 14,
+  lookahead: 0,
 };
 
 export interface PathNode {
@@ -38,6 +41,9 @@ export interface PathNode {
   y?: number;
   /** Optional per-node heading override, rad (from the graph file's `heading`, degrees). */
   heading?: number;
+  /** Optional half extents (m); wide nodes (roads) lead the camera from their nearest edge, not their centre. */
+  hx?: number;
+  hz?: number;
   /** Exit node ids (BFS-forward). More than one = fork. */
   exits: number[];
   /** First predecessor, or -1 at the start. */
@@ -154,6 +160,102 @@ export function forkNodes(pg: PathGraph): PathNode[] {
   return pg.nodes.filter((n) => n.exits.length > 1);
 }
 
+function nearestOnNode(n: PathNode, x: number, z: number): [number, number] {
+  const hx = n.hx ?? 0;
+  const hz = n.hz ?? 0;
+  const px = Math.min(Math.max(x, n.x - hx), n.x + hx);
+  const pz = Math.min(Math.max(z, n.z - hz), n.z + hz);
+  return [px, pz];
+}
+
+/** Distance from (x, z) to the node's footprint (0 over it). */
+function nodeDist(n: PathNode, x: number, z: number): number {
+  const [px, pz] = nearestOnNode(n, x, z);
+  return Math.sqrt((px - x) * (px - x) + (pz - z) * (pz - z));
+}
+
+/** Smallest lookahead leg worth steering by, m: closer than this the heading is left alone. */
+const LEAD_MIN = 1.5;
+/** Closer than this to a footprint counts as standing on it, m. */
+const ON_NODE = 0.5;
+
+/**
+ * Lookahead heading (T346): sim yaw from the hero at (x, z) to the point `cfg.lookahead` metres ahead
+ * along the route. The route is the hero -> nearest point of the next node's footprint -> ... polyline
+ * through the nodes' exits; a fork follows its exit closest to the mean exit heading (or its heading override), so the view swings toward a
+ * corner BEFORE the hero lands on it. Null when off, the hero is not over/near a node, or the route
+ * ends within LEAD_MIN (keep the current heading). `from` = the node last landed on. Pure.
+ */
+export function leadHeading(
+  pg: PathGraph,
+  x: number,
+  z: number,
+  cfg: PathCamCfg = PATH_CAM_CFG,
+  from = -1,
+): number | null {
+  if (!(cfg.lookahead > 0)) return null;
+  // The node the hero is over; in a gap (airborne between nodes) the `from` node it left, so the route
+  // does not skip ahead mid-jump; else the nearest within nodeReach.
+  let cur: PathNode | undefined;
+  let bd = cfg.nodeReach;
+  for (const n of pg.nodes) {
+    const d = nodeDist(n, x, z);
+    if (d < bd) {
+      bd = d;
+      cur = n;
+    }
+  }
+  if (bd > ON_NODE && from >= 0) {
+    const f = nodeOf(pg, from);
+    if (f !== undefined && nodeDist(f, x, z) <= cfg.nodeReach) cur = f;
+  }
+  if (cur === undefined) return null;
+  let px = x;
+  let pz = z;
+  let left = cfg.lookahead;
+  let node: PathNode = cur;
+  for (let hop = 0; hop < 16; hop++) {
+    if (node.exits.length === 0) break;
+    let nextId = node.exits[0];
+    if (node.exits.length > 1) {
+      // fork: follow the exit closest to the mean exit heading, so a wide fan of exits leads along its middle
+      const ex = exitHeadings(pg, node);
+      const hold =
+        node.heading !== undefined || ex.length === 0 ? forkHold(pg, node, cfg) : meanAngle(ex);
+      let bestA = Infinity;
+      for (const id of node.exits) {
+        const t = nodeOf(pg, id);
+        if (t === undefined) continue;
+        const d = Math.abs(wrapAngle(bearing(node.x, node.z, t.x, t.z) - hold));
+        if (d < bestA) {
+          bestA = d;
+          nextId = id;
+        }
+      }
+    }
+    const nx = nodeOf(pg, nextId);
+    if (nx === undefined) break;
+    const [tx, tz] = nearestOnNode(nx, px, pz);
+    const seg = Math.sqrt((tx - px) * (tx - px) + (tz - pz) * (tz - pz));
+    if (seg < left) {
+      px = tx;
+      pz = tz;
+      left -= seg;
+      node = nx;
+      continue;
+    }
+    const dirX = (tx - px) / seg;
+    const dirZ = (tz - pz) / seg;
+    px += dirX * left;
+    pz += dirZ * left;
+    break;
+  }
+  const dx = px - x;
+  const dz = pz - z;
+  if (dx * dx + dz * dz < LEAD_MIN * LEAD_MIN) return null;
+  return Math.atan2(dx, dz);
+}
+
 export class PathCam {
   heading = 0;
   target = 0;
@@ -167,8 +269,20 @@ export class PathCam {
 
   constructor(
     private readonly pg: PathGraph,
-    private readonly cfg: PathCamCfg = PATH_CAM_CFG,
+    private cfg: PathCamCfg = PATH_CAM_CFG,
   ) {}
+
+  /** Apply the camera tuning (camera.pathLookahead m, camera.pathTurnDeg deg/s). Call before reset. */
+  setLead(lookahead: number, turnDegPerSec: number): void {
+    this.cfg = { ...this.cfg, lookahead, turnRate: turnDegPerSec * DEG };
+  }
+
+  /** Steer the target toward the lookahead point (no-op when off or no route ahead). */
+  private lead(x: number, z: number): void {
+    if (this.committed >= 0) return;
+    const h = leadHeading(this.pg, x, z, this.cfg, this.node);
+    if (h !== null) this.target = h;
+  }
 
   /** Respawn: face the first leg at once. */
   reset(x: number, z: number, fallback: number): void {
@@ -212,6 +326,7 @@ export class PathCam {
     } else if (n.heading !== undefined) {
       this.target = n.heading;
     }
+    this.lead(x, z);
   }
 
   /**
@@ -267,6 +382,7 @@ export class PathCam {
         this.target = forkHold(this.pg, fn, this.cfg);
       }
     }
+    this.lead(x, z);
     const diff = wrapAngle(this.target - this.heading);
     if (Math.abs(diff) > this.cfg.snapAngle) {
       this.heading = this.target;

@@ -59,7 +59,11 @@ for (const mode of ['classic', 'chase']) {
     });
     await page.goto(`${base}?gfx=low&seed=7`);
     await page.waitForTimeout(1500);
-    await page.getByText('PLAY', { exact: true }).first().click({ timeout: 4000 }).catch(() => {});
+    await page
+      .getByText('PLAY', { exact: true })
+      .first()
+      .click({ timeout: 4000 })
+      .catch(() => {});
     await page.waitForTimeout(3000);
     // Left thumb lands: the floating stick appears under it and pushes up-right.
     const sx = vp.width * 0.22;

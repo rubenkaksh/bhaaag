@@ -176,3 +176,50 @@ describe('kit v2 archetype houses', () => {
     expect(Math.abs(s.py - y0)).toBeLessThan(0.1);
   });
 });
+
+describe('builder fixes', () => {
+  const house = (id: number, x: number, z: number, balcony = false) => ({
+    id,
+    x,
+    z,
+    lift: 0,
+    storeys: 1 as const,
+    balcony,
+  });
+
+  it('flags a balcony that runs into an uphill neighbour', () => {
+    const l = {
+      ...sampleLevel(),
+      houses: [house(0, 0, 0, true), house(1, 0, 8)],
+      edges: [],
+      start: 0,
+      goal: 1,
+    };
+    expect(validate(l).errors.some((m) => m.includes('balcony runs into house 1'))).toBe(true);
+  });
+
+  it('flags a third house standing in a steps strip', () => {
+    const l = {
+      ...sampleLevel(),
+      houses: [house(0, 0, 0), house(1, 0, -20), house(2, 0, -10)],
+      edges: [{ id: 0, a: 0, b: 1, kind: 'gap' as const, via: 'boxes' as const }],
+      start: 0,
+      goal: 1,
+    };
+    expect(validate(l).errors.some((m) => m.includes('stands in the steps'))).toBe(true);
+  });
+
+  it('rejects duplicate edge ids and two zips from one house on import', () => {
+    const base = sampleLevel();
+    const dup = { ...base, edges: [base.edges[0], { ...base.edges[1], id: base.edges[0].id }] };
+    expect(() => parseBuilderLevel(JSON.stringify(dup))).toThrow();
+    const zips = {
+      ...base,
+      edges: [
+        { id: 0, a: 0, b: 1, kind: 'zip' as const },
+        { id: 1, a: 0, b: 2, kind: 'zip' as const },
+      ],
+    };
+    expect(() => parseBuilderLevel(JSON.stringify(zips))).toThrow();
+  });
+});

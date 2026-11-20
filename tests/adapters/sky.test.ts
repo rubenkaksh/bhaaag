@@ -8,6 +8,7 @@ import {
   SUN_DIR,
   SUN_EL_DEG,
   buildSkyView,
+  updateSky,
   buildDust,
   updateDust,
   DUST_COUNT,
@@ -29,11 +30,11 @@ describe('sky gradient (ADR 0005 D4)', () => {
     expect(skyColorAt(-0.2, new Color()).getHexString()).toBe('e6a77a');
   });
 
-  it('starts at HAZE on the horizon and hits the stops at 0.10, 0.30 and 0.60', () => {
+  it('starts at HAZE on the horizon and hits the stops at 0.12, 0.264 (plate top) and 0.70', () => {
     expect(skyColorAt(0, new Color()).getHexString()).toBe(new Color(HAZE).getHexString());
-    expect(skyColorAt(0.1, new Color()).getHexString()).toBe('f2a050');
-    expect(skyColorAt(0.3, new Color()).getHexString()).toBe('d77a45');
-    expect(skyColorAt(0.9, new Color()).getHexString()).toBe('9c5a4c');
+    expect(skyColorAt(0.12, new Color()).getHexString()).toBe('f0b47a');
+    expect(skyColorAt(0.264, new Color()).getHexString()).toBe('afa1b4');
+    expect(skyColorAt(0.9, new Color()).getHexString()).toBe('b7765a');
   });
 
   it('is a real gradient between stops, not a flat band', () => {
@@ -145,5 +146,23 @@ describe('P4 atmosphere extras', () => {
     const x0 = d.geometry.getAttribute('position').getX(0);
     updateDust(d, 0, 0, 0, 10);
     expect(d.geometry.getAttribute('position').getX(0)).not.toBe(x0);
+  });
+});
+
+describe('sky animation', () => {
+  it('moves clouds and haze with time, and is stable for equal t', () => {
+    const sky = buildSkyView();
+    const clouds = sky.getObjectByName('clouds') as Mesh;
+    const haze = sky.getObjectByName('horizonHaze') as Mesh;
+    updateSky(sky, 0);
+    const r0 = clouds.rotation.y;
+    updateSky(sky, 22.5);
+    expect(clouds.rotation.y).not.toBe(r0);
+    expect(Math.abs(clouds.rotation.y)).toBeLessThan((4 * Math.PI) / 180);
+    const o = (haze.material as MeshBasicMaterial).opacity;
+    expect(o).toBeGreaterThan(0.7);
+    expect(o).toBeLessThan(1.3);
+    updateSky(sky, 22.5);
+    expect(clouds.rotation.y).toBeCloseTo(clouds.rotation.y, 12);
   });
 });

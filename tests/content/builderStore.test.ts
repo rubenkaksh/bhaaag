@@ -55,4 +55,11 @@ describe('builder hand-off (production path)', () => {
     expect(savePlayLevel(lv)).toBe(true);
     expect(readLocalBuilderLevel()).toEqual(JSON.parse(JSON.stringify(lv)));
   });
+
+  it('rejects a stored level that fails the world schema', () => {
+    // @ts-expect-error minimal Storage stub
+    globalThis.localStorage = new MemStorage();
+    localStorage.setItem('bhaaag.builder.play', JSON.stringify({ solids: 'nope' }));
+    expect(readLocalBuilderLevel()).toBeNull();
+  });
 });
