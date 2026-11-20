@@ -34,6 +34,8 @@ export interface PathNode {
   id: number;
   x: number;
   z: number;
+  /** Deck height of the node's house, when the caller supplied it (tilt assist). */
+  y?: number;
   /** Optional per-node heading override, rad (from the graph file's `heading`, degrees). */
   heading?: number;
   /** Exit node ids (BFS-forward). More than one = fork. */
@@ -72,7 +74,7 @@ export function meanAngle(angles: number[]): number {
 /** Build the path model from a graph file and the placed house centres (id -> cx, cz). */
 export function buildPathGraph(
   g: GraphLevel,
-  houses: { id: number; cx: number; cz: number }[],
+  houses: { id: number; cx: number; cz: number; deck?: number }[],
 ): PathGraph {
   const depth = new Map<number, number>([[g.start, 0]]);
   const queue = [g.start];
@@ -104,6 +106,7 @@ export function buildPathGraph(
       id: n.id,
       x: h.cx,
       z: h.cz,
+      y: h.deck,
       heading: n.heading === undefined ? undefined : n.heading * DEG,
       exits,
       from,
@@ -209,6 +212,32 @@ export class PathCam {
     } else if (n.heading !== undefined) {
       this.target = n.heading;
     }
+  }
+
+  /**
+   * The exit the hero is heading for: the committed one, the only one, or at an uncommitted fork the
+   * exit closest to the held heading. null when the node has none. Read-only (tilt assist).
+   */
+  nextTarget(): { x: number; z: number; y: number } | null {
+    const n = this.node >= 0 ? nodeOf(this.pg, this.node) : undefined;
+    if (n === undefined) return null;
+    let id = this.committed;
+    if (id < 0 && n.exits.length === 1) id = n.exits[0];
+    if (id < 0) {
+      let bestD = Infinity;
+      for (const e of n.exits) {
+        const t = nodeOf(this.pg, e);
+        if (t === undefined) continue;
+        const a = Math.abs(wrapAngle(bearing(n.x, n.z, t.x, t.z) - this.heading));
+        if (a < bestD) {
+          bestD = a;
+          id = e;
+        }
+      }
+    }
+    const t = id >= 0 ? nodeOf(this.pg, id) : undefined;
+    if (t === undefined || t.y === undefined) return null;
+    return { x: t.x, z: t.z, y: t.y };
   }
 
   /** One tick. Returns the heading. */

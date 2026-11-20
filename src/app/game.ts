@@ -8,6 +8,7 @@ import {
   DEAD_WALL,
   HERO_AIRBORNE,
   HERO_ATTACHED,
+  HERO_GROUNDED,
   HERO_HANGING,
   HERO_EV_CLING,
   HERO_EV_DIED,
@@ -108,6 +109,13 @@ import { MODE_INFO, graphIdOf, isGraphMode, readBest, writeBest } from './modes/
 import { graphEntry, loadGraph } from '../content/graph/registry';
 import { placeGraph } from '../content/graph/place';
 import { PathCam, buildPathGraph } from '../content/graph/pathCamera';
+import {
+  TILT_ASSIST_CFG,
+  TiltAssistState,
+  assistPitch,
+  resetAssist,
+} from '../content/graph/tiltAssist';
+import { deckY } from '../content/house/houseSpec';
 import { buildForkMarkers } from '../adapters/render/forkMarkers';
 import type { GameMode } from './modes/mode';
 import { readViewport, watchViewport } from './viewport';
@@ -203,9 +211,19 @@ export function startGame(
   // Opt-in path camera (home-street): heading follows the route; written into the sim camYaw so the stick stays camera-relative.
   const pathGraph =
     isGraph && placed !== null && graphEntry(graphIdOf(mode))?.pathCamera === true
-      ? buildPathGraph(loadGraph(graphIdOf(mode)), placed.houses)
+      ? buildPathGraph(
+          loadGraph(graphIdOf(mode)),
+          placed.houses.map((h) => ({ id: h.id, cx: h.cx, cz: h.cz, deck: deckY(h) })),
+        )
       : null;
   const pathCam = pathGraph !== null ? new PathCam(pathGraph) : null;
+  // Opt-in tilt assist (hay-run): needs the path camera; ?assist=0 disables it for A/B. Render only.
+  const tiltAssist =
+    pathCam !== null &&
+    graphEntry(graphIdOf(mode))?.tiltAssist === true &&
+    params.get('assist') !== '0';
+  const assistState = new TiltAssistState();
+  let assistExtra = 0; // current extra pitch-down, rad
   if (isVillage && village === undefined) throw new Error('village assets not loaded');
   const seedParam = params.get('seed');
   const fixedSeed = seedParam !== null && Number.isFinite(Number(seedParam));
@@ -304,7 +322,7 @@ export function startGame(
 
   const prev = newHeroState();
   const cur = newHeroState();
-    const frame = newInputFrame();
+  const frame = newInputFrame();
   const coarse = window.matchMedia('(pointer: coarse)').matches;
   const input = coarse ? new TouchInput(root) : new DesktopInput(canvas);
 
@@ -367,6 +385,8 @@ export function startGame(
     }
     yawOff.zip = 0;
     yawOff.side = 0;
+    resetAssist(assistState);
+    assistExtra = 0;
     ovHeld = false;
     ovK = 0;
     ovLit = false;
@@ -415,14 +435,38 @@ export function startGame(
       cur.dead !== 0,
       camCfg,
     );
+    let rigCfg = camCfg;
+    let pitchExtra = 0;
+    if (tiltAssist && pathCam !== null) {
+      pitchExtra = assistExtra = assistPitch(
+        assistState,
+        {
+          px: cur.px,
+          py: cur.py,
+          pz: cur.pz,
+          vx: cur.vx,
+          vz: cur.vz,
+          grounded: cur.mode === HERO_GROUNDED,
+          attached: cur.mode === HERO_ATTACHED,
+          camYaw: cur.camYaw,
+          basePitch: cur.camPitch - camTilt,
+          look: pathCam.paused,
+        },
+        pathCam.nextTarget(),
+        stepDt,
+        TILT_ASSIST_CFG,
+      );
+      // Rig clamp only: the sim keeps its own pitchMin.
+      rigCfg = { ...camCfg, pitchMin: TILT_ASSIST_CFG.rigPitchMinDeg };
+    }
     updateCamera(
       curRig,
       feet,
       base + yawOff.zip + yawOff.side,
-      cur.camPitch - camTilt + (front ? 0.14 : 0),
+      cur.camPitch - camTilt + (front ? 0.14 : 0) - pitchExtra,
       speed,
       world.solids,
-      camCfg,
+      rigCfg,
     );
     if (ovK > 0) applyOverview(base);
   }
@@ -810,6 +854,7 @@ export function startGame(
     previewTarget = NO_ANCHOR;
     if (
       phase !== 'play' ||
+      assistExtra > TILT_ASSIST_CFG.reticleHide ||
       isLineOnly() ||
       cur.mode === HERO_ATTACHED ||
       cur.hook.state !== HOOK_IDLE

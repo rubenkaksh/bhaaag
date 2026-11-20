@@ -12,13 +12,22 @@ export interface GraphEntry {
   look?: 'home';
   /** Opt-in path-following camera (pathCamera.ts) plus fork markers (default off). */
   pathCamera?: boolean;
+  /** Opt-in camera tilt assist (tiltAssist.ts); needs pathCamera. ?assist=0 turns it off. */
+  tiltAssist?: boolean;
 }
 
 /** One line per level (ADR 0013 section 3.5). */
 export const GRAPH_LEVELS: readonly GraphEntry[] = [
   { id: 'valley-1', label: 'Valley Run', file: valley1 },
   { id: 'home-street', label: 'Home Street', file: homeStreet, look: 'home', pathCamera: true },
-  { id: 'hay-run', label: 'Hay Run', file: hayRun, look: 'home', pathCamera: true },
+  {
+    id: 'hay-run',
+    label: 'Hay Run',
+    file: hayRun,
+    look: 'home',
+    pathCamera: true,
+    tiltAssist: true,
+  },
 ];
 
 export function graphEntry(id: string): GraphEntry | undefined {
