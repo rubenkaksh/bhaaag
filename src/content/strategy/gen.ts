@@ -478,7 +478,13 @@ function linkWith(
   const kinds = weightedOrder(rng, mix);
   for (let ki = 0; ki < kinds.length; ki++) {
     const kind = kinds[ki];
-    const bals = freeze ? [q0b] : kind === K_BALCONY ? [true] : kind === K_TRAMP ? [false, true] : [false];
+    const bals = freeze
+      ? [q0b]
+      : kind === K_BALCONY
+        ? [true]
+        : kind === K_TRAMP
+          ? [false, true]
+          : [false];
     for (let hi = 0; hi < hs.length; hi++) {
       for (let bi = 0; bi < bals.length; bi++) {
         reset();
@@ -516,7 +522,8 @@ function linkWith(
 function linkRoad(L: Layout, p: number, ri: number): boolean {
   const P = L.houses[p];
   let nb = buildNodes(L);
-  if (moveOf(nb.nodes[nb.roofOf[p]], nb.nodes[nb.roadNode[ri]], nb.nodes) === MOVE_JUMP) return true;
+  if (moveOf(nb.nodes[nb.roofOf[p]], nb.nodes[nb.roadNode[ri]], nb.nodes) === MOVE_JUMP)
+    return true;
   if (P.zipTo !== NONE) return false;
   P.zipTo = roadRef(ri);
   nb = buildNodes(L);
@@ -527,7 +534,13 @@ function linkRoad(L: Layout, p: number, ri: number): boolean {
 
 // Side-step inside a row: the neighbour keeps its seeded storey count if the jump works, else it
 // is set level with the first house or one storey lower (no way back).
-function lateral(L: Layout, rng: Rng, from: number, to: number, heights: readonly number[]): boolean {
+function lateral(
+  L: Layout,
+  rng: Rng,
+  from: number,
+  to: number,
+  heights: readonly number[],
+): boolean {
   const P = L.houses[from];
   const H = L.houses[to];
   const own = H.h; // the seeded storey count first, then level with the neighbour or one lower
@@ -536,7 +549,8 @@ function lateral(L: Layout, rng: Rng, from: number, to: number, heights: readonl
     if (heights.indexOf(opts[i]) < 0) continue;
     H.h = opts[i];
     const nb = buildNodes(L);
-    if (moveOf(nb.nodes[nb.roofOf[from]], nb.nodes[nb.roofOf[to]], nb.nodes) === MOVE_JUMP) return true;
+    if (moveOf(nb.nodes[nb.roofOf[from]], nb.nodes[nb.roofOf[to]], nb.nodes) === MOVE_JUMP)
+      return true;
   }
   H.h = own;
   return false;
@@ -557,7 +571,13 @@ function adjFree(occ: boolean[], e: number, rng: Rng, toward: number): number {
 
 // Decoys keep their seeded 1-3 storey roll unless it is taller than the placed neighbour they
 // hang off; then they are pulled level with it, or one storey under on a trap roll.
-function attach(L: Layout, rng: Rng, ids: number[], heights: readonly number[], trap: number): void {
+function attach(
+  L: Layout,
+  rng: Rng,
+  ids: number[],
+  heights: readonly number[],
+  trap: number,
+): void {
   const done: boolean[] = [];
   for (let i = 0; i < ids.length; i++) done.push(L.houses[ids[i]].role !== ROLE_DECOY);
   let progress = true;
@@ -576,7 +596,8 @@ function attach(L: Layout, rng: Rng, ids: number[], heights: readonly number[], 
       // Keep the seeded storey count when it is no taller than the neighbour (a decoy taller than
       // the house it hangs off could not be reached); a taller one is pulled level, or a storey
       // under on a trap roll.
-      if (me.h > nbh) me.h = rng() < trap && heights.indexOf(nbh - STOREY) >= 0 ? nbh - STOREY : nbh;
+      if (me.h > nbh)
+        me.h = rng() < trap && heights.indexOf(nbh - STOREY) >= 0 ? nbh - STOREY : nbh;
       done[i] = true;
       progress = true;
     }
@@ -754,8 +775,26 @@ export function layoutToLevel(layout: Layout): LevelJson {
 export function attemptStrategy(seed: number): StrategyLevel | null {
   const rng = makeRng(seed);
   const L: Layout = { houses: [], roads: [], rows: [] };
-  const addHouse = (lane: number, zc: number, h: number, row: number, seg: number, role: number): number => {
-    L.houses.push({ lane, zc, h, balcony: false, cushion: false, tramp: false, zipTo: NONE, row, seg, role });
+  const addHouse = (
+    lane: number,
+    zc: number,
+    h: number,
+    row: number,
+    seg: number,
+    role: number,
+  ): number => {
+    L.houses.push({
+      lane,
+      zc,
+      h,
+      balcony: false,
+      cushion: false,
+      tramp: false,
+      zipTo: NONE,
+      row,
+      seg,
+      role,
+    });
     return L.houses.length - 1;
   };
   addHouse(SPAWN_LANE, 0, SPAWN_H, 0, 0, ROLE_SPAWN);
@@ -816,7 +855,8 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
       while (n < k) {
         const free: number[] = [];
         for (let i = 0; i < LANES.length; i++) {
-          if (!occ[i] && ((i > 0 && occ[i - 1]) || (i < LANES.length - 1 && occ[i + 1]))) free.push(i);
+          if (!occ[i] && ((i > 0 && occ[i - 1]) || (i < LANES.length - 1 && occ[i + 1])))
+            free.push(i);
         }
         if (free.length === 0) break;
         occ[pick(rng, free)] = true;
@@ -829,11 +869,19 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
       for (let lane = 0; lane < LANES.length; lane++) {
         at.push(NONE);
         if (!occ[lane]) continue;
-        const role = lane === eA || lane === sA ? ROLE_A : lane === eB || lane === sB ? ROLE_B : ROLE_DECOY;
+        const role =
+          lane === eA || lane === sA ? ROLE_A : lane === eB || lane === sB ? ROLE_B : ROLE_DECOY;
         at[lane] = addHouse(lane, zc, pick(rng, heights), row, si, role);
         ids.push(at[lane]);
       }
-      L.rows.push({ kind: ROW_BAND, z0: zc - HOUSE_HALF, z1: zc + HOUSE_HALF, houses: ids, road: -1, seg: si });
+      L.rows.push({
+        kind: ROW_BAND,
+        z0: zc - HOUSE_HALF,
+        z1: zc + HOUSE_HALF,
+        houses: ids,
+        road: -1,
+        seg: si,
+      });
 
       if (!link(L, rng, curA, at[eA], heights, fromTower ? TOWER_MIX : seg.mix, false)) return null;
       curA = at[eA];
@@ -863,7 +911,14 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
       const zc = prev.z0 - ROAD_GAP - ROAD_HALF;
       const ri = L.roads.length;
       L.roads.push({ zc, tramps: [], row: L.rows.length });
-      L.rows.push({ kind: ROW_ROAD, z0: zc - ROAD_HALF, z1: zc + ROAD_HALF, houses: [], road: ri, seg: si });
+      L.rows.push({
+        kind: ROW_ROAD,
+        z0: zc - ROAD_HALF,
+        z1: zc + ROAD_HALF,
+        houses: [],
+        road: ri,
+        seg: si,
+      });
       if (!linkRoad(L, curA, ri)) return null;
       if (curB !== NONE && !linkRoad(L, curB, ri)) lostB++;
       curA = roadRef(ri);
@@ -878,7 +933,14 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
     const lane = curA >= 0 ? L.houses[curA].lane : SPAWN_LANE;
     const g = addHouse(lane, zc, GOAL_H, L.rows.length, SEGMENTS.length - 1, ROLE_GOAL);
     L.houses[g].cushion = true;
-    L.rows.push({ kind: ROW_BAND, z0: zc - HOUSE_HALF, z1: zc + HOUSE_HALF, houses: [g], road: -1, seg: SEGMENTS.length - 1 });
+    L.rows.push({
+      kind: ROW_BAND,
+      z0: zc - HOUSE_HALF,
+      z1: zc + HOUSE_HALF,
+      houses: [g],
+      road: -1,
+      seg: SEGMENTS.length - 1,
+    });
     if (!link(L, rng, curA, g, [], GOAL_MIX, true)) return null;
     if (curB !== NONE && !link(L, rng, curB, g, [], ZIP_ONLY, true)) lostB++;
   }
@@ -900,7 +962,8 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
   const tried: boolean[] = [];
   for (let guard = 0; guard < REPAIR_MAX && m.deadRoofs.length > DEAD_MAX; guard++) {
     const open: number[] = [];
-    for (let i = 0; i < m.deadRoofs.length; i++) if (!tried[m.deadRoofs[i]]) open.push(m.deadRoofs[i]);
+    for (let i = 0; i < m.deadRoofs.length; i++)
+      if (!tried[m.deadRoofs[i]]) open.push(m.deadRoofs[i]);
     if (open.length === 0) break;
     const d = pick(rng, open);
     tried[d] = true;
@@ -946,7 +1009,15 @@ export function attemptStrategy(seed: number): StrategyLevel | null {
     zMin,
     length: L.rows[0].z1 - zMin,
   };
-  return { level: layoutToLevel(L), layout: L, nodes: m.nb.nodes, graph: m.graph, stats: m.stats, summary, seed };
+  return {
+    level: layoutToLevel(L),
+    layout: L,
+    nodes: m.nb.nodes,
+    graph: m.graph,
+    stats: m.stats,
+    summary,
+    seed,
+  };
 }
 
 function deadInRange(s: StrategyLevel): boolean {
@@ -986,7 +1057,8 @@ export function buildStrategy(seed: number = STRATEGY_SEED): StrategyLevel {
   }
   cachedFallback = found === null;
   if (found === null) found = fallback;
-  if (found === null) throw new Error('strategy: no valid level within ' + MAX_SEED_TRIES + ' seeds of ' + seed);
+  if (found === null)
+    throw new Error('strategy: no valid level within ' + MAX_SEED_TRIES + ' seeds of ' + seed);
   cached = found;
   cachedFor = seed;
   return found;

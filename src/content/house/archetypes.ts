@@ -140,3 +140,13 @@ export function archetype(
     ...over,
   };
 }
+
+/** Storeys an archetype fixes (the placer needs it before the spec exists). */
+export function archetypeStoreys(a: ArchetypeId): 1 | 2 {
+  return PRESETS[a].storeys;
+}
+
+/** Roof kind an archetype fixes. */
+export function archetypeRoof(a: ArchetypeId): 'flat' | 'gable' {
+  return PRESETS[a].roof ?? 'flat';
+}
