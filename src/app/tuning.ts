@@ -57,8 +57,10 @@ export function bakedTuning(): Tuning {
   return merged;
 }
 
-export function resolveCfg(mode: GameMode): Tuning {
-  const cfg = mergeTuning() as unknown as Record<string, Record<string, number>>;
+/** `remote`: an already clamped overlay (rowsToOverrides) applied over the base; used by tests and the publish script. Boot uses initRemoteTuning. */
+export function resolveCfg(mode: GameMode, remote?: unknown): Tuning {
+  const base = remote === undefined ? mergeTuning() : applyTuningOverrides(mergeTuning(), remote);
+  const cfg = base as unknown as Record<string, Record<string, number>>;
   // A graph level without a MODE_OVERRIDES line plays on the base tuning (review S3).
   const ov = (MODE_OVERRIDES[mode] ?? {}) as unknown as Record<string, Record<string, number>>;
   for (const key of Object.keys(ov)) cfg[key] = { ...cfg[key], ...ov[key] };

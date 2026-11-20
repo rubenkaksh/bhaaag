@@ -124,7 +124,7 @@ import type { ViewportLayout } from './viewport';
 
 const RESTART_ACCEPT_S = 0.3; // death: accept restart input after this
 const RESTART_AUTO_S = 0.8; // death: auto-restart after this
-const PAN_S = 2.5; // opening flyover from the goal back to the hero
+const PAN_S = 3.5; // opening drone shot from high above the run down to the hero
 const CHASE_PAN_S = 3.2; // chase opening: the dragon reveal, then back behind the hero
 const CHASE_OVER_DELAY_S = 1.1; // caught: the camera turns back before the card shows
 const CLOUD_FOG_COLOR = '#cdd0da';
@@ -210,6 +210,7 @@ export function startGame(
 ): GameHandle {
   const cfg = resolveCfg(mode);
   let camCfg = cfg.camera;
+  let pitchLift = 0; // render-only landscape tilt from framingFor
   const params = new URLSearchParams(location.search);
   // ?tilt=15|20|30: render-only camera pitch-down (deg) so more of the drop below shows. Default is camera.tiltDeg (global).
   const tiltParam = Number(params.get('tilt'));
@@ -468,7 +469,7 @@ export function startGame(
       curRig,
       feet,
       base + yawOff.zip + yawOff.side,
-      cur.camPitch - camTilt + (front ? 0.14 : 0),
+      cur.camPitch - camTilt + (front ? 0.14 : 0) + pitchLift,
       speed,
       world.solids,
       camCfg,
@@ -741,6 +742,10 @@ export function startGame(
         const res = finishRun(mode, clock, best, leaderboard, bestStore);
         best = res.best;
         hudUi.showWin(res.seconds, best);
+        if (mode === 'classic') {
+          const ticks = clock.runTicks;
+          void import('../adapters/ui/boardPanel').then((m) => m.mountBoard(hudUi.winExtra, ticks));
+        }
         hudUi.pulseTimer();
       }
       updateReticle();
@@ -772,6 +777,8 @@ export function startGame(
       isBest,
       DEATH_MSG[cur.deadCause] ?? 'You fell',
     );
+    const host = chaseHud.boardHost;
+    void import('../adapters/ui/boardPanel').then((m) => m.mountBoard(host, score, 'chase'));
   }
 
   /** Fog, sun and the white-out layer follow the dragon's gap (setCloudCover only dims sky clouds). */
@@ -937,9 +944,18 @@ export function startGame(
   const goalCy = (world.goal.min.y + world.goal.max.y) / 2;
   const goalCz = (world.goal.min.z + world.goal.max.z) / 2;
   const hasGoal = world.goal.max.y > world.goal.min.y;
-  const panStart = hasGoal
-    ? new Vec3(goalCx + 14, goalCy + 16, goalCz - 16)
-    : new Vec3(world.spawn.x + 14, world.spawn.y + 16, world.spawn.z - 30);
+  // Opening drone shot (owner 2026-11-20): starts high above the middle of the run, looking down at
+  // everything from spawn to goal, then settles behind the hero.
+  const panMidX = hasGoal ? (world.spawn.x + goalCx) / 2 : world.spawn.x;
+  const panMidY = hasGoal ? (world.spawn.y + goalCy) / 2 : world.spawn.y;
+  const panMidZ = hasGoal ? (world.spawn.z + goalCz) / 2 : world.spawn.z - 20;
+  const panExtent = hasGoal ? Math.hypot(goalCx - world.spawn.x, goalCz - world.spawn.z) : 40;
+  const panStart = new Vec3(
+    panMidX,
+    Math.max(world.spawn.y, hasGoal ? goalCy : world.spawn.y) + Math.min(260, Math.max(60, panExtent * 0.8)),
+    panMidZ + Math.min(120, panExtent * 0.35),
+  );
+  const panLook = new Vec3(panMidX, panMidY, panMidZ);
 
   /** Marker on the next route anchor, then the goal; hidden in pan/dead/won and within 3 m. */
   function updateWaypoint(fx: number, fy: number, fz: number): void {
@@ -1215,7 +1231,7 @@ export function startGame(
     if (phase === 'pan') {
       const k = smooth((panT + alpha * stepDt) / (cs !== null ? CHASE_PAN_S : PAN_S));
       const ps = cs !== null ? chasePanStart : panStart;
-      const pl = cs !== null ? chasePanLook : world.spawn;
+      const pl = cs !== null ? chasePanLook : panLook;
       camX = ps.x + (camX - ps.x) * k;
       camY = ps.y + (camY - ps.y) * k;
       camZ = ps.z + (camZ - ps.z) * k;
@@ -1331,6 +1347,7 @@ export function startGame(
     gs.resize();
     const fr = framingFor(v, cfg.camera);
     camCfg = fr.camera;
+    pitchLift = fr.pitchLiftRad;
     gs.setLensShift(fr.lensShiftY);
     lensShiftPx = -fr.lensShiftY * v.h; // positive view offset moves the image up
     document.documentElement.style.setProperty('--lens-shift', String(fr.lensShiftY));

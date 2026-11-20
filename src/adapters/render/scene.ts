@@ -27,7 +27,7 @@ import type { World } from '../../core/world';
 import { applyTierMaps } from './homeTextures';
 import { buildLevelMeshes } from './levelView';
 import type { BuildLevelOpts } from './levelView';
-import { buildDust, buildSkyView, updateDust } from './skyView';
+import { buildDust, buildSkyView, updateDust, updateSky } from './skyView';
 import {
   GRAPHICS_TIER_EVENT,
   isTierAuto,
@@ -39,6 +39,9 @@ import {
 import type { GraphicsTier, RenderConfig } from './graphicsTier';
 
 export { pixelRatioFor };
+
+const reducedMotion =
+  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function coarsePointer(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
@@ -114,19 +117,45 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   backdropRoot.name = 'backdropRoot';
   // Painted plate + ridge cards (render/backdrop.ts, textures built by tools/backdrop-build.mjs):
   // code and textures load lazily; the sky gradient is the fallback until they arrive.
-  const backdropTier = cfg.tier;
-  void import('./backdrop')
-    .then((m) => m.loadBackdrop(backdropTier))
-    .then((g) => {
-      if (disposed) return;
-      backdropRoot.add(g);
-      // the painted plate has its own clouds and sun: drop the low-poly cloud layers
-      for (const n of ['clouds', 'cloudsHigh']) {
-        const o = sky.getObjectByName(n);
-        if (o) o.visible = false;
-      }
-    })
-    .catch(() => {});
+  let backdropGen = 0;
+  function loadBackdropFor(tier: GraphicsTier): void {
+    const gen = ++backdropGen;
+    void import('./backdrop')
+      .then((m) => m.loadBackdrop(tier))
+      .then((g) => {
+        if (disposed || gen !== backdropGen) {
+          g.traverse((o) => {
+            const m = o as Mesh;
+            m.geometry?.dispose();
+            const mat = m.material as MeshBasicMaterial | undefined;
+            mat?.map?.dispose();
+            mat?.dispose();
+          });
+          return;
+        }
+        // tier change: drop the previous tier's layers (each tier has its own textures)
+        for (const old of [...backdropRoot.children]) {
+          backdropRoot.remove(old);
+          old.traverse((o) => {
+            const m = o as Mesh;
+            if (m.geometry) m.geometry.dispose();
+            const mat = m.material as MeshBasicMaterial | undefined;
+            if (mat) {
+              mat.map?.dispose();
+              mat.dispose();
+            }
+          });
+        }
+        backdropRoot.add(g);
+        // the painted plate has its own clouds and sun: drop the low-poly cloud layers
+        for (const n of ['clouds', 'cloudsHigh']) {
+          const o = sky.getObjectByName(n);
+          if (o) o.visible = false;
+        }
+      })
+      .catch(() => {});
+  }
+  loadBackdropFor(cfg.tier);
   scene.add(backdropRoot);
   const sun = new DirectionalLight(cfg.sun.color, cfg.sun.intensity);
   scene.add(sun);
@@ -231,7 +260,8 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     const rich = cfg.atmosphere;
     for (const n of ['cloudsHigh', 'godRays']) {
       const o = sky.getObjectByName(n);
-      if (o !== undefined) o.visible = rich;
+      // the painted plate has its own clouds: keep the low-poly high layer hidden once it is loaded
+      if (o !== undefined) o.visible = rich && !(n === 'cloudsHigh' && backdropRoot.children.length > 0);
     }
     dust.visible = rich;
     applyCloudCover();
@@ -373,6 +403,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     if (tier === cfg.tier) return;
     cfg = renderConfigFor(tier, coarse);
     applyConfig();
+    loadBackdropFor(tier);
   }
 
   const onTierEvent = (e: Event): void => {
@@ -449,6 +480,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     if (govActive) govern();
     // The sky dome follows the camera so the long descent never leaves it.
     sky.position.copy(camera.position);
+    updateSky(sky, reducedMotion ? 0 : performance.now() / 1000);
     if (dust.visible)
       updateDust(
         dust,

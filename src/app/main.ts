@@ -1,3 +1,4 @@
+import './zodConfig';
 import { startGame } from './game';
 import { bestLabel, readBest, isGraphMode } from './modes/mode';
 import { classicLevels } from './modes/levels';
@@ -60,7 +61,12 @@ let tuningSettled = false;
 let pendingPlay: Selection | null = null;
 void (async () => {
   const url = tuningUrlFrom(location.search, import.meta.env.VITE_TUNING_URL);
-  initRemoteTuning(url === null ? undefined : await fetchTuningOverrides(url), tuningWarn);
+  initRemoteTuning(
+    url === null
+      ? await import('./online').then((m) => m.remoteOverrides(tuningWarn))
+      : await fetchTuningOverrides(url),
+    tuningWarn,
+  );
 })()
   .catch(() => initRemoteTuning(undefined))
   .finally(() => {

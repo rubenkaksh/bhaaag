@@ -103,17 +103,18 @@ export function overviewPose(
     let dx = ahead[i].x - hero.x;
     let dz = ahead[i].z - hero.z;
     const d = Math.sqrt(dx * dx + dz * dz);
-    if (d > reach && d > 0) {
-      dx *= reach / d;
-      dz *= reach / d;
-    }
+    // A far node (the finish, hundreds of m down the hill) is pulled in along the same line, height
+    // included: pulling only x/z left its drop in the bounds and aimed the camera far below the hero.
+    const pull = d > reach && d > 0 ? reach / d : 1;
+    dx *= pull;
+    dz *= pull;
     const f = dx * fx + dz * fz;
     const r = dx * rx + dz * rz;
     if (f < minF) minF = f;
     if (f > maxF) maxF = f;
     if (r < minR) minR = r;
     if (r > maxR) maxR = r;
-    const y = ahead[i].y;
+    const y = hero.y + (ahead[i].y - hero.y) * pull;
     if (y < minY) minY = y;
     if (y > maxY) maxY = y;
   }

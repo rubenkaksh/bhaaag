@@ -60,10 +60,11 @@ describe('hero grounded controller', () => {
 
   it('walks 6 m/s forward', () => {
     const w = floorWorld();
+    const plain = { ...cfg, hero: { ...cfg.hero, sprintSpeed: cfg.hero.run } }; // sprint off: plain run speed
     const s = spawn(0, 0, 0, 1);
-    run(s, fwd(), w, 60);
+    for (let i = 0; i < 60; i++) step(s, fwd(), w, plain);
     const z0 = s.pz;
-    run(s, fwd(), w, 60);
+    for (let i = 0; i < 60; i++) step(s, fwd(), w, plain);
     expect(s.pz - z0).toBeCloseTo(cfg.hero.run, 2);
     expect(s.px).toBeCloseTo(0, 6);
   });

@@ -12,7 +12,6 @@ import { World, addSolid } from '../../src/core/world';
 
 const cfg = DEFAULT_TUNING;
 const RUN = cfg.hero.run;
-const STRIDE = 1.7; // one step, m: half the 3.4 m cycle at 6 m/s (runCadence(6) = 1.76 Hz)
 
 function flat(): World {
   const w = new World();
@@ -73,7 +72,7 @@ describe('sprint (ADR 0018)', () => {
     expect(cfg.hero.run).toBe(6);
     expect(cfg.hero.sprintSpeed).toBe(11);
     expect(cfg.hero.sprintSpeed).toBeLessThan(cfg.landing.carryCap);
-    expect(cfg.hero.sprintStreakM).toBeCloseTo(7 * STRIDE, 6);
+    expect(cfg.hero.sprintStreakM).toBeCloseTo(6, 6); // gradual build (owner 2026-11-19)
   });
 
   it('starts after exactly sprintStreakM metres (7 steps) at full run speed, not before', () => {
@@ -85,7 +84,7 @@ describe('sprint (ADR 0018)', () => {
     expect(d).toBeLessThan(cfg.hero.sprintStreakM + 0.35);
     // Just before: still exactly run speed.
     const s2 = hero(RUN);
-    for (let i = 0; i < 100; i++) step(s2, stick(1), w, cfg); // 10 m < 11.9 m
+    for (let i = 0; i < 50; i++) step(s2, stick(1), w, cfg); // 5 m < 6 m streak
     expect(s2.vz).toBeCloseTo(RUN, 6);
     expect(s2.sprintM).toBeLessThan(cfg.hero.sprintStreakM);
   });

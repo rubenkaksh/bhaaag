@@ -105,6 +105,22 @@ describe('overviewPose framing', () => {
     expect((pitch * 180) / Math.PI).toBeCloseTo(60);
   });
 
+  it('keeps the hero in view when the finish is far ahead and far below (owner 2026-11-19)', () => {
+    const p = pose([{ x: 0, y: -180, z: -300 }, { x: 5, y: -20, z: -30 }]);
+    // camera basis: forward = look - pos; hero must lie within the vertical and horizontal half-fov
+    const fx = p.lx - p.px;
+    const fy = p.ly - p.py;
+    const fz = p.lz - p.pz;
+    const fl = Math.hypot(fx, fy, fz);
+    const hx = hero.x - p.px;
+    const hy = hero.y - p.py;
+    const hz = hero.z - p.pz;
+    const along = (hx * fx + hy * fy + hz * fz) / fl;
+    expect(along).toBeGreaterThan(0);
+    const off = Math.acos(Math.min(1, along / Math.hypot(hx, hy, hz)));
+    expect(off).toBeLessThan((FOV * Math.PI) / 360); // inside the half-fov cone
+  });
+
   it('puts the camera behind the view direction for a rotated yaw', () => {
     const p = overviewPose(hero, [], Math.PI / 2, cfg, FOV, 1, newOverviewPose()); // faces +x
     expect(p.px).toBeLessThan(-5);

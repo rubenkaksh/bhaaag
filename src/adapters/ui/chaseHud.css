@@ -218,3 +218,33 @@ body.chase-card #btn-jump {
 body:not(.mode-chase) .chase {
   display: none;
 }
+
+/* L7: the online board sits under RETRY / MENU so the buttons never leave the screen; the card scrolls when it is taller than the viewport. */
+#chase-over {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#chase-over .row {
+  order: 1;
+  flex: none;
+}
+#chase-over .chase-board {
+  order: 2;
+  flex: none;
+  margin-bottom: 12px;
+}
+/* Auto margins centre a short card and let a tall one scroll from its top (plain centring would clip the title). */
+#chase-over > h1 {
+  margin-top: auto;
+}
+#chase-over > .chase-board {
+  margin-bottom: auto;
+}
+#chase-over .board-list {
+  max-height: 26vh;
+}
+@media (min-aspect-ratio: 6/5) {
+  #chase-over {
+    justify-content: flex-start;
+  }
+}

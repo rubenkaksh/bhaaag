@@ -2,7 +2,7 @@
 // Backdrop texture build (owner decision 2026-11-18). No sharp in the lockfile, so the pixel work
 // runs in headless Chromium canvas through playwright (already a devDependency).
 //   node tools/backdrop-build.mjs
-// Reads art-src/backdrop/{plate,ridges-sheet,ridge3}.webp and writes per-tier WebP files to
+// Reads art-src/backdrop/{plate,near|ridges-sheet,ridge3}.webp and writes per-tier WebP files to
 // public/assets/textures/backdrop/:
 //   plate_{low,medium,high}.webp   far snow range, seam cross-faded so it wraps 360 degrees,
 //                                  top rows fade to alpha 0 into the sky gradient
@@ -15,7 +15,7 @@
 // Byte targets keep each tier under its texture cap (Low 150 / Medium 300 / High 600 KB, whole
 // tier incl. the wall tiles, see src/adapters/render/textureManifest.ts).
 import { chromium } from 'playwright';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 
 const SRC = 'art-src/backdrop/';
 const OUT = 'public/assets/textures/backdrop/';
@@ -226,33 +226,39 @@ const result = await page.evaluate(
 
     // ---- sources
     const plateIm = await load(files.plate);
-    const sheetIm = await load(files.sheet);
     const ridge3 = await load(files.ridge3);
 
-    // split the sheet at the row where the green fraction jumps up (card boundary)
-    const sheet = toCanvas(sheetIm);
-    const sd = px(sheet).data;
-    const sw = sheet.width;
-    const sh = sheet.height;
-    const greenFrac = (y) => {
-      let g = 0;
-      for (let x = 0; x < sw; x++) {
-        const i = (y * sw + x) * 4;
-        if (sd[i + 1] - Math.max(sd[i], sd[i + 2]) > 150) g++;
+    // near card: a single green-screen image (art-src/backdrop/near.webp) when present, else the top
+    // half of the old two-card sheet, split at the row where the green fraction jumps up
+    let topCard;
+    let cut = 0;
+    if (files.near) {
+      topCard = toCanvas(await load(files.near));
+    } else {
+      const sheet = toCanvas(await load(files.sheet));
+      const sd = px(sheet).data;
+      const sw = sheet.width;
+      const sh = sheet.height;
+      const greenFrac = (y) => {
+        let g = 0;
+        for (let x = 0; x < sw; x++) {
+          const i = (y * sw + x) * 4;
+          if (sd[i + 1] - Math.max(sd[i], sd[i + 2]) > 150) g++;
+        }
+        return g / sw;
+      };
+      cut = Math.floor(sh / 2);
+      let jump = 0;
+      for (let y = Math.floor(sh * 0.35); y < Math.floor(sh * 0.65); y++) {
+        const j = greenFrac(y) - greenFrac(y - 1);
+        if (j > jump) {
+          jump = j;
+          cut = y;
+        }
       }
-      return g / sw;
-    };
-    let cut = Math.floor(sh / 2);
-    let jump = 0;
-    for (let y = Math.floor(sh * 0.35); y < Math.floor(sh * 0.65); y++) {
-      const j = greenFrac(y) - greenFrac(y - 1);
-      if (j > jump) {
-        jump = j;
-        cut = y;
-      }
+      topCard = mk(sw, cut);
+      topCard.getContext('2d').drawImage(sheet, 0, 0, sw, cut, 0, 0, sw, cut);
     }
-    const topCard = mk(sw, cut);
-    topCard.getContext('2d').drawImage(sheet, 0, 0, sw, cut, 0, 0, sw, cut);
 
     const keyedNear = fadeBottom(hazeIt(key(topCard), haze.near), 0.14);
     const keyedFar = fadeBottom(hazeIt(key(toCanvas(ridge3)), haze.far), 0.08);
@@ -278,7 +284,13 @@ const result = await page.evaluate(
     haze: HAZE,
     seam: SEAM,
     fadeTop: FADE_TOP,
-    files: { plate: b64('plate.webp'), sheet: b64('ridges-sheet.webp'), ridge3: b64('ridge3.webp') },
+    files: {
+      plate: b64('plate.webp'),
+      // near.webp (single card) wins over the legacy two-card sheet
+      near: existsSync(SRC + 'near.webp') ? b64('near.webp') : null,
+      sheet: existsSync(SRC + 'near.webp') ? null : b64('ridges-sheet.webp'),
+      ridge3: b64('ridge3.webp'),
+    },
   },
 );
 await browser.close();
