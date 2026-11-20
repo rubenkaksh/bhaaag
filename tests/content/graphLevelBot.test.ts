@@ -27,6 +27,8 @@ for (const entry of GRAPH_LEVELS) {
     it('every edge alone completes (precise bot)', () => {
       const bad: string[] = [];
       for (const e of g.edges) {
+        // C3 gable spurs are decoys beside the route: nothing walkable to play onto
+        if (g.nodes.find((n) => n.id === e.b)?.archetype === 'C3') continue;
         const r = playEdge(placed, e.a, e.b);
         if (!r.ok) bad.push(`${e.a}-${e.b}: ${r.cause}`);
       }

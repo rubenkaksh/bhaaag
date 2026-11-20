@@ -284,7 +284,7 @@ function layout(g: GraphLevel, seed: number, opt?: SegOpt): Layout {
         }
         houses.set(bid, b);
         const dy = deckY(b) - deckA;
-        if (dy < -6.0 || dy > 2.8) throw new Fail('touch roof difference ' + dy);
+        if (dy < -6.0 || dy > 2.8 + 1e-6) throw new Fail('touch roof difference ' + dy);
         pe.up = dy > 0.3;
         pe.takeoff = [a.cx, deckA, a.cz];
         pe.landing = [b.cx, deckY(b), b.cz];
@@ -591,7 +591,14 @@ function layout(g: GraphLevel, seed: number, opt?: SegOpt): Layout {
         poleFace: h.poleFace,
       };
       if (archetypeRoof(def.archetype) !== 'gable') over.tall = h.tall;
+      else over.runout = undefined;
       Object.assign(h, archetype(def.archetype, h.id, h.cx, h.cz, h.groundY, over));
+      // a balcony cannot sit on a party wall either: mirror it to the opposite face
+      if (h.balcony >= 0 && h.party[h.balcony as Face]) h.balcony = (h.balcony ^ 1) as Face;
+      // an awning cannot sit on a party wall: mirror it to the opposite face, else drop it
+      h.awnings = h.awnings
+        .map((f) => (h.party[f] ? ((f ^ 1) as Face) : f))
+        .filter((f) => !h.party[f]);
     }
     if (def.ladder !== undefined) h.ladder = def.ladder;
   }
@@ -758,7 +765,7 @@ function moveSpec(h: HouseSpec, map: MapXZ, kf: number): HouseSpec {
     awnings: h.awnings.map(rf),
     takeoff: h.takeoff.map(rf),
     tall: h.tall.map(rf),
-    runout: (h.runout ?? []).map((r) => ({ ...r, face: rf(r.face) })),
+    runout: h.runout === undefined ? undefined : h.runout.map((r) => ({ ...r, face: rf(r.face) })),
   };
 }
 

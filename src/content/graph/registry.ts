@@ -1,5 +1,6 @@
 import valley1 from '../../../content/graphs/valley-1.graph.json';
 import homeStreet from '../../../content/graphs/home-street.graph.json';
+import hayRun from '../../../content/graphs/hay-run.graph.json';
 import { parseGraph } from './format';
 import type { GraphLevel } from './format';
 
@@ -17,6 +18,7 @@ export interface GraphEntry {
 export const GRAPH_LEVELS: readonly GraphEntry[] = [
   { id: 'valley-1', label: 'Valley Run', file: valley1 },
   { id: 'home-street', label: 'Home Street', file: homeStreet, look: 'home', pathCamera: true },
+  { id: 'hay-run', label: 'Hay Run', file: hayRun, look: 'home', pathCamera: true },
 ];
 
 export function graphEntry(id: string): GraphEntry | undefined {

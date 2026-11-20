@@ -5,7 +5,7 @@ import { GRAPH_LEVELS, graphEntry, loadGraph } from '../../src/content/graph/reg
 
 describe('graph registry', () => {
   it('lists valley-1 as Valley Run and parses every file', () => {
-    expect(GRAPH_LEVELS.map((g) => g.id)).toEqual(['valley-1', 'home-street']);
+    expect(GRAPH_LEVELS.map((g) => g.id)).toEqual(['valley-1', 'home-street', 'hay-run']);
     expect(GRAPH_LEVELS[0].label).toBe('Valley Run');
     for (const e of GRAPH_LEVELS) expect(loadGraph(e.id).id).toBe(e.id);
   });

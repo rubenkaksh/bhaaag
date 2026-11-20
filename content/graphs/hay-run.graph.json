@@ -1,0 +1,59 @@
+{
+  "format": "bhaaag-graph",
+  "version": 1,
+  "id": "hay-run",
+  "name": "Hay Run",
+  "placer": 1,
+  "seed": 43,
+  "nodes": [
+    { "id": 1, "archetype": "C2hi" },
+    { "id": 2, "archetype": "C2lo" },
+    { "id": 3, "storeys": 1 },
+    { "id": 4, "storeys": 1 },
+    { "id": 5, "archetype": "C2lo" },
+    { "id": 6, "archetype": "C2hi", "ladder": 0 },
+    { "id": 7, "archetype": "C1" },
+    { "id": 8, "archetype": "C2lo" },
+    { "id": 9, "archetype": "C1" },
+    { "id": 10, "storeys": 2 },
+    { "id": 11, "storeys": 2 },
+    { "id": 12, "storeys": 1 },
+    { "id": 13, "archetype": "C3" },
+    { "id": 14, "archetype": "C3" },
+    { "id": 15, "archetype": "C3" }
+  ],
+  "edges": [
+    { "a": 1, "b": 2, "kind": "touch" },
+    { "a": 2, "b": 3, "kind": "touch" },
+    { "a": 3, "b": 4, "kind": "gap", "via": "cushion" },
+    { "a": 4, "b": 5, "kind": "touch" },
+    { "a": 5, "b": 6, "kind": "touch" },
+    { "a": 6, "b": 7, "kind": "touch" },
+    { "a": 7, "b": 8, "kind": "touch" },
+    { "a": 8, "b": 9, "kind": "gap", "via": "tramp" },
+    { "a": 9, "b": 10, "kind": "touch" },
+    { "a": 10, "b": 11, "kind": "touch" },
+    { "a": 11, "b": 12, "kind": "zip" },
+    { "a": 9, "b": 13, "kind": "touch" },
+    { "a": 10, "b": 14, "kind": "touch" },
+    { "a": 7, "b": 15, "kind": "touch" }
+  ],
+  "start": 1,
+  "goal": 12,
+  "decoys": 3,
+  "segments": [
+    { "heading": 90, "nodes": [1, 2, 3] },
+    { "heading": 180, "nodes": [3, 4, 5, 15, 6, 7, 8] },
+    { "heading": 270, "nodes": [8, 9, 13, 10, 14, 11, 12] }
+  ],
+  "profile": [
+    [0, 0],
+    [-10, -0.5],
+    [-20, -5],
+    [-26, -5.6],
+    [-60, -7.5],
+    [-70, -8],
+    [-95, -20],
+    [-140, -24]
+  ]
+}
