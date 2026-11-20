@@ -2,7 +2,7 @@
 // existing instanced decor kit. It never reads solids: the same spec feeds houseKit.emitHouse for
 // the sim and this module for the look, through the shared helpers in houseSpec.ts.
 import { Color, Group } from 'three';
-import { DecorKit, RAIL_LEN, TANK_UNIT_H, mulberry32 } from './kit';
+import { DecorKit, HOME_CLAY_PIECE, RAIL_LEN, TANK_UNIT_H, mulberry32 } from './kit';
 import type { PieceId } from './kit';
 import { FLAGS } from './placeDecor';
 import {
@@ -458,8 +458,8 @@ function eaveSkirt(o: Out, h: HouseSpec): void {
     const n = faceNormal(face);
     const d = k + EAVE_OUT / 2;
     const ok = o.kit.add(
-      // 'roof' takes the clay tile (look 'home'); other looks keep a flat tint
-      o.home ? 'roof' : 'cornice',
+      // the clay piece takes the clay tile (look 'home'); other looks keep a flat tint
+      o.home ? HOME_CLAY_PIECE : 'cornice',
       h.cx + n[0] * d,
       deck - 0.12 - EAVE_OUT / 2 - 0.04,
       h.cz + n[1] * d,
@@ -482,7 +482,7 @@ function eaveSkirt(o: Out, h: HouseSpec): void {
   }
 }
 
-/** Render only: the gable roof (two tin slabs, ridge along x) and the stepped plaster gable ends. */
+/** Render only: the gable roof (two clay slabs, ridge along x) and the stepped plaster gable ends. */
 function gableRoof(o: Out, h: HouseSpec, plaster: Color, home: boolean): void {
   const k = HK.half;
   const deck = deckY(h);
@@ -493,7 +493,7 @@ function gableRoof(o: Out, h: HouseSpec, plaster: Color, home: boolean): void {
     const n = faceNormal(face);
     const d = k / 2 + GABLE_OVERHANG / 2;
     const ok = o.kit.add(
-      home ? 'homeTin' : 'cornice',
+      home ? HOME_CLAY_PIECE : 'cornice',
       h.cx + n[0] * d,
       deck + (rise * (k - d)) / k - 0.04,
       h.cz + n[1] * d,
@@ -501,7 +501,7 @@ function gableRoof(o: Out, h: HouseSpec, plaster: Color, home: boolean): void {
       0.08,
       len,
       yawOf(face),
-      c(HOME_TIN),
+      c(HOME_CLAY),
       pitch,
     );
     if (ok) {
@@ -793,7 +793,17 @@ function dressProp(o: Out, p: PropSpec, home: boolean): void {
       // look 'home': a clay-tile eave band under the cream cap (the walkable top stays cream)
       if (home) {
         const e = HK.shedSize + 0.2;
-        o.kit.add('roof', p.x, g + HK.shedTop - cap - 0.2, p.z, e, 0.2, e, p.yaw, c(HOME_CLAY));
+        o.kit.add(
+          HOME_CLAY_PIECE,
+          p.x,
+          g + HK.shedTop - cap - 0.2,
+          p.z,
+          e,
+          0.2,
+          e,
+          p.yaw,
+          c(HOME_CLAY),
+        );
       }
       o.boxes.push({ kind: 'shed', min: [r.x0, g, r.z0], max: [r.x1, g + HK.shedTop, r.z1] });
       return;
