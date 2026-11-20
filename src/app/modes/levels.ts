@@ -1,41 +1,66 @@
 // Two public modes (ADR 0016): Classic (finite levels) and Dragon Chase (endless). A Classic level is
 // data; `playKey` maps (mode, level) to the internal GameMode that selects tuning, best key and HUD flags.
-import { GRAPH_LEVELS } from '../../content/graph/registry';
-import { shippedBuilderLevels } from '../../content/builder/shipped';
+import { GRAPH_INFO as GRAPH_LEVELS } from '../../content/graph/info';
+import { LIBRARY_PREFIX, visibleLibrary } from '../../content/builder/library';
+import type { LibraryMeta } from '../../content/builder/library';
+import { shippedBuilderMeta } from '../../content/builder/shippedMeta';
 import type { GameMode } from './mode';
 
-export type Mode = 'classic' | 'chase';
-export const MODES: readonly Mode[] = ['classic', 'chase'];
-export const MODE_LABEL: Record<Mode, string> = { classic: 'Classic', chase: 'Dragon Chase' };
+/** A lobby mode id; the set of valid ids lives in the registry (registry.ts, ADR 0017). */
+export type Mode = string;
+const DEFAULT_MODE_IDS: readonly string[] = ['classic', 'chase'];
 
 export interface LevelEntry {
   id: string;
   label: string;
   key: GameMode;
   /** 'local' = the builder's last Play level (localStorage), 'shipped' = content/builders file. */
-  builder?: 'local' | 'shipped';
+  builder?: 'local' | 'shipped' | 'library';
 }
 
 export const LOCAL_BUILDER_ID = 'builder';
-export const DEFAULT_LEVEL = 'l1';
+export const DEFAULT_LEVEL = 'nagarkot-home';
 
-const BASE_LEVELS: readonly LevelEntry[] = [
-  { id: DEFAULT_LEVEL, label: 'Descent', key: 'classic' },
+/**
+ * The one flag (T340, ADR 0016): false = Classic shows only `nagarkot-home`; true re-enables the hidden
+ * legacy levels (l1, graph levels, nagarkot, village, builder levels). Nothing is deleted. With the flag
+ * off, old `?mode=g:...` / `?level=` URLs and saved choices fall back to the default level.
+ */
+export const SHOW_LEGACY_LEVELS = false;
+
+const HOME_LEVEL: LevelEntry = { id: DEFAULT_LEVEL, label: 'Nagarkot Home', key: 'home' };
+
+const LEGACY_LEVELS: readonly LevelEntry[] = [
+  { id: 'l1', label: 'Descent', key: 'classic' },
   ...GRAPH_LEVELS.map((g): LevelEntry => ({ id: g.id, label: g.label, key: `g:${g.id}` })),
   { id: 'nagarkot', label: 'Nagarkot Run', key: 'strategy' },
   { id: 'village', label: 'Cloud Village', key: 'village' },
 ];
 
-/** Classic's levels: the built-in ones, shipped builder levels, then the local builder level when present. */
-export function classicLevels(hasLocalBuilder = false): LevelEntry[] {
-  const out: LevelEntry[] = [...BASE_LEVELS];
-  for (const b of shippedBuilderLevels()) {
+/** Classic's levels: the default level, then (flag on) the legacy ones, shipped builder levels and the local builder level when present. */
+export function classicLevels(
+  hasLocalBuilder = false,
+  showLegacy: boolean = SHOW_LEGACY_LEVELS,
+  library: readonly LibraryMeta[] = visibleLibrary(),
+): LevelEntry[] {
+  // Saved builder levels flagged visible are listed whatever the legacy flag says.
+  const saved = library.map(
+    (b): LevelEntry => ({
+      id: LIBRARY_PREFIX + b.id,
+      label: b.name,
+      key: 'strategy',
+      builder: 'library',
+    }),
+  );
+  if (!showLegacy) return [HOME_LEVEL, ...saved];
+  const out: LevelEntry[] = [HOME_LEVEL, ...LEGACY_LEVELS];
+  for (const b of shippedBuilderMeta()) {
     out.push({ id: 'b:' + b.id, label: b.name, key: 'strategy', builder: 'shipped' });
   }
   if (hasLocalBuilder) {
     out.push({ id: LOCAL_BUILDER_ID, label: 'My level', key: 'strategy', builder: 'local' });
   }
-  return out;
+  return [...out, ...saved];
 }
 
 export interface Selection {
@@ -43,7 +68,10 @@ export interface Selection {
   level: string;
 }
 
-export function playKey(sel: Selection, levels: readonly LevelEntry[] = classicLevels(true)): GameMode {
+export function playKey(
+  sel: Selection,
+  levels: readonly LevelEntry[] = classicLevels(true),
+): GameMode {
   if (sel.mode === 'chase') return 'chase';
   return (levels.find((l) => l.id === sel.level) ?? levels[0]).key;
 }
@@ -74,6 +102,7 @@ export function loadSelection(
   q: URLSearchParams,
   levels: readonly LevelEntry[],
   store: Store | undefined = defaultStore(),
+  modeIds: readonly string[] = DEFAULT_MODE_IDS,
 ): Selection {
   const get = (k: string): string | null => {
     try {
@@ -85,13 +114,14 @@ export function loadSelection(
   const known = (id: string | null): id is string => id !== null && levels.some((l) => l.id === id);
   const m = q.get('mode');
   const legacy = legacyLevel(m);
+  const saved = get(MODE_STORE_KEY);
   const mode: Mode =
-    m === 'chase' || m === 'classic'
+    m !== null && modeIds.includes(m)
       ? m
       : legacy !== null
         ? 'classic'
-        : get(MODE_STORE_KEY) === 'chase'
-          ? 'chase'
+        : saved !== null && modeIds.includes(saved)
+          ? saved
           : 'classic';
   const wanted = q.get('level') ?? legacy ?? get(LEVEL_KEY);
   return { mode, level: known(wanted) ? wanted : DEFAULT_LEVEL };

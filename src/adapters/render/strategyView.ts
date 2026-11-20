@@ -6,20 +6,15 @@ import type { Object3D } from 'three';
 import type { World } from '../../core/world';
 import { buildFixedRopes } from '../../app/ropePost';
 import { DOOR_HALF_W, doorwayBoxes } from './doorway';
+import { buildPadMeshes } from './padView';
 
 const COLOR_GOLD = '#ffc83a'; // interactive: line zones
 const COLOR_POST = '#4a2c1c';
-const COLOR_CREAM = '#f1e9d2'; // safe: tramp top, cushion
-const COLOR_RIM = '#6b4a30';
 const STYLE_HIDDEN = 5; // invisible barrier walls (same value as levelView)
 const HAND_Y = 2; // rope leaves the launch zone at hand height
 const POST_W = 0.12;
 const POST_DOWN = 3; // the far post reaches this far below the rope end
 const ZONE_LIFT = 0.03;
-const RIM_PAD = 0.15;
-const RIM_LIFT = 0.05;
-const TRAMP_LIFT = 0.04;
-const CUSHION_THICK = 0.3;
 
 type Box = [number, number, number, number, number, number]; // x0 y0 z0 x1 y1 z1
 
@@ -87,8 +82,11 @@ export function buildStrategyFeatures(world: World, skipProps = false): Object3D
     const dx = a === undefined ? 0 : a.px - cx;
     const dz = a === undefined ? 1 : a.pz - cz;
     // The launch frame spans the whole pad: the hero may hook from anywhere on it.
-    const padHalf = Math.abs(dz) >= Math.abs(dx) ? (z.max.x - z.min.x) / 2 : (z.max.z - z.min.z) / 2;
-    posts.push(...doorwayBoxes(cx, cz, z.max.y, sy, dx, dz, Math.max(DOOR_HALF_W, padHalf), POST_W));
+    const padHalf =
+      Math.abs(dz) >= Math.abs(dx) ? (z.max.x - z.min.x) / 2 : (z.max.z - z.min.z) / 2;
+    posts.push(
+      ...doorwayBoxes(cx, cz, z.max.y, sy, dx, dz, Math.max(DOOR_HALF_W, padHalf), POST_W),
+    );
     // Graph levels: the landing house draws its own doorway pole (houseV2).
     if (a === undefined || skipProps) continue;
     posts.push(...doorwayBoxes(a.px, a.pz, a.py - POST_DOWN, a.py, dx, dz, DOOR_HALF_W, POST_W));
@@ -98,32 +96,8 @@ export function buildStrategyFeatures(world: World, skipProps = false): Object3D
   // Fixed lines use the old rope look (twisted tube, sag, gold end), not a thin line.
   const ropes = buildFixedRopes(world, HAND_Y);
   if (ropes !== null) out.push(ropes);
-  const rims: Box[] = [];
-  const tops: Box[] = [];
   // Graph levels draw tramps and cushions as house-kit props (houseV2), not as slabs.
   if (skipProps) return out;
-  for (let i = 0; i < world.tramps.length; i++) {
-    const t = world.tramps[i];
-    const y = t.max.y + RIM_LIFT;
-    rims.push([
-      t.min.x - RIM_PAD,
-      t.min.y,
-      t.min.z - RIM_PAD,
-      t.max.x + RIM_PAD,
-      y,
-      t.max.z + RIM_PAD,
-    ]);
-    tops.push([t.min.x, y, t.min.z, t.max.x, y + TRAMP_LIFT, t.max.z]);
-  }
-  if (rims.length > 0) {
-    out.push(boxesMesh(rims, COLOR_RIM, 'trampRims'));
-    out.push(boxesMesh(tops, COLOR_CREAM, 'trampTops'));
-  }
-  const cush: Box[] = [];
-  for (let i = 0; i < world.cushions.length; i++) {
-    const c = world.cushions[i];
-    cush.push([c.min.x, c.min.y, c.min.z, c.max.x, c.max.y + CUSHION_THICK, c.max.z]);
-  }
-  if (cush.length > 0) out.push(boxesMesh(cush, COLOR_CREAM, 'cushions'));
+  out.push(...buildPadMeshes(world));
   return out;
 }

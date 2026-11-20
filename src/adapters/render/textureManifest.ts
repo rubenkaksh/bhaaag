@@ -34,13 +34,24 @@ export const TEXTURE_MANIFEST: readonly TextureEntry[] = [
   { file: 'brick_a_n.jpg', tiers: [] },
   { file: 'tin.jpg', tiers: RICH },
   { file: 'straw.jpg', tiers: RICH },
-  { file: 'horizon.webp', tiers: RICH },
   { file: 'roof_home.jpg', tiers: RICH },
   { file: 'facade.jpg', tiers: RICH },
   { file: 'roof_home_n.jpg', tiers: HIGH },
   { file: 'facade_n.jpg', tiers: HIGH },
   { file: 'tin_n.jpg', tiers: HIGH },
   { file: 'straw_n.jpg', tiers: HIGH },
+  { file: 'terrace.jpg', tiers: ['low'] },
+  { file: 'terrace_hi.jpg', tiers: RICH },
+  { file: 'terrace_hi_n.jpg', tiers: HIGH },
+  // painted backdrop (render/backdrop.ts, built by tools/backdrop-build.mjs): lazy, per tier
+  { file: 'backdrop/plate_low.webp', tiers: ['low'] },
+  { file: 'backdrop/near_low.webp', tiers: ['low'] },
+  { file: 'backdrop/plate_medium.webp', tiers: ['medium'] },
+  { file: 'backdrop/far_medium.webp', tiers: ['medium'] },
+  { file: 'backdrop/near_medium.webp', tiers: ['medium'] },
+  { file: 'backdrop/plate_high.webp', tiers: ['high'] },
+  { file: 'backdrop/far_high.webp', tiers: ['high'] },
+  { file: 'backdrop/near_high.webp', tiers: ['high'] },
 ];
 
 /** Total bytes loaded on a tier, given a size lookup (the test passes fs.statSync). */

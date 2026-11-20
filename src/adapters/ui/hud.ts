@@ -17,6 +17,15 @@ export function formatTime(sec: number): string {
   return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1);
 }
 
+/** Run time as s.cc (m:ss.cc from one minute), 0.00 before the first input (T339). */
+export function formatRunTime(sec: number): string {
+  const t = Math.max(0, Math.floor(sec * 100 + 1e-6) / 100);
+  if (t < 60) return t.toFixed(2);
+  const m = Math.floor(t / 60);
+  const s = t - m * 60;
+  return m + ':' + (s < 10 ? '0' : '') + s.toFixed(2);
+}
+
 // DOM HUD: timer, one-time hint, aim reticle, death toast, win overlay and the
 // contextual touch action label. Everything is created here; no index.html markup needed.
 export class Hud {
@@ -31,6 +40,8 @@ export class Hud {
   private readonly win: HTMLElement;
   private readonly winTime: HTMLElement;
   private readonly winBest: HTMLElement;
+  /** Empty box under the win text; the online board panel mounts here (Classic only). */
+  readonly winExtra: HTMLElement;
   private readonly action: HTMLElement | null;
   private readonly hintBtn: HTMLElement;
   private readonly mapBtn: HTMLElement;
@@ -59,7 +70,12 @@ export class Hud {
     root: HTMLElement,
     debug: boolean,
     onPlayAgain: () => void,
-    opts: { hint?: string; hopChip?: boolean; onHint?: (() => void) | null; onOverview?: ((held: boolean) => void) | null } = {},
+    opts: {
+      hint?: string;
+      hopChip?: boolean;
+      onHint?: (() => void) | null;
+      onOverview?: ((held: boolean) => void) | null;
+    } = {},
   ) {
     this.objective = el(root, 'div', 'hud-objective');
     this.objective.innerHTML =
@@ -96,7 +112,8 @@ export class Hud {
     this.mapBtn.setAttribute('aria-label', "Hold for bird's eye overview (L or M)");
     this.mapBtn.innerHTML =
       '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></g></svg><span>MAP</span>';
-    if (opts.onOverview === null || opts.onOverview === undefined) this.mapBtn.style.display = 'none';
+    if (opts.onOverview === null || opts.onOverview === undefined)
+      this.mapBtn.style.display = 'none';
     else {
       // Hold to zoom out: down starts, up / cancel / lost capture ends (a finger sliding off still releases).
       const cb = opts.onOverview;
@@ -132,17 +149,19 @@ export class Hud {
     h.textContent = 'You made it!';
     this.winTime = document.createElement('p');
     this.winBest = document.createElement('p');
+    this.winExtra = document.createElement('div');
+    this.winExtra.className = 'win-extra';
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = 'PLAY AGAIN';
     btn.addEventListener('click', onPlayAgain);
-    this.win.append(h, this.winTime, this.winBest, btn);
+    this.win.append(h, this.winTime, this.winBest, this.winExtra, btn);
     this.action = root.querySelector<HTMLElement>('#btn-jump');
     this.setTime(0);
   }
 
   setTime(sec: number): void {
-    const t = formatTime(sec);
+    const t = formatRunTime(sec);
     if (t === this.timerText) return;
     this.timerText = t;
     this.timerText_.textContent = t;
@@ -262,13 +281,14 @@ export class Hud {
   }
 
   showWin(time: number, best: number): void {
-    this.winTime.textContent = 'Time ' + formatTime(time);
-    this.winBest.textContent = 'Best ' + formatTime(best);
+    this.winTime.textContent = 'Time ' + formatRunTime(time);
+    this.winBest.textContent = 'Best ' + formatRunTime(best);
     this.win.classList.remove('off');
   }
 
   hideWin(): void {
     this.win.classList.add('off');
+    this.winExtra.replaceChildren();
   }
 
   /** Right-hand touch button label: JUMP, HOOK, BRAKE or CLIMB (icon and aria-label follow). */

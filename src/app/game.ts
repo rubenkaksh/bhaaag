@@ -17,6 +17,7 @@ import {
   HERO_EV_MANTLE,
   HERO_EV_VAULT,
   HERO_EV_SLIDE,
+  HERO_EV_CUSHION,
   HERO_EV_RELEASED,
   newHeroState,
 } from '../core/hero';
@@ -37,7 +38,6 @@ import { step } from '../core/sim';
 import { Vec3 } from '../core/math/vec3';
 import { loadWorldFromJson, loadWorldFromObject } from '../content/load';
 import type { LevelJson } from '../content/load';
-import { STRATEGY_SEED, generateStrategyLevel } from '../content/strategy/gen';
 import { DesktopInput } from '../adapters/input/desktop';
 import { TouchInput, type ActionMode } from '../adapters/input/touch';
 import { Sfx } from '../adapters/audio/sfx';
@@ -50,6 +50,7 @@ import {
   overviewAvailable,
   overviewPose,
   overviewWeight,
+  pickNodesAhead,
   stepOverview,
 } from '../adapters/render/overviewCam';
 import type { Pt } from '../adapters/render/overviewCam';
@@ -97,18 +98,25 @@ import {
   AE_MANTLE,
   AE_VAULT,
   AE_SLIDE,
+  AE_CUSHION,
   AE_RELEASE,
   landAmp,
 } from '../adapters/render/animEvents';
 import { CameraFx } from '../adapters/render/cameraFx';
 import { DustPuff } from '../adapters/render/dustPuff';
+import { cushionBelow, diveStep } from '../adapters/render/diveTrigger';
+import { PadBounce, cushionUnder } from '../adapters/render/padBounce';
 import { GameLoop } from './loop';
 import { framingFor } from '../adapters/render/framing';
 import { MODE_INFO, graphIdOf, isGraphMode, readBest, writeBest } from './modes/mode';
-import { graphEntry, loadGraph } from '../content/graph/registry';
-import { placeGraph } from '../content/graph/place';
-import { PathCam, buildPathGraph } from '../content/graph/pathCamera';
-import { buildForkMarkers } from '../adapters/render/forkMarkers';
+import { loadBest, rulesForKey } from './modes/registry';
+import { RunClock } from './runClock';
+import { finishRun } from './finish';
+import { createLocalLeaderboard } from './leaderboard';
+import type { LeaderboardPort } from './leaderboard';
+import { graphInfo } from '../content/graph/info';
+import type { GraphAssets } from './graphAssets';
+import type { HomeBundle } from './homeAssets';
 import type { GameMode } from './modes/mode';
 import { readViewport, watchViewport } from './viewport';
 import { viewportSize } from '../adapters/ui/orientation';
@@ -116,7 +124,7 @@ import type { ViewportLayout } from './viewport';
 
 const RESTART_ACCEPT_S = 0.3; // death: accept restart input after this
 const RESTART_AUTO_S = 0.8; // death: auto-restart after this
-const PAN_S = 2.5; // opening flyover from the goal back to the hero
+const PAN_S = 3.5; // opening drone shot from high above the run down to the hero
 const CHASE_PAN_S = 3.2; // chase opening: the dragon reveal, then back behind the hero
 const CHASE_OVER_DELAY_S = 1.1; // caught: the camera turns back before the card shows
 const CLOUD_FOG_COLOR = '#cdd0da';
@@ -178,6 +186,12 @@ function copyRig(dst: CameraRig, src: CameraRig): void {
   dst.initialized = src.initialized;
 }
 
+/** The strategy world comes from main.ts (lazy generator chunk, T336c); a missing one is a wiring bug. */
+function strategyLevel(lv: LevelJson | undefined): LevelJson {
+  if (lv === undefined) throw new Error('strategy level not loaded');
+  return lv;
+}
+
 type Phase = 'pan' | 'play' | 'dead' | 'won';
 
 export function startGame(
@@ -187,25 +201,41 @@ export function startGame(
   village?: VillageAssets,
   /** A compiled builder level to play in place of the generated Nagarkot one (ADR 0016). */
   levelOverride?: LevelJson,
+  /** Graph levels only: the lazy graph chunk (graphAssets.ts). */
+  graph?: GraphAssets,
+  /** Finish-time board (T339); defaults to the local-storage port. */
+  leaderboard: LeaderboardPort = createLocalLeaderboard(),
+  /** nagarkot-home only: level, kit dressing and path camera from the lazy chunk (homeAssets.ts). */
+  home?: HomeBundle,
 ): GameHandle {
   const cfg = resolveCfg(mode);
   let camCfg = cfg.camera;
+  let pitchLift = 0; // render-only landscape tilt from framingFor
   const params = new URLSearchParams(location.search);
   // ?tilt=15|20|30: render-only camera pitch-down (deg) so more of the drop below shows. Default is camera.tiltDeg (global).
   const tiltParam = Number(params.get('tilt'));
   const tiltDeg = params.has('tilt') && Number.isFinite(tiltParam) ? tiltParam : cfg.camera.tiltDeg;
   const camTilt = Math.min(Math.max(tiltDeg, 0), 45) * DEG2RAD;
   const isChase = mode === 'chase';
-  const isStrategy = mode === 'strategy';
+  const isStrategy = mode === 'strategy' || home !== undefined;
   const isVillage = mode === 'village';
   const isGraph = isGraphMode(mode);
-  const placed = isGraph ? placeGraph(loadGraph(graphIdOf(mode))) : null;
+  if (isGraph && graph === undefined) throw new Error('graph assets not loaded');
+  const placed =
+    isGraph && graph !== undefined ? graph.placeGraph(graph.loadGraph(graphIdOf(mode))) : null;
   // Opt-in path camera (home-street): heading follows the route; written into the sim camYaw so the stick stays camera-relative.
   const pathGraph =
-    isGraph && placed !== null && graphEntry(graphIdOf(mode))?.pathCamera === true
-      ? buildPathGraph(loadGraph(graphIdOf(mode)), placed.houses)
+    isGraph &&
+    graph !== undefined &&
+    placed !== null &&
+    graphInfo(graphIdOf(mode))?.pathCamera === true
+      ? graph.buildPathGraph(graph.loadGraph(graphIdOf(mode)), placed.houses)
       : null;
-  const pathCam = pathGraph !== null ? new PathCam(pathGraph) : null;
+  const pathCam =
+    pathGraph !== null && graph !== undefined
+      ? new graph.PathCam(pathGraph)
+      : (home?.pathCam ?? null);
+  if (pathCam !== null) pathCam.setLead(cfg.camera.pathLookahead, cfg.camera.pathTurnDeg);
   if (isVillage && village === undefined) throw new Error('village assets not loaded');
   const seedParam = params.get('seed');
   const fixedSeed = seedParam !== null && Number.isFinite(Number(seedParam));
@@ -220,34 +250,37 @@ export function startGame(
       ? cs.rw.world
       : placed !== null
         ? loadWorldFromObject(placed.level)
-        : isStrategy
-          ? loadWorldFromObject(
-              levelOverride ??
-                generateStrategyLevel(fixedSeed ? Number(seedParam) | 0 : STRATEGY_SEED),
-            )
-          : loadWorldFromJson(village !== undefined && isVillage ? village.villageText : levelText);
+        : home !== undefined
+          ? loadWorldFromObject(home.level)
+          : isStrategy
+            ? loadWorldFromObject(strategyLevel(levelOverride))
+            : loadWorldFromJson(
+                village !== undefined && isVillage ? village.villageText : levelText,
+              );
   const gs = createGameScene(canvas);
   const level: Group | null =
     cs === null
       ? gs.buildWorld(world, {
-          houseDress: placed === null,
+          houseDress: placed === null && home === undefined,
           graph:
-            placed === null
-              ? undefined
-              : {
-                  houses: placed.houses,
-                  props: placed.props,
-                  profile: placed.profile,
-                  seed: placed.seed,
-                  look: graphEntry(graphIdOf(mode))?.look,
-                  patches: placed.patches,
-                  field: placed.field,
-                },
+            home !== undefined
+              ? home.graph
+              : placed === null
+                ? undefined
+                : {
+                    houses: placed.houses,
+                    props: placed.props,
+                    profile: placed.profile,
+                    seed: placed.seed,
+                    look: graphInfo(graphIdOf(mode))?.look,
+                    patches: placed.patches,
+                    field: placed.field,
+                  },
           floorY: village !== undefined && isVillage ? village.VILLAGE_CLOUD_TOP_Y : undefined,
         })
       : null;
-  if (level !== null && pathGraph !== null && placed !== null)
-    level.add(buildForkMarkers(pathGraph, placed.edges));
+  if (level !== null && pathGraph !== null && placed !== null && graph !== undefined)
+    level.add(graph.buildForkMarkers(pathGraph, placed.edges));
   // Chase views: no classic scenery; own rows, endless ground and dragon.
   if (cs !== null) gs.setBlobWorld(world);
   const rowsView = isChase ? new ChaseRowsView(() => gs.refreshFlags()) : null;
@@ -292,6 +325,7 @@ export function startGame(
   gs.scene.add(previewView.group);
   const cameraFx = new CameraFx();
   const dust = new DustPuff();
+  const padBounce = new PadBounce(level);
   gs.scene.add(dust.mesh);
   const sfx = new Sfx();
   let animEv = 0;
@@ -304,7 +338,7 @@ export function startGame(
 
   const prev = newHeroState();
   const cur = newHeroState();
-    const frame = newInputFrame();
+  const frame = newInputFrame();
   const coarse = window.matchMedia('(pointer: coarse)').matches;
   const input = coarse ? new TouchInput(root) : new DesktopInput(canvas);
 
@@ -326,7 +360,7 @@ export function startGame(
   let panT = 0;
   let panSkip = false;
   let deadT = 0;
-  let runT = 0;
+  const clock = new RunClock(cfg.fixedHz);
   let nextRouteIndex = 0;
   let anyInput = false;
   let brakeWas = false;
@@ -339,7 +373,8 @@ export function startGame(
   let ovEnabled = true; // MAP button enabled (grounded or riding the rope)
   const ovFollow = newOverviewPose();
   const ovTarget = newOverviewPose();
-  const ovAhead: Pt[] = [];
+  const ovCand: Pt[] = []; // every node ahead-candidate, rebuilt while MAP is held
+  const ovAhead: Pt[] = []; // the nearest overviewNodes of them
   const yawOff: YawOffsets = { zip: 0, side: 0 }; // auto camera yaw offsets (rig radians): zipline diagonal + side look (T300)
   let hintId = NO_ANCHOR; // anchor highlighted by HINT (T299); render-only, never read by the sim
   let hintT = 0;
@@ -349,7 +384,14 @@ export function startGame(
   let aimId = NO_ANCHOR;
   let jsMs = 0;
   let stepMs = 0;
-  let best = readBest(mode);
+  const bestStore = (() => {
+    try {
+      return typeof localStorage === 'undefined' ? undefined : localStorage;
+    } catch {
+      return undefined;
+    }
+  })();
+  let best = loadBest(mode, bestStore);
 
   function resetHero(): void {
     copyHeroState(cur, newHeroState());
@@ -380,6 +422,7 @@ export function startGame(
     copyHeroState(prev, cur);
   }
 
+  let sprintK = 0; // 0..1 render-only sprint look (cadence, fov): grounded speed between run and sprintSpeed
   function tickCamera(): void {
     feet.x = cur.px;
     feet.y = cur.py;
@@ -401,6 +444,13 @@ export function startGame(
       feet.z += heroView.mantleOz;
     }
     const speed = Math.sqrt(cur.vx * cur.vx + cur.vz * cur.vz);
+    sprintK =
+      cur.grounded === 1
+        ? Math.min(
+            1,
+            Math.max(0, (speed - cfg.hero.run) / (cfg.hero.sprintSpeed - cfg.hero.run || 1)),
+          )
+        : 0;
     // One camera path for every mode: base rig yaw, then the shared auto yaw offsets (zip + side look).
     // Chase frontPov 0 (default) is the behind view, same rig as classic (r = PI - c), looking
     // downhill along the run; frontPov 1 is the old camera ahead of the hero, tilted up the slope.
@@ -419,28 +469,25 @@ export function startGame(
       curRig,
       feet,
       base + yawOff.zip + yawOff.side,
-      cur.camPitch - camTilt + (front ? 0.14 : 0),
+      cur.camPitch - camTilt + (front ? 0.14 : 0) + pitchLift,
       speed,
       world.solids,
       camCfg,
+      undefined,
+      sprintK * cfg.hero.sprintFov,
     );
     if (ovK > 0) applyOverview(base);
   }
 
-  /** Blend the follow pose toward the bird's eye pose: hero + the path ahead (next anchors, pads, finish). */
+  /** Blend the follow pose toward the held-MAP pose: hero + the nearest N nodes ahead (pads, anchors, finish). */
   function applyOverview(baseYaw: number): void {
-    const fx = Math.sin(baseYaw);
-    const fz = -Math.cos(baseYaw);
     let n = 0;
     const add = (x: number, y: number, z: number): void => {
-      // Only what lies ahead of the hero along the view direction (a little behind is fine).
-      if ((x - cur.px) * fx + (z - cur.pz) * fz >= -4) {
-        if (n === ovAhead.length) ovAhead.push({ x: 0, y: 0, z: 0 });
-        const p = ovAhead[n++];
-        p.x = x;
-        p.y = y;
-        p.z = z;
-      }
+      if (n === ovCand.length) ovCand.push({ x: 0, y: 0, z: 0 });
+      const p = ovCand[n++];
+      p.x = x;
+      p.y = y;
+      p.z = z;
     };
     const first = cs !== null ? 0 : nextRouteIndex;
     for (let i = first; i < world.route.length; i++) {
@@ -452,14 +499,15 @@ export function startGame(
       add((b.min.x + b.max.x) / 2, b.max.y, (b.min.z + b.max.z) / 2);
     }
     if (hasGoal) add(goalCx, goalCy, goalCz);
-    ovAhead.length = n; // keep the pool small; entries are re-created on demand
+    ovCand.length = n;
+    pickNodesAhead(feet, baseYaw, ovCand, camCfg.overviewNodes, ovAhead);
     ovFollow.px = curRig.pos.x;
     ovFollow.py = curRig.pos.y;
     ovFollow.pz = curRig.pos.z;
     ovFollow.lx = curRig.lookAt.x;
     ovFollow.ly = curRig.lookAt.y;
     ovFollow.lz = curRig.lookAt.z;
-    overviewPose(feet, ovAhead, baseYaw, camCfg, ovTarget);
+    overviewPose(feet, ovAhead, baseYaw, camCfg, curRig.fov, gs.camera.aspect, ovTarget);
     blendPose(ovFollow, ovTarget, overviewWeight(ovK));
     curRig.pos.x = ovFollow.px;
     curRig.pos.y = ovFollow.py;
@@ -524,7 +572,7 @@ export function startGame(
     resetHero();
     phase = 'play';
     deadT = 0;
-    runT = 0;
+    clock.reset();
     nextRouteIndex = 0;
     anyInput = false;
     animEv = 0;
@@ -638,7 +686,7 @@ export function startGame(
       if ((cur.eventBits & HERO_EV_HOOKED) !== 0 || cur.mode === HERO_ATTACHED)
         tapAnchor = NO_ANCHOR;
       if (cs !== null) chaseStep(cs, cur, world, cfg);
-      runT += stepDt;
+      clock.tick(frame);
 
       const ev = cur.eventBits;
       if ((ev & HERO_EV_LANDED) !== 0) {
@@ -656,6 +704,7 @@ export function startGame(
       if ((ev & HERO_EV_MANTLE) !== 0) animEv |= AE_MANTLE;
       if ((ev & HERO_EV_VAULT) !== 0) animEv |= AE_VAULT;
       if ((ev & HERO_EV_SLIDE) !== 0) animEv |= AE_SLIDE;
+      if ((ev & HERO_EV_CUSHION) !== 0) animEv |= AE_CUSHION;
       if ((ev & HERO_EV_DIED) !== 0) animEv |= AE_DIE;
       if (prev.mode !== HERO_ATTACHED && cur.mode === HERO_ATTACHED) animEv |= AE_ATTACH;
       if (
@@ -690,11 +739,13 @@ export function startGame(
         aabbContainsPoint(world.goal, cur.px, cur.py, cur.pz)
       ) {
         phase = 'won';
-        if (best === 0 || runT < best) {
-          best = runT;
-          writeBest(mode, best);
+        const res = finishRun(mode, clock, best, leaderboard, bestStore);
+        best = res.best;
+        hudUi.showWin(res.seconds, best);
+        if (mode === 'classic') {
+          const ticks = clock.runTicks;
+          void import('../adapters/ui/boardPanel').then((m) => m.mountBoard(hudUi.winExtra, ticks));
         }
-        hudUi.showWin(runT, best);
         hudUi.pulseTimer();
       }
       updateReticle();
@@ -712,9 +763,10 @@ export function startGame(
     overShown = true;
     overAtT = deadT;
     const score = chaseScore(cs, cfg);
-    const isBest = score > best;
+    const res = rulesForKey('chase').onFinish(score, best);
+    const isBest = res.record;
     if (isBest) {
-      best = score;
+      best = res.best;
       writeBest('chase', score);
     }
     chaseHud.showOver(
@@ -725,6 +777,8 @@ export function startGame(
       isBest,
       DEATH_MSG[cur.deadCause] ?? 'You fell',
     );
+    const host = chaseHud.boardHost;
+    void import('../adapters/ui/boardPanel').then((m) => m.mountBoard(host, score, 'chase'));
   }
 
   /** Fog, sun and the white-out layer follow the dragon's gap (setCloudCover only dims sky clouds). */
@@ -890,9 +944,18 @@ export function startGame(
   const goalCy = (world.goal.min.y + world.goal.max.y) / 2;
   const goalCz = (world.goal.min.z + world.goal.max.z) / 2;
   const hasGoal = world.goal.max.y > world.goal.min.y;
-  const panStart = hasGoal
-    ? new Vec3(goalCx + 14, goalCy + 16, goalCz - 16)
-    : new Vec3(world.spawn.x + 14, world.spawn.y + 16, world.spawn.z - 30);
+  // Opening drone shot (owner 2026-11-20): starts high above the middle of the run, looking down at
+  // everything from spawn to goal, then settles behind the hero.
+  const panMidX = hasGoal ? (world.spawn.x + goalCx) / 2 : world.spawn.x;
+  const panMidY = hasGoal ? (world.spawn.y + goalCy) / 2 : world.spawn.y;
+  const panMidZ = hasGoal ? (world.spawn.z + goalCz) / 2 : world.spawn.z - 20;
+  const panExtent = hasGoal ? Math.hypot(goalCx - world.spawn.x, goalCz - world.spawn.z) : 40;
+  const panStart = new Vec3(
+    panMidX,
+    Math.max(world.spawn.y, hasGoal ? goalCy : world.spawn.y) + Math.min(260, Math.max(60, panExtent * 0.8)),
+    panMidZ + Math.min(120, panExtent * 0.35),
+  );
+  const panLook = new Vec3(panMidX, panMidY, panMidZ);
 
   /** Marker on the next route anchor, then the goal; hidden in pan/dead/won and within 3 m. */
   function updateWaypoint(fx: number, fy: number, fz: number): void {
@@ -1059,6 +1122,14 @@ export function startGame(
     hv.brake = cur.mode === HERO_ATTACHED && (frame.buttons & BTN_REEL) !== 0;
     hv.rolling = cur.rollT > 0;
     hv.sliding = cur.slideT > 0;
+    hv.sprint = sprintK * cfg.hero.sprintCadence;
+    hv.dive = diveStep(
+      hv.dive,
+      cur.mode === HERO_AIRBORNE && cur.dead === 0,
+      cur.vy,
+      cushionBelow(world.cushions, cur.px, cur.pz, cur.py, cfg.hero.radius),
+      cfg.hero.diveMinFall,
+    );
     hv.events = animEv;
     hv.ropeLen = cur.hook.len;
     hv.impact = animImpact;
@@ -1091,6 +1162,13 @@ export function startGame(
     if ((animEv & AE_LAND) !== 0 && (animImpact >= 3 || cur.rollT > 0)) {
       dust.trigger(gp.x, gp.y, gp.z, landAmp(animImpact));
     }
+    if ((animEv & AE_CUSHION) !== 0) {
+      // soft landing: the pad under the feet squashes and rebounds, with a small puff of dust
+      const pad = cushionUnder(world.cushions, cur.px, cur.pz, cur.py, 0.1);
+      padBounce.trigger(pad, Math.max(0.55, landAmp(animImpact)));
+      dust.trigger(gp.x, gp.y, gp.z, 0.4);
+    }
+    padBounce.update(frameDt);
     if ((animEv & AE_JUMP) !== 0) dust.trigger(gp.x, gp.y, gp.z, 0.2);
     if ((animEv & AE_FIRE) !== 0) sfx.fire();
     if ((animEv & AE_ATTACH) !== 0) sfx.attach();
@@ -1133,7 +1211,7 @@ export function startGame(
       renderChase(nowSec, frameDt);
     } else if (level !== null) {
       updateLevelView(level, nowSec, nextRouteIndex, hintId);
-      hudUi.setTime(runT);
+      hudUi.setTime(clock.seconds);
       hudUi.setHop(nextRouteIndex, world.route.length);
       hudUi.setAltitude(altitudeFraction(cur.py, world.spawn.y, hasGoal ? goalCy : world.spawn.y));
     }
@@ -1153,7 +1231,7 @@ export function startGame(
     if (phase === 'pan') {
       const k = smooth((panT + alpha * stepDt) / (cs !== null ? CHASE_PAN_S : PAN_S));
       const ps = cs !== null ? chasePanStart : panStart;
-      const pl = cs !== null ? chasePanLook : world.spawn;
+      const pl = cs !== null ? chasePanLook : panLook;
       camX = ps.x + (camX - ps.x) * k;
       camY = ps.y + (camY - ps.y) * k;
       camZ = ps.z + (camZ - ps.z) * k;
@@ -1269,6 +1347,7 @@ export function startGame(
     gs.resize();
     const fr = framingFor(v, cfg.camera);
     camCfg = fr.camera;
+    pitchLift = fr.pitchLiftRad;
     gs.setLensShift(fr.lensShiftY);
     lensShiftPx = -fr.lensShiftY * v.h; // positive view offset moves the image up
     document.documentElement.style.setProperty('--lens-shift', String(fr.lensShiftY));

@@ -6,14 +6,9 @@ import {
   saveGraphicsTier,
 } from '../render/graphicsTier';
 import type { GraphicsTier } from '../render/graphicsTier';
-import {
-  MODES,
-  MODE_LABEL,
-  classicLevels,
-  loadSelection,
-  saveSelection,
-} from '../../app/modes/levels';
-import type { LevelEntry, Mode, Selection } from '../../app/modes/levels';
+import { classicLevels, loadSelection, saveSelection } from '../../app/modes/levels';
+import type { LevelEntry, Selection } from '../../app/modes/levels';
+import { MODE_IDS, lobbyModes } from '../../app/modes/registry';
 import { hasLocalBuilderLevel } from '../../content/builder/store';
 import { ORIENT_LABEL, ORIENT_PREFS } from './orientation';
 import type { OrientationControl } from './orientation';
@@ -76,9 +71,9 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
     '<div class="head"><h1>Bhaaag</h1><p class="tag">Slide the Kathmandu rooftops at sunset</p></div>' +
     '<div class="mid">' +
     '<div id="lobby-mode" role="radiogroup" aria-label="Game mode">' +
-    MODES.map(
-      (m) => `<button type="button" role="radio" data-mode="${m}">${MODE_LABEL[m]}</button>`,
-    ).join('') +
+    lobbyModes()
+      .map((m) => `<button type="button" role="radio" data-mode="${m.id}">${m.label}</button>`)
+      .join('') +
     '</div>' +
     '<div id="lobby-level" role="radiogroup" aria-label="Classic level"></div>' +
     '<button id="lobby-play" type="button">PLAY</button><p id="lobby-best"></p>' +
@@ -141,7 +136,8 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
     if (orient === undefined || !orient.supported) orientRow.style.display = 'none';
     else {
       const showOrient = (): void => {
-        for (const b of orientBtns) b.setAttribute('aria-checked', String(b.dataset.orient === orient.pref()));
+        for (const b of orientBtns)
+          b.setAttribute('aria-checked', String(b.dataset.orient === orient.pref()));
       };
       for (const b of orientBtns) {
         b.addEventListener('click', () => {
@@ -160,7 +156,12 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
   if (levelRow === null) throw new Error('lobby markup');
   const levelEl: HTMLElement = levelRow;
   let levels: LevelEntry[] = classicLevels(hasLocalBuilderLevel());
-  let sel: Selection = loadSelection(new URLSearchParams(location.search), levels);
+  let sel: Selection = loadSelection(
+    new URLSearchParams(location.search),
+    levels,
+    undefined,
+    MODE_IDS,
+  );
   function renderLevels(): void {
     levels = classicLevels(hasLocalBuilderLevel());
     levelEl.innerHTML = levels
@@ -183,9 +184,7 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
   }
   for (const b of modeBtns) {
     b.addEventListener('click', () => {
-      const m = MODES.find((x): x is Mode => x === b.dataset.mode);
-      if (m === undefined) return;
-      sel = { mode: m, level: sel.level };
+      sel = { mode: b.dataset.mode ?? sel.mode, level: sel.level };
       saveSelection(sel);
       showMode();
     });

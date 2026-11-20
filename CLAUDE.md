@@ -29,7 +29,7 @@ Full spec: `docs/zipline-plan.md` (read the relevant section before each milesto
 - ~~Never a dead end: a validator CLI runs the real sim over every survivable state. It runs in CI and blocks deploys.~~ DROPPED by lean-scope item 2 (one hand-checked level).
 - Health: one-hit death. No pips. Wall impact above `vCling` kills (default 7.5 m/s, range 7-8); below it the hero clings. Rough landings only cost time.
 - Hand-brake: hold REEL while Attached (~10 m/s² decel, no new button). It is the skill answer to "too low".
-- Momentum carry: landing turns horizontal speed into run speed (cap ~8 m/s), a roll keeps it; firing within 0.4 s of landing seeds `v0` from it. Aiming works at full speed while moving.
+- Momentum carry: landing turns horizontal speed into run speed (cap `carryCap`, 12 m/s; sprint tops out at 11, ADR 0018), a roll keeps it; firing within 0.4 s of landing seeds `v0` from it. Aiming works at full speed while moving.
 - Orientation: portrait and landscape both playable (decided 2026-11-10); no rotate overlay. Supersedes the 2026-11-05 landscape-first decision.
 - Touch scheme: tap-to-aim on an anchor, one contextual action button (Hook, Mantle/Brake), JUMP (ignored on the rope); release is DROP, a swipe down.
 - Cloud Village: a Classic level, one hand-placed (ADR 0016, 2026-11-17; supersedes the 2026-11-12 "fourth mode" amendment in `docs/lean-scope.md`).
@@ -37,7 +37,7 @@ Full spec: `docs/zipline-plan.md` (read the relevant section before each milesto
 - ~~Preview help: release window shown in L1a/L1b, colour only in L1c.~~ DROPPED by lean-scope item 4 (no L1a/L1b/L1c ladder).
 - Hero: neutral parkour runner (placeholder mannequin).
 - Input: Pointer Events, desktop (pointer lock + WASD) and touch (floating stick, look-drag, buttons) from day one. Engine-agnostic `InputFrame`.
-- Hosting: Cloudflare Pages via GitHub Actions, `*.pages.dev`. Deploy from M0.
+- Hosting: GitHub Pages, live at https://rubenkaksh.github.io/bhaaag/ (legacy mode serving the `gh-pages` branch, vite `--base=/bhaaag/`; GitHub's built-in pages-build-deployment action publishes each gh-pages push; the push itself is manual and STAYS manual by owner decision 2026-11-17c). Supersedes the earlier Cloudflare Pages decision (owner 2026-11-17).
 - MVP1 backlog (do NOT build yet): melee combat on balconies/roofs.
 
 ## Portable-core coding rules — DROPPED by lean-scope item 1
@@ -65,4 +65,4 @@ The existing core stays as is (no rewrite). New code may use plain idiomatic Typ
 - `pnpm typecheck`: `tsc --noEmit`, then `tsc --noEmit -p tsconfig.core.json` (core with ES2022 lib only).
 - ~~`pnpm validate:levels`~~ DROPPED (lean-scope item 2).
 - `pnpm format`: Prettier write (docs and md files are ignored).
-- CI order: lint, typecheck, test, build. ~~validate:levels and deploy gates~~ DROPPED (lean-scope items 2-3); Cloudflare Pages hosting itself is unchanged.
+- CI order: lint, typecheck, test, build. ~~validate:levels and deploy gates~~ DROPPED (lean-scope items 2-3); hosting is GitHub Pages (see Locked decisions; the ci.yml Cloudflare deploy job is dormant without secrets).

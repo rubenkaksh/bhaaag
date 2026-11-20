@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { GAME_MODES } from '../../src/app/modes/mode';
+import { rowsToOverrides } from '../../src/app/remoteConfig';
 import { MODE_OVERRIDES, mergeTuning, resolveCfg } from '../../src/app/tuning';
 import { tickYawOffsets } from '../../src/adapters/render/cameraYaw';
 
@@ -66,6 +67,29 @@ describe('config scope (global keys stay global)', () => {
       expect(off.side).toBe(0);
       for (let i = 0; i < 200; i++) tickYawOffsets(off, 0, 5, 0, false, false, cfg);
       expect(off.side).toBeGreaterThan(0.2);
+    });
+  }
+
+  // L2: the remote overlay is global. For every mode it changes exactly the overlay's paths, except where
+  // that mode's MODE_OVERRIDES pins the key; per-mode differences stay limited to MODE_OVERRIDES.
+  const remote = rowsToOverrides([
+    { key: 'hero.sprintSpeed', value: 12 },
+    { key: 'rope.terminal', value: 22 },
+    { key: 'hero.runAccel', value: 20 },
+  ]);
+  const remotePaths = new Set(['hero.sprintSpeed', 'rope.terminal', 'hero.runAccel']);
+  for (const mode of GAME_MODES) {
+    it(mode + ': remote overlay touches only overlay keys, and MODE_OVERRIDES still win', () => {
+      const plain = resolveCfg(mode);
+      const withRemote = resolveCfg(mode, remote);
+      const pinned = overridePaths(MODE_OVERRIDES[mode]);
+      const changed = diffPaths(plain, withRemote);
+      for (const p of changed) expect(remotePaths.has(p), p).toBe(true);
+      for (const p of remotePaths) expect(changed.includes(p), p).toBe(!pinned.has(p));
+      const undocumented = diffPaths(resolveCfg('classic', remote), withRemote).filter(
+        (p) => !pinned.has(p),
+      );
+      expect(undocumented).toEqual([]);
     });
   }
 

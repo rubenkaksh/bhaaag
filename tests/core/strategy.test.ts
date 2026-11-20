@@ -1,6 +1,6 @@
 // ADR 0011 strategy rules: fixed lines, trampolines, cushions, hazards, ledge grab + mantle.
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TUNING } from '../../src/core/config';
+import { LEGACY_TUNING as DEFAULT_TUNING } from '../fixtures/legacyFeel';
 import {
   DEAD_HAZARD,
   HERO_AIRBORNE,
@@ -13,6 +13,7 @@ import {
   HERO_HANGING,
   HeroState,
 } from '../../src/core/hero';
+import type { Tuning } from '../../src/core/config';
 import { AIM_NO_LINE, AIM_OK, HOOK_IDLE, aimReason } from '../../src/core/hook';
 import { BTN_CLIMB, BTN_HOOK, BTN_JUMP, InputFrame, quantizeAxis } from '../../src/core/input';
 import { AABB } from '../../src/core/math/aabb';
@@ -38,10 +39,10 @@ function spawn(x: number, y: number, z: number, grounded: number): HeroState {
   return s;
 }
 
-function run(s: HeroState, f: InputFrame, w: World, n: number): number {
+function run(s: HeroState, f: InputFrame, w: World, n: number, c: Tuning = cfg): number {
   let ev = 0;
   for (let i = 0; i < n; i++) {
-    step(s, f, w, cfg);
+    step(s, f, w, c);
     ev |= s.eventBits;
   }
   return ev;
@@ -184,7 +185,7 @@ describe('cushion', () => {
 });
 
 describe('hazard', () => {
-  it('kills on contact with DEAD_HAZARD', () => {
+  it('kills on contact with DEAD_HAZARD when hazard.killImpact is 0 (the old rule)', () => {
     const w = new World();
     addSolid(w, box(-5, -1, -5, 5, 0, 40));
     w.hazards.push(box(-5, -0.5, 6, 5, 0.5, 9));
@@ -192,7 +193,7 @@ describe('hazard', () => {
     const s = spawn(0, 0, 0, 1);
     const f = new InputFrame();
     f.moveY = quantizeAxis(1);
-    run(s, f, w, 180);
+    run(s, f, w, 180, { ...cfg, hazard: { ...cfg.hazard, killImpact: 0 } });
     expect(s.dead).toBe(1);
     expect(s.deadCause).toBe(DEAD_HAZARD);
     expect(s.pz).toBeGreaterThan(5.5);

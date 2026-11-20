@@ -50,6 +50,7 @@ export class HeroState {
   rollT = 0; // seconds of roll left
   landLockT = 0; // reserved: seconds of landing lock (time-cost landings)
   chainT = 0; // seconds left in the post-landing chain window
+  sprintM = 0; // metres run at >= 0.98 x run on the ground without a stop (ADR 0018)
   deadCause = 0;
   eventBits = 0;
   hookCd = 0; // seconds until the hook may fire again
@@ -77,6 +78,10 @@ export class HeroState {
   vaultVx = 0; // velocity handed back when the vault ends
   vaultVz = 0;
   slideT = 0; // seconds of landing slide left (grounded sub-state, not a mode)
+  // Hillside ground (cfg.hazard): standing on a hazard volume's top instead of dying on it.
+  hill = 0; // 1 while the support is the hillside, not a solid: walk speed capped, no sprint
+  hillClimb = 0; // 1 while climbing a house wall from the hillside (HANGING, feet rising)
+  hillClimbT = 0; // seconds the stick has been held into a wall on the hillside
 }
 
 export function newHeroState(): HeroState {
@@ -100,6 +105,7 @@ export function copyHeroState(dst: HeroState, src: HeroState): void {
   dst.rollT = src.rollT;
   dst.landLockT = src.landLockT;
   dst.chainT = src.chainT;
+  dst.sprintM = src.sprintM;
   dst.deadCause = src.deadCause;
   dst.eventBits = src.eventBits;
   dst.hookCd = src.hookCd;
@@ -125,4 +131,7 @@ export function copyHeroState(dst: HeroState, src: HeroState): void {
   dst.vaultVx = src.vaultVx;
   dst.vaultVz = src.vaultVz;
   dst.slideT = src.slideT;
+  dst.hill = src.hill;
+  dst.hillClimb = src.hillClimb;
+  dst.hillClimbT = src.hillClimbT;
 }

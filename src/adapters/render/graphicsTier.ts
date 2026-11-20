@@ -240,7 +240,7 @@ export function renderConfigFor(tier: GraphicsTier, coarse: boolean): RenderConf
       exposure: 1.1,
       sun: { color: '#ffb469', intensity: 3.0, dir: [70, 38, -15] },
       hemi: { sky: '#ffc99c', ground: '#5b4656', intensity: 1.0 },
-      fog: { color: FOG_HAZE, near: 70, far: 480 },
+      fog: { color: FOG_HAZE, near: 80, far: 650 },
       shadow: null,
       bloom: null,
       composerSamples: 0,
@@ -267,7 +267,7 @@ export function renderConfigFor(tier: GraphicsTier, coarse: boolean): RenderConf
     exposure: 1.2,
     sun: { color: '#ffa65c', intensity: 4.2, dir: [70, 25, -15] },
     hemi: { sky: '#ffc99c', ground: '#5e4a5c', intensity: 0.85 },
-    fog: { color: FOG_HAZE, near: 65, far: 480 },
+    fog: { color: FOG_HAZE, near: 75, far: 620 },
     shadow,
     // Bloom needs a composer with a HalfFloat MSAA target: fine pointers only (ADR 0009).
     bloom: tier === 'high' && !coarse ? { strength: 0.22, radius: 0.35, threshold: 0.85 } : null,

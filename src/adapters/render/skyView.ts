@@ -10,6 +10,7 @@ import {
   Group,
   Mesh,
   MeshBasicMaterial,
+  Object3D,
   Points,
   PointsMaterial,
   Quaternion,
@@ -50,9 +51,10 @@ const SUN_BOOST = new Color('#ffd890');
 // Stops by normalised height h (sphere radius 500, so h = dir.y).
 const SKY_STOPS: [number, Color][] = [
   [0, new Color(HAZE)],
-  [0.1, new Color('#f2a050')],
-  [0.3, new Color('#d77a45')],
-  [0.6, new Color('#9c5a4c')],
+  [0.12, new Color('#f0b47a')],
+  [0.264, new Color('#afa1b4')], // mean colour of the plate's first opaque row (backdrop-build 'plateTop'), sin 15.3 deg
+  [0.45, new Color('#e2a46e')],
+  [0.7, new Color('#b7765a')],
 ];
 
 /** Sky colour for normalised height h. Writes into `out` and returns it. */
@@ -341,6 +343,26 @@ export function buildSkyView(): Group {
     }),
   );
   return g;
+}
+
+const DRIFT_PERIOD = 90; // seconds per cloud sway
+const GLOW_PERIOD = 45; // seconds per haze breath
+
+/**
+ * Gentle sky life, one call per frame, no allocation: clouds sway a few degrees, the high layer
+ * the other way, the horizon haze breathes. `t` in seconds; pass a constant for reduced motion.
+ */
+export function updateSky(sky: Group, t: number): void {
+  const a = (Math.sin((t / DRIFT_PERIOD) * Math.PI * 2) * 3 * Math.PI) / 180;
+  const lo = (sky.userData.lo ??= sky.getObjectByName('clouds') ?? null) as Object3D | null;
+  if (lo !== null) lo.rotation.y = a;
+  const hi = (sky.userData.hi ??= sky.getObjectByName('cloudsHigh') ?? null) as Object3D | null;
+  if (hi !== null) hi.rotation.y = -0.7 * a;
+  const haze = (sky.userData.haze ??= sky.getObjectByName('horizonHaze') ?? null) as Mesh | null;
+  if (haze !== null) {
+    (haze.material as MeshBasicMaterial).opacity =
+      1 + 0.25 * Math.sin((t / GLOW_PERIOD) * Math.PI * 2);
+  }
 }
 
 export const DUST_COUNT = 90;

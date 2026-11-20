@@ -2,12 +2,23 @@
 // in localStorage and opens ?level=builder (Classic's "My level"). Guarded for blocked storage.
 // Imports nothing from the builder so game.ts pulls in no builder code (dead-code-eliminated in prod).
 import type { LevelJson } from '../load';
+import { loadWorldFromObject } from '../load';
 
 export const PLAY_KEY = 'bhaaag.builder.play';
 
-export function savePlayLevel(compiled: LevelJson): boolean {
+export const PLAY_SRC_KEY = 'bhaaag.builder.play.src';
+
+/** `source` (the builder JSON text) lets the game dress the level like Nagarkot; without it the level plays plain. */
+export function savePlayLevel(compiled: LevelJson, source?: string): boolean {
   try {
+    // A source left from an earlier level would dress the wrong houses: clear it before anything can fail.
+    try {
+      localStorage.removeItem(PLAY_SRC_KEY);
+    } catch {
+      // best effort
+    }
     localStorage.setItem(PLAY_KEY, JSON.stringify(compiled));
+    if (source !== undefined) localStorage.setItem(PLAY_SRC_KEY, source);
     return true;
   } catch {
     return false;
@@ -20,7 +31,9 @@ export function readLocalBuilderLevel(): LevelJson | null {
     const raw = localStorage.getItem(PLAY_KEY);
     if (raw === null) return null;
     const v: unknown = JSON.parse(raw);
-    return typeof v === 'object' && v !== null ? (v as LevelJson) : null;
+    if (typeof v !== 'object' || v === null) return null;
+    loadWorldFromObject(v); // schema check: a stale or corrupt entry must not reach startGame
+    return v as LevelJson;
   } catch {
     return null;
   }
@@ -28,4 +41,13 @@ export function readLocalBuilderLevel(): LevelJson | null {
 
 export function hasLocalBuilderLevel(): boolean {
   return readLocalBuilderLevel() !== null;
+}
+
+/** The builder source text saved with the play level, or null. Parsed later in the builder chunk. */
+export function readLocalBuilderSource(): string | null {
+  try {
+    return localStorage.getItem(PLAY_SRC_KEY);
+  } catch {
+    return null;
+  }
 }

@@ -31,6 +31,13 @@ export interface HouseSpec {
    * tangent offset `s`, where the rope chord leaves the deck. The rest of the face stays closed.
    */
   runout?: { face: Face; s: number; w?: number }[];
+  /**
+   * Render-only roof guard (nagarkot-home, deckClear levels): the faces that get a 0.45 m parapet although the sim has no
+   * solid for it. Only faces no route move crosses; absent or empty = none.
+   */
+  guard?: Face[];
+  /** Brick plinth depth under `groundY` (default 1 m). Builder houses stand on a taller base so the kit reaches the hill. */
+  below?: number;
 }
 
 export const RUNOUT_GAP = 1.6;

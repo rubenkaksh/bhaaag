@@ -8,7 +8,8 @@ export const AE_LAND = 1,
   AE_PERFECT = 128,
   AE_MANTLE = 256, // climbed onto the held ledge (core HERO_EV_MANTLE)
   AE_VAULT = 512, // auto-vault started (core HERO_EV_VAULT)
-  AE_SLIDE = 1024; // landing slide started (core HERO_EV_SLIDE)
+  AE_SLIDE = 1024, // landing slide started (core HERO_EV_SLIDE)
+  AE_CUSHION = 2048; // landed on a cushion (core HERO_EV_CUSHION)
 
 /** Landing amplitude 0..1 from downward impact speed (m/s). 2 m/s → 0, 11 m/s → 1. */
 export function landAmp(impact: number): number {

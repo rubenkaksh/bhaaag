@@ -49,12 +49,21 @@ async function open(tag, vp, touch, scale) {
   return { ctx, page };
 }
 const play = async (page) => {
-  await page.locator('#lobby-play').click({ timeout: 4000 }).catch(() => {});
+  await page
+    .locator('#lobby-play')
+    .click({ timeout: 4000 })
+    .catch(() => {});
   await page.waitForTimeout(2500);
 };
 // Hold a touch button by dispatching pointer events (Playwright's touchscreen only taps).
 const hold = async (page, sel, ms) => {
-  const init = { pointerId: 7, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true };
+  const init = {
+    pointerId: 7,
+    pointerType: 'touch',
+    isPrimary: true,
+    bubbles: true,
+    cancelable: true,
+  };
   await page.dispatchEvent(sel, 'pointerdown', init);
   await page.waitForTimeout(ms);
   await page.dispatchEvent(sel, 'pointerup', init);
@@ -63,7 +72,14 @@ const canvasCheck = async (page, tag) => {
   const r = await page.evaluate(() => {
     const c = document.querySelector('#game');
     const b = c.getBoundingClientRect();
-    return { cw: c.width, ch: c.height, bw: b.width, bh: b.height, w: window.innerWidth, h: window.innerHeight };
+    return {
+      cw: c.width,
+      ch: c.height,
+      bw: b.width,
+      bh: b.height,
+      w: window.innerWidth,
+      h: window.innerHeight,
+    };
   });
   const okBox = Math.abs(r.bw - r.w) < 1 && Math.abs(r.bh - r.h) < 1;
   const okAspect = Math.abs(r.cw / r.ch - r.w / r.h) < 0.02;

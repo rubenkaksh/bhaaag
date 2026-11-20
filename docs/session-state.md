@@ -23,5 +23,13 @@ NEXT: M1-T11 render+wiring (src/adapters/render/{scene,heroView}.ts, src/adapter
 API notes: HeroState starts airborne (set grounded=1 to spawn standing); yaw 0 faces +z in sim, camera rig yaw 0 faces -Z (reconcile in wiring); touch exposes tapPending/tapNdcX/Y; desktop/touch .sample(InputFrame).
 DECISIONS: landscape-first phones (rotate overlay). Cursor + flash off. Route former cursor tasks hunter then hunter-pro. Juniors time out on long briefs: keep briefs ~2KB, SCRIBE_TIMEOUT=900 TRIES=1; fixer ladder Haiku/Sonnet after.
 ADR 0003 (models/animation) delivered by Opus max, status Proposed; 20 tasks A-01..A-20; user step: ADR section 5.2 copy + licence check; hero mesh CC BY 3.0 needs credit; GLBs must ship as hashed ?url imports (public/_headers immutable).
-USER TODOs: Cloudflare secrets CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, var CF_PAGES_PROJECT; accept/reject ADR 0003.
+USER TODOs: (Cloudflare secrets no longer needed: host is GitHub Pages https://rubenkaksh.github.io/bhaaag/, owner 2026-11-17) accept/reject ADR 0003.
 Scratchpad run scripts: scratchpad/run.sh (420s x3) and run2.sh (900s x1) take <brief-id> <agent>.
+
+## T345 initial chunk lazy-load (2026-11-17): floor reached, 215 KB NOT reached
+Command (after `pnpm build`): `for f in $(grep -oE '/assets/[^"]+\.js' dist/index.html|sort -u); do gzip -c dist$f|wc -c; done`
+Initial chunk gz: T333 baseline 264,521 B; T341 264,628 B; after T345 **252,890 B** (-11,738). Target 215,000 B: 37,890 B short.
+Moved to dynamic imports: graph levels (`src/app/graphAssets.ts`, 9.0 KB gz chunk: graph JSON, zod graph parser, place, pathCamera, forkMarkers), builder compile/shipped/store (`compile` 4.3 KB gz chunk), Cloud Village (already lazy). Lobby reads light `content/graph/info.ts` and `content/builder/shippedMeta.ts` (shipped levels list id/name unvalidated; validation at play time). No supabase code exists yet. `gen.ts` stays in the initial chunk.
+Other chunks (gz): villageAssets 2.07 KB, builderPage 5.12 KB, backdrop 2.94 KB, postFx passes ~8 KB.
+Where the rest is (min bytes of the 909 KB initial JS, sourcemap): three 413 KB (~45%), zod 88 KB (only `content/load.ts` remains in it), dragon chase views/core ~35 KB, decor kit (placeDecor/houseV2/kit/houseSpec) ~34 KB used by visible levels, game.ts 15 KB, sim 14 KB. At ~0.28 gz/min, the remaining cuts are: zod out of `load.ts` (~24 KB gz), lazy Dragon Chase on lobby pick (~10 KB gz), lazy decor (~9 KB gz, strategy needs it). Owner decision (O2): allowance, or one of those.
+Legacy URLs checked headless (playwright swiftshader, no console errors): `/`, `?mode=village`, `?mode=g:home-street`, `?mode=g:valley-1`, `?mode=strategy`, `?level=home-street`, `?level=b:nope`, `?level=builder`, `?builder`. Lazy chunks seen loading: graphAssets, villageAssets, builderPage+compile. `?mode=chase` not re-checked (code path unchanged). Gates: lint, typecheck, test (775), build pass.
