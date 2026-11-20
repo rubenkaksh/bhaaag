@@ -601,15 +601,20 @@ export class DecorKit {
       if (home) {
         // Medium/High swap the tiles in (render/homeTextures.ts, scene.applyFlags); Low and node keep flat tints.
         if (id === 'homeTin')
-          m.userData.tierMaps = { rich: { map: 'tin', normal: 'tin' }, boost: 2.4, highBoost: 1.3, normalStrength: 0.35 };
+          m.userData.tierMaps = {
+            rich: { map: 'tin', normal: 'tin' },
+            boost: 2.4,
+            highBoost: 1.3,
+            normalStrength: 0.35,
+          };
         if (id === 'tank')
           m.userData.tierMaps = { rich: { map: 'straw', normal: 'straw' }, boost: 2.2 };
-        // clay tile on sloped / non-walkable roofs and eave skirts (hay-run verdict, never on a deck)
         if (id === 'roof')
           m.userData.tierMaps = {
-            low: { map: 'roof_clay_128' },
-            rich: { map: 'roof_clay' },
+            rich: { map: 'roof_home', normal: 'roof_home' },
             boost: 2.2,
+            highBoost: 1.3,
+            normalStrength: 0.35,
           };
         if (id === 'wallPlaster')
           m.userData.tierMaps = {
