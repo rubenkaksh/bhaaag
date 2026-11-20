@@ -47,6 +47,13 @@ export type PieceId =
   | 'homeTank'
   | 'homeTin';
 
+/**
+ * Look 'home' clay-tile piece: the v1 `planter` slot, re-shaped and re-mapped in home mode
+ * (decor_homeClay). Used ONLY for sloped, non-walkable roofs: eave skirts, gable slabs, shed eave.
+ * `roof` (decor_homeRoof, roof_home map) is a separate piece and is left as it was.
+ */
+export const HOME_CLAY_PIECE: PieceId = 'planter';
+
 export const PIECE_IDS: PieceId[] = [
   'body',
   'cornice',
@@ -545,6 +552,11 @@ export class DecorKit {
       // 'roof' (the v1 pyramid) and the plaster wall are re-shaped for the home look only
       geos.roof.dispose();
       geos.roof = roofSlab();
+      // the v1 planter is never used by the house kit: its slot becomes the clay slab (own mesh,
+      // own map) for sloped non-walkable roofs, so the piece list stays at 24
+      geos[HOME_CLAY_PIECE].dispose();
+      geos[HOME_CLAY_PIECE] = roofSlab();
+      this.cap[HOME_CLAY_PIECE] += this.cap.roof; // skirts (4 per house) and gable slabs outnumber planters
       geos.wallPlaster.dispose();
       geos.wallPlaster = facadeBox();
     }
@@ -585,7 +597,8 @@ export class DecorKit {
               ? matPlaster.clone() // own material: facade on Medium/High, the plaster tile on Low
               : id === 'wallPlaster'
                 ? matPlaster
-                : home && (id === 'homeTin' || id === 'tank' || id === 'roof')
+                : home &&
+                    (id === 'homeTin' || id === 'tank' || id === 'roof' || id === HOME_CLAY_PIECE)
                   ? mat.clone() // own material: its map and boost are tier driven
                   : id === 'roof'
                     ? matRoof
@@ -593,7 +606,14 @@ export class DecorKit {
         this.cap[id],
       );
       m.name =
-        'decor_' + (home && id === 'tank' ? 'homeStraw' : home && id === 'roof' ? 'homeRoof' : id);
+        'decor_' +
+        (home && id === 'tank'
+          ? 'homeStraw'
+          : home && id === 'roof'
+            ? 'homeRoof'
+            : home && id === HOME_CLAY_PIECE
+              ? 'homeClay'
+              : id);
       m.count = 0;
       m.frustumCulled = false;
       // Shadow casters are opt-in (A3 caps the shadow pass): only the house shells.
@@ -606,6 +626,13 @@ export class DecorKit {
             boost: 2.4,
             highBoost: 1.3,
             normalStrength: 0.35,
+          };
+        if (id === HOME_CLAY_PIECE)
+          m.userData.tierMaps = {
+            low: { map: 'roof_clay_128' },
+            rich: { map: 'roof_clay' },
+            boost: 2.2,
+            highBoost: 1.3,
           };
         if (id === 'tank')
           m.userData.tierMaps = { rich: { map: 'straw', normal: 'straw' }, boost: 2.2 };
