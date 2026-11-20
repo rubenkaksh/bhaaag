@@ -40,6 +40,8 @@ export class Hud {
   private readonly win: HTMLElement;
   private readonly winTime: HTMLElement;
   private readonly winBest: HTMLElement;
+  /** Empty box under the win text; the online board panel mounts here (Classic only). */
+  readonly winExtra: HTMLElement;
   private readonly action: HTMLElement | null;
   private readonly hintBtn: HTMLElement;
   private readonly mapBtn: HTMLElement;
@@ -147,11 +149,13 @@ export class Hud {
     h.textContent = 'You made it!';
     this.winTime = document.createElement('p');
     this.winBest = document.createElement('p');
+    this.winExtra = document.createElement('div');
+    this.winExtra.className = 'win-extra';
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = 'PLAY AGAIN';
     btn.addEventListener('click', onPlayAgain);
-    this.win.append(h, this.winTime, this.winBest, btn);
+    this.win.append(h, this.winTime, this.winBest, this.winExtra, btn);
     this.action = root.querySelector<HTMLElement>('#btn-jump');
     this.setTime(0);
   }
@@ -284,6 +288,7 @@ export class Hud {
 
   hideWin(): void {
     this.win.classList.add('off');
+    this.winExtra.replaceChildren();
   }
 
   /** Right-hand touch button label: JUMP, HOOK, BRAKE or CLIMB (icon and aria-label follow). */

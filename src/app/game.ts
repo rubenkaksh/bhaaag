@@ -742,6 +742,10 @@ export function startGame(
         const res = finishRun(mode, clock, best, leaderboard, bestStore);
         best = res.best;
         hudUi.showWin(res.seconds, best);
+        if (mode === 'classic') {
+          const ticks = clock.runTicks;
+          void import('../adapters/ui/boardPanel').then((m) => m.mountBoard(hudUi.winExtra, ticks));
+        }
         hudUi.pulseTimer();
       }
       updateReticle();
@@ -773,6 +777,8 @@ export function startGame(
       isBest,
       DEATH_MSG[cur.deadCause] ?? 'You fell',
     );
+    const host = chaseHud.boardHost;
+    void import('../adapters/ui/boardPanel').then((m) => m.mountBoard(host, score, 'chase'));
   }
 
   /** Fog, sun and the white-out layer follow the dragon's gap (setCloudCover only dims sky clouds). */
