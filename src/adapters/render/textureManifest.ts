@@ -16,6 +16,7 @@ export type TextureEntry = { file: string; tiers: readonly GraphicsTier[] };
 export const TIER_BUDGET_KB: Record<GraphicsTier, number> = { low: 150, medium: 300, high: 600 };
 
 const ALL: readonly GraphicsTier[] = ['low', 'medium', 'high'];
+const LOW: readonly GraphicsTier[] = ['low'];
 const RICH: readonly GraphicsTier[] = ['medium', 'high'];
 const HIGH: readonly GraphicsTier[] = ['high'];
 
@@ -37,6 +38,8 @@ export const TEXTURE_MANIFEST: readonly TextureEntry[] = [
   { file: 'horizon.webp', tiers: RICH },
   { file: 'roof_home.jpg', tiers: RICH },
   { file: 'facade.jpg', tiers: RICH },
+  { file: 'roof_clay.jpg', tiers: RICH },
+  { file: 'roof_clay_128.jpg', tiers: LOW },
   { file: 'roof_home_n.jpg', tiers: HIGH },
   { file: 'facade_n.jpg', tiers: HIGH },
   { file: 'tin_n.jpg', tiers: HIGH },
