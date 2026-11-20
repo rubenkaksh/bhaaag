@@ -1,5 +1,9 @@
 // Builder level -> MazeNodes -> validation report and ordinary LevelJson (ADR 0014).
 // Edge legality comes from the strategy graph model (graph.ts, tuning-driven); nothing here edits it.
+import { archetype } from '../house/archetypes';
+import { emitHouse, newDraft } from '../house/houseKit';
+import { deckY, validateHouse } from '../house/houseSpec';
+import type { HouseSpec } from '../house/houseSpec';
 import type { LevelJson } from '../load';
 import { planeY } from '../strategy/gen';
 import type { MazeEdge, MazeGraph, MazeNode } from '../strategy/graph';
@@ -48,7 +52,27 @@ const STEP_GAP_MAX = 12;
 const STEP_DY_MAX = 4.5;
 const STEP_WIDTH = 4;
 
+/**
+ * Kit v2 spec of an archetype house (undefined for the plain box). Party walls come from the touching
+ * neighbours in `all` (faces 0 +x, 1 -x, 2 +z, 3 -z), so two touching houses share a wall.
+ */
+export function specOf(h: BuilderHouse, all: readonly BuilderHouse[] = []): HouseSpec | undefined {
+  if (h.archetype === undefined) return undefined;
+  const spec = archetype(h.archetype, h.id, h.x, h.z, planeY(h.z) + h.lift);
+  const near = (a: number, b: number): boolean =>
+    Math.abs(Math.abs(a - b) - 2 * HOUSE_HALF) <= TOUCH_EPS;
+  const lap = (a: number, b: number): boolean => Math.abs(a - b) < 2 * HOUSE_HALF - TOUCH_EPS;
+  for (const o of all) {
+    if (o.id === h.id) continue;
+    if (near(o.x, h.x) && lap(o.z, h.z)) spec.party[o.x > h.x ? 0 : 1] = true;
+    if (near(o.z, h.z) && lap(o.x, h.x)) spec.party[o.z > h.z ? 2 : 3] = true;
+  }
+  return spec;
+}
+
 export function roofHeight(h: BuilderHouse): number {
+  const spec = specOf(h);
+  if (spec !== undefined) return deckY(spec); // kit v2 decks: 3.2 m or 6.0 m over the ground
   return planeY(h.z) + STOREY_HEIGHT[h.storeys - 1] + h.lift;
 }
 
@@ -87,7 +111,7 @@ export function buildNodeSet(l: BuilderLevel): NodeSet {
     });
   }
   for (const h of l.houses) {
-    if (!h.balcony) continue;
+    if (!h.balcony || h.archetype !== undefined) continue;
     const roof = nodes[roofOf.get(h.id) as number];
     roof.balc = nodes.length;
     nodes.push({
@@ -234,6 +258,15 @@ export function validate(l: BuilderLevel): Report {
         r.errors.push('houses ' + l.houses[i].id + ' and ' + l.houses[j].id + ' overlap');
     }
   }
+  for (const h of l.houses) {
+    const spec = specOf(h, l.houses);
+    if (spec === undefined) continue;
+    try {
+      validateHouse(spec);
+    } catch (err) {
+      r.errors.push((err instanceof Error ? err.message : String(err)) + ' (' + h.archetype + ')');
+    }
+  }
   if (l.houses.length < 2) r.errors.push('need at least 2 houses');
   if (l.start === -1) r.errors.push('no start house');
   if (l.goal === -1) r.errors.push('no goal house');
@@ -315,12 +348,13 @@ export function compileLevel(l: BuilderLevel): LevelJson {
   );
   if (blocking.length > 0) throw new Error('cannot compile: ' + blocking.join('; '));
   const ns = buildNodeSet(l);
-  const solids: Box[] = [];
-  const style: number[] = [];
-  const anchors: { pos: [number, number, number] }[] = [];
+  const draft = newDraft(); // kit v2 houses emit here; plain boxes and the rest share its arrays
+  const solids: Box[] = draft.solids;
+  const style: number[] = draft.style;
+  const anchors: { pos: [number, number, number] }[] = draft.anchors;
   const lines: { zone: Box; anchor: number }[] = [];
-  const tramps: Box[] = [];
-  const cushions: Box[] = [];
+  const tramps: Box[] = draft.tramps;
+  const cushions: Box[] = draft.cushions;
   const hazards: Box[] = [];
   const H = HOUSE_HALF;
   for (const h of l.houses) {
@@ -328,14 +362,18 @@ export function compileLevel(l: BuilderLevel): LevelJson {
     const y = a.y;
     const z0 = h.z - H;
     const z1 = h.z + H;
-    solids.push(bx(h.x - H, planeY(h.z) - FOOT, z0, h.x + H, y - SLAB, z1));
-    style.push(1);
-    solids.push(bx(h.x - H, y - SLAB, z0, h.x + H, y, z1));
-    style.push(2);
-    if (h.balcony) {
-      const by = y - BALCONY_DROP;
-      solids.push(bx(h.x - H, by - SLAB, z1, h.x + H, by, z1 + BALCONY_DEPTH));
+    const spec = specOf(h, l.houses);
+    if (spec !== undefined) emitHouse(spec, draft);
+    else {
+      solids.push(bx(h.x - H, planeY(h.z) - FOOT, z0, h.x + H, y - SLAB, z1));
+      style.push(1);
+      solids.push(bx(h.x - H, y - SLAB, z0, h.x + H, y, z1));
       style.push(2);
+      if (h.balcony) {
+        const by = y - BALCONY_DROP;
+        solids.push(bx(h.x - H, by - SLAB, z1, h.x + H, by, z1 + BALCONY_DEPTH));
+        style.push(2);
+      }
     }
     const hasTramp = a.tramps.length > 0;
     const px0 = h.x + PAD_OFF - PAD_HALF;
@@ -388,7 +426,7 @@ export function compileLevel(l: BuilderLevel): LevelJson {
     killPlaneY: planeY(zEnd) - 40,
     solids,
     style,
-    ramps: [],
+    ramps: draft.ramps,
     anchors,
     goal: bx(gl.x - H, gy, gl.z - H, gl.x + H, gy + GOAL_REACH, gl.z + H),
     route: [],

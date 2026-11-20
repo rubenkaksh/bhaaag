@@ -1,4 +1,6 @@
 // Pure, immutable edit operations on a builder level (undo = keep the old object). No DOM.
+import { archetype as archetypePreset } from '../house/archetypes';
+import type { ArchetypeId } from '../house/archetypes';
 import type { BuilderEdge, BuilderHouse, BuilderLevel, GapVia } from './format';
 import { HOUSE_SIZE } from './format';
 
@@ -15,8 +17,30 @@ export function houseById(l: BuilderLevel, id: number): BuilderHouse | undefined
   return l.houses.find((h) => h.id === id);
 }
 
-export function addHouse(l: BuilderLevel, x: number, z: number, storeys: 1 | 2 = 1): BuilderLevel {
-  const h: BuilderHouse = { id: nextId(l.houses), x, z, lift: 0, storeys, balcony: false };
+/** Storeys an archetype fixes (the preset owns them). */
+export function archetypeStoreys(a: ArchetypeId): 1 | 2 {
+  return archetypePreset(a, 0, 0, 0, 0).storeys;
+}
+
+export function addHouse(
+  l: BuilderLevel,
+  x: number,
+  z: number,
+  storeys: 1 | 2 = 1,
+  archetype?: ArchetypeId,
+): BuilderLevel {
+  const h: BuilderHouse =
+    archetype === undefined
+      ? { id: nextId(l.houses), x, z, lift: 0, storeys, balcony: false }
+      : {
+          id: nextId(l.houses),
+          x,
+          z,
+          lift: 0,
+          storeys: archetypeStoreys(archetype),
+          balcony: false,
+          archetype,
+        };
   const start = l.start === -1 ? h.id : l.start;
   return { ...l, houses: [...l.houses, h], start };
 }

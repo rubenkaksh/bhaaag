@@ -1,5 +1,7 @@
 // Builder level file (ADR 0014): what the level builder saves and loads. Pure data + zod, no DOM.
 import { z } from 'zod';
+import { ARCHETYPE_IDS } from '../house/archetypes';
+import type { ArchetypeId } from '../house/archetypes';
 
 export const BUILDER_FORMAT = 'bhaaag-level-builder';
 export const BUILDER_VERSION = 1;
@@ -19,6 +21,10 @@ const houseSchema = z.object({
   lift: z.number().min(0).max(12),
   storeys: z.union([z.literal(1), z.literal(2)]),
   balcony: z.boolean(),
+  /** Kit v2 archetype (the shared ARCHETYPE_IDS registry). Absent = the plain box. The preset fixes storeys and balcony. */
+  archetype: z
+    .custom<ArchetypeId>((v) => typeof v === 'string' && ARCHETYPE_IDS.includes(v as ArchetypeId))
+    .optional(),
 });
 
 const edgeSchema = z

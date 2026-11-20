@@ -14,6 +14,7 @@ import {
   History,
   addEdge,
   addHouse,
+  archetypeStoreys,
   blocked,
   houseById,
   moveHouse,
@@ -24,7 +25,9 @@ import {
   snapPosition,
   updateHouse,
 } from '../../content/builder/model';
-import { sampleLevel } from '../../content/builder/sample';
+import { ARCHETYPE_IDS } from '../../content/house/archetypes';
+import type { ArchetypeId } from '../../content/house/archetypes';
+import { kitSampleLevel, sampleLevel } from '../../content/builder/sample';
 import { loadDraft, saveDraft } from '../../content/builder/draft';
 import { savePlayLevel } from '../../content/builder/store';
 
@@ -66,6 +69,7 @@ export function mountBuilder(root: HTMLElement): void {
   let tool: Tool = 'select';
   let via: GapVia = 'jump';
   let storeys: 1 | 2 = 1;
+  let newArch: ArchetypeId | undefined; // palette pick for new houses; undefined = plain box
   let sel = -1;
   let report: Report = validate(hist.present);
   let msg = '';
@@ -259,7 +263,7 @@ export function mountBuilder(root: HTMLElement): void {
     if (tool === 'house' && hit === -1) {
       const s = snapPosition(l, -1, fromX(p.x), fromZ(p.y));
       if (!blocked(l, -1, s.x, s.z)) {
-        const next = addHouse(l, s.x, s.z, storeys);
+        const next = addHouse(l, s.x, s.z, storeys, newArch);
         sel = next.houses[next.houses.length - 1].id;
         commit(next);
       }
@@ -404,13 +408,15 @@ export function mountBuilder(root: HTMLElement): void {
           `<button data-tool="${t}" class="${tool === t ? 'on' : ''}">${label}</button>`,
       ).join('') +
       `<div class="note">Solid gold = fixed zipline. Dashed = gap crossed by: <select data-f="via">${GAP_VIAS.map((v) => `<option ${v === via ? 'selected' : ''}>${v}</option>`).join('')}</select>. Touching houses (cream bar) are adjoining. Drag between two houses to draw an edge.</div>
-      New houses: <button data-st="1" class="${storeys === 1 ? 'on' : ''}">1 storey</button><button data-st="2" class="${storeys === 2 ? 'on' : ''}">2 storeys</button>
+      New houses: <select data-f="newarch"><option value="">plain box</option>${ARCHETYPE_IDS.map((a) => `<option ${a === newArch ? 'selected' : ''}>${a}</option>`).join('')}</select><br>
+      Plain box: <button data-st="1" class="${storeys === 1 ? 'on' : ''}">1 storey</button><button data-st="2" class="${storeys === 2 ? 'on' : ''}">2 storeys</button>
       <h3>${h === undefined ? 'House' : 'House #' + h.id}</h3>` +
       (h === undefined
         ? '<div class="note">Click a house.</div>'
-        : `<button data-sto="1" class="${h.storeys === 1 ? 'on' : ''}">1 storey</button><button data-sto="2" class="${h.storeys === 2 ? 'on' : ''}">2 storeys</button><br>
+        : `<button data-sto="1" ${h.archetype === undefined ? '' : 'disabled'} class="${h.storeys === 1 ? 'on' : ''}">1 storey</button><button data-sto="2" ${h.archetype === undefined ? '' : 'disabled'} class="${h.storeys === 2 ? 'on' : ''}">2 storeys</button><br>
            lift <input type="number" step="0.5" min="0" max="12" data-f="lift" value="${h.lift}"> m &nbsp; roof ${roofHeight(h).toFixed(1)} m
-           <label><input type="checkbox" data-f="balcony" ${h.balcony ? 'checked' : ''}> balcony</label><br>
+           <label><input type="checkbox" data-f="balcony" ${h.balcony ? 'checked' : ''} ${h.archetype === undefined ? '' : 'disabled'}> balcony</label>
+           type <select data-f="arch"><option value="">plain box</option>${ARCHETYPE_IDS.map((a) => `<option ${a === h.archetype ? 'selected' : ''}>${a}</option>`).join('')}</select><br>
            <button data-act="start">Set start</button><button data-act="goal">Set goal</button><button data-act="del">Delete</button>`) +
       `<h3>Edit</h3><button data-act="undo" ${hist.canUndo ? '' : 'disabled'}>Undo</button><button data-act="redo" ${hist.canRedo ? '' : 'disabled'}>Redo</button>
       <h3>Check</h3><div class="${r.ok ? 'ok' : 'err'}">${r.ok ? 'Valid: start reaches goal' : r.errors.length + ' problem(s)'}</div>` +
@@ -418,7 +424,7 @@ export function mountBuilder(root: HTMLElement): void {
       r.warnings.map((m) => `<div class="warn">${esc(m)}</div>`).join('') +
       `<div class="note">routes: ${r.escapePaths}, dead-end houses: ${r.deadEnds.length ? r.deadEnds.join(', ') : 'none'}. Modelled from tuning, not the sim.</div>
       <h3>File</h3><button data-act="play">Play this level</button> <button data-act="export">Download JSON</button>
-      <button data-act="import">Import…</button><button data-act="new">New</button><button data-act="sample">Sample</button>
+      <button data-act="import">Import…</button><button data-act="new">New</button><button data-act="sample">Sample</button><button data-act="kit">Kit sample</button>
       <input type="file" accept=".json,application/json" data-f="file" hidden>
       <div class="${msg.startsWith('Cannot') || msg.startsWith('Import') ? 'err' : 'note'}">${esc(msg)}</div>`;
   }
@@ -452,6 +458,9 @@ export function mountBuilder(root: HTMLElement): void {
     } else if (d.act === 'new') {
       sel = -1;
       return commit(emptyLevel('level-' + Date.now().toString(36), 'New level'));
+    } else if (d.act === 'kit') {
+      sel = -1;
+      return commit(kitSampleLevel());
     } else if (d.act === 'sample') {
       sel = -1;
       return commit(sampleLevel());
@@ -474,7 +483,19 @@ export function mountBuilder(root: HTMLElement): void {
     } else if (f === 'name') commit({ ...l, name: t.value });
     else if (f === 'lift' && sel !== -1)
       commit(updateHouse(l, sel, { lift: Math.max(0, Math.min(12, Number(t.value) || 0)) }));
-    else if (f === 'balcony' && sel !== -1) commit(updateHouse(l, sel, { balcony: t.checked }));
+    else if (f === 'newarch') newArch = t.value === '' ? undefined : (t.value as ArchetypeId);
+    else if (f === 'arch' && sel !== -1) {
+      const a = t.value === '' ? undefined : (t.value as ArchetypeId);
+      commit(
+        updateHouse(
+          l,
+          sel,
+          a === undefined
+            ? { archetype: undefined }
+            : { archetype: a, storeys: archetypeStoreys(a) },
+        ),
+      );
+    } else if (f === 'balcony' && sel !== -1) commit(updateHouse(l, sel, { balcony: t.checked }));
     else if (f === 'file' && t.files !== null && t.files[0] !== undefined) {
       void t.files[0].text().then((text) => {
         try {
