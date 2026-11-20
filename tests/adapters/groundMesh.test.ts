@@ -9,11 +9,11 @@ describe('groundMesh terraces', () => {
   const uv = geo.getAttribute('uv');
   const col = geo.getAttribute('color');
 
-  it('has UVs u = x/6, v = y/1.6 so terraces follow contours', () => {
+  it('has top-down planar UVs u = x/7, v = z/7 (no contour streaks)', () => {
     expect(uv.count).toBe(pos.count);
     for (let i = 0; i < pos.count; i += 37) {
-      expect(uv.getX(i)).toBeCloseTo(pos.getX(i) / 6, 4);
-      expect(uv.getY(i)).toBeCloseTo(pos.getY(i) / 1.6, 4);
+      expect(uv.getX(i)).toBeCloseTo(pos.getX(i) / 7, 4);
+      expect(uv.getY(i)).toBeCloseTo(pos.getZ(i) / 7, 4);
     }
   });
 

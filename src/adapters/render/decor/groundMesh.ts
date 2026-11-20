@@ -130,7 +130,8 @@ export function buildGroundMesh(): Mesh {
       const x = xs[j];
       const y = terrainY(x, z);
       pos.push(x, y, z);
-      uv.push(x / 6, y / 1.6); // terraces follow the contours
+      // Top-down planar grass tile: the old y-contour mapping stretched into long streaks on the steep hill.
+      uv.push(x / 7, z / 7);
       groundColor(x, z, y, c, hash(i, j));
       col.push(c.r, c.g, c.b);
     }
