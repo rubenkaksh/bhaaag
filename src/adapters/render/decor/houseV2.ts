@@ -848,6 +848,26 @@ function hayCover(o: Out, p: PropSpec): void {
     // `tank` is the home kit's straw-textured unit box (DecorKit, named decor_homeStraw)
     ok = o.kit.add('tank', p.x, g + bands[i], p.z, wide, 0.12, wide, p.yaw, c(HOME_STRAW)) && ok;
   }
+  // Medium/High only (`trim` is hidden on Low): a stepped straw dome on the cushion top. Render only;
+  // the cushion slab the sim reads is unchanged, so a landing just sinks into the dome.
+  if (ok) {
+    let y = top + 0.02;
+    const steps: [number, number][] = [
+      [0.72, 0.1],
+      [0.5, 0.1],
+      [0.28, 0.08],
+    ];
+    for (const [f, hgt] of steps) {
+      const w = HK.haySize * f;
+      ok = o.kit.add('trim', p.x, y, p.z, w, hgt, w, p.yaw, c(HOME_STRAW)) && ok;
+      y += hgt;
+    }
+    o.boxes.push({
+      kind: 'hayDome',
+      min: [p.x - HK.haySize * 0.36, top + 0.02, p.z - HK.haySize * 0.36],
+      max: [p.x + HK.haySize * 0.36, y, p.z + HK.haySize * 0.36],
+    });
+  }
   if (ok) {
     o.boxes.push({
       kind: 'hayCover',

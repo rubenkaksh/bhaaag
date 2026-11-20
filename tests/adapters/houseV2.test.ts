@@ -183,7 +183,9 @@ describe("look: 'home' (H4 hay cover)", () => {
     expect(boxesOf(on).filter((b) => b.kind === 'hayCover')).toHaveLength(hay);
     const propsOff = buildHouseDecor([], home.props);
     const propsOn = buildHouseDecor([], home.props, 1, { look: 'home' });
-    expect(counts(propsOn).trim ?? 0).toBe(counts(propsOff).trim ?? 0); // tin strip and bands left the trim piece
+    // tin strip and bands left the trim piece; the Medium/High dome is 3 trim steps per stack
+    expect((counts(propsOn).trim ?? 0) - (counts(propsOff).trim ?? 0)).toBe(3 * hay);
+    expect(boxesOf(on).filter((b) => b.kind === 'hayDome')).toHaveLength(hay);
     expect(counts(propsOn).homeTin).toBe(hay);
     expect(counts(propsOn).homeStraw).toBe(2 * hay);
     expect(counts(on).crate).toBe(counts(off).crate); // body and the other props untouched
