@@ -4,6 +4,16 @@
 > and Non-goals. If a task, a design or a shortcut works against either, stop and tell the
 > user before doing it.
 
+## Intent notes (project-specific; global Rule 11 applies)
+- **Modes vs levels:** exactly two modes, Classic and Dragon Chase (ADR 0016, 2026-11-17); Home Street, Valley Run, Nagarkot Run, Cloud Village, the original descent and builder levels are Classic levels. CLAUDE.md's "Cloud Village: fourth mode" is superseded.
+- **Done = phone-visible:** check a fresh build of main at 390x844 and 844x390, Low and High tiers. Playwright swiftshader is not a device test: write "not verified on device" (owner: "Dont see any home street" 2026-11-15, "still glitching" 2026-11-17).
+- **Phone test, unasked:** `vite preview --host 0.0.0.0 --port 4174` from the worktree holding the change, check it returns 200, write a PNG QR with qrencode (the terminal QR does not scan in the desktop app) and print the URL; delete the PNG before committing (memory, 2026-11-12).
+- **Look:** stylised but lit, iPhone 13 is the High target (2026-11-08); textures come from `tools/cartoonify.py` per tier (2026-11-15). "Realistic lighting toward the painterly first mock" is a saved, not-started mission. TripoSR dragon failed (blob, no face), so the head is procedural in dragonView.ts (2026-11-16).
+- **Camera and dragon:** no camera-angle change without asking; the owner had one reverted ("Pls revert it", 2026-11-11). The chase dragon stays on the endless rows, off Home Street and Nagarkot (2026-11-17).
+- **Repo weight:** `art/` (348 MB) and the reference photos never go into git; photos live on branch `assets` (2026-11-15).
+- **Misreads:** "we need walkable roofs as well" added walkable roofs and kept sloped ones (2026-11-07); "everything" means all open sessions and worktrees (2026-11-15); "tall buildings" means the 2-3 storey rule in docs/graphics-spec.md (2026-11-08).
+- **Logs:** `docs/sessions/YYYY-MM-DD.md` (2026-11-17.md holds the playtest fixes); open-session triage in `docs/sessions/2026-11-15-open-sessions-review.md`; version checks in `docs/verify-log.md`; cards in sandbox `config/queue/bhagdori.yaml`. No sibling port.
+
 Third-person, single-player web game. The hero fires a zipline hook at marked anchors and slides down a Newari-themed Kathmandu hillside at sunset. Bad landings kill. Restart is instant. The zipline later becomes an ability in a Godot 4 shooter, ~~so the core must stay engine-portable~~ (dropped by lean-scope item 1; keep `src/core` free of three/DOM imports only).
 
 Full spec: `docs/zipline-plan.md` (read the relevant section before each milestone; section 8 is the milestone checklist).
@@ -22,7 +32,7 @@ Full spec: `docs/zipline-plan.md` (read the relevant section before each milesto
 - Momentum carry: landing turns horizontal speed into run speed (cap `carryCap`, 12 m/s; sprint tops out at 11, ADR 0018), a roll keeps it; firing within 0.4 s of landing seeds `v0` from it. Aiming works at full speed while moving.
 - Orientation: portrait and landscape both playable (decided 2026-11-10); no rotate overlay. Supersedes the 2026-11-05 landscape-first decision.
 - Touch scheme: tap-to-aim on an anchor, one contextual action button (Hook, Mantle/Brake), JUMP (ignored on the rope); release is DROP, a swipe down.
-- Cloud Village: fourth mode, one hand-placed level (amendment 2026-11-12, `docs/lean-scope.md`).
+- Cloud Village: a Classic level, one hand-placed (ADR 0016, 2026-11-17; supersedes the 2026-11-12 "fourth mode" amendment in `docs/lean-scope.md`).
 - Feel model details: `docs/adr/0001-feel-model.md`.
 - ~~Preview help: release window shown in L1a/L1b, colour only in L1c.~~ DROPPED by lean-scope item 4 (no L1a/L1b/L1c ladder).
 - Hero: neutral parkour runner (placeholder mannequin).
