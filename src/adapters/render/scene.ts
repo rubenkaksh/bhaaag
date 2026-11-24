@@ -101,8 +101,20 @@ function isLit(o: Mesh): boolean {
   return !(first instanceof MeshBasicMaterial) && !first.transparent;
 }
 
+export class WebGLUnavailableError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'WebGLUnavailableError';
+  }
+}
+
 export function createGameScene(canvas: HTMLCanvasElement): GameScene {
-  const renderer = new WebGLRenderer({ canvas, antialias: true });
+  let renderer: WebGLRenderer;
+  try {
+    renderer = new WebGLRenderer({ canvas, antialias: true });
+  } catch (e) {
+    throw new WebGLUnavailableError('WebGL unavailable', { cause: e });
+  }
   renderer.info.autoReset = false;
   const coarse = coarsePointer();
   let cfg: RenderConfig = renderConfigFor(loadGraphicsTier(), coarse);
