@@ -674,6 +674,7 @@ function attempt(g: GraphLevel, seed: number): PlacedLevel {
     lines,
     tramps: draft.tramps,
     cushions: draft.cushions,
+    ...(draft.ladders.length > 0 ? { ladders: draft.ladders } : {}),
     hazards,
   };
   return {
@@ -1035,6 +1036,7 @@ function placeSegmentedOnce(g: GraphLevel, base: number): PlacedLevel {
     lines,
     tramps: draft.tramps,
     cushions: draft.cushions,
+    ...(draft.ladders.length > 0 ? { ladders: draft.ladders } : {}),
     hazards,
   };
 

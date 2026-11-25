@@ -59,7 +59,7 @@ import { SweepHit, circleOverlapsAabbXZ, clampScalar, sweptCapsuleVsAabb } from 
 import type { AABB } from './math/aabb';
 import { Vec3 } from './math/vec3';
 import { VaultPlan, inCone, planVault, slideSpeed, vaultPosition } from './parkour';
-import type { World } from './world';
+import { ladderAt, type World } from './world';
 
 export { copyHeroState } from './hero';
 
@@ -89,6 +89,7 @@ const AT_END_PROBE = 0.1; // extra reach past the rope stop when checking for a 
 const RUNOUT_TOL = 0.05; // launch-surface match tolerance, metres
 const LEDGE_STACK_MAX = 0.5; // a roof slab up to this thick on a wall body counts as the ledge top (m)
 const SLAB_TOL = 0.05; // a tramp/cushion slab counts when its top is this close to the feet
+const LADDER_FEET_TOL = 0.5; // m above the feet probed against ladder zones (a hero at the base counts as inside)
 const STICK_MIN = 0.5; // stick magnitude the automatic parkour moves need
 const AIR_LIFT = 0.002; // feet clearance above a ledge after an airborne step-up, metres
 const GRAB_PROBE = 0.08; // airborne wall probe length toward the stick, metres (ledge grab)
@@ -1412,7 +1413,9 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   }
 
   // Hillside climb: stick held into a house wall for climbHoldSec starts the climb to its ledge.
-  if (hillG && stickMag >= STICK_MIN) {
+  // A ladder zone allows the same climb off the hillside.
+  const onLadder = world.ladders.length > 0 && ladderAt(world, s.px, s.py + LADDER_FEET_TOL, s.pz);
+  if ((hillG || onLadder) && stickMag >= STICK_MIN) {
     let cs = -1;
     let cnx = 0;
     let cnz = 0;

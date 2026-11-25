@@ -21,7 +21,8 @@ const FROZEN: Record<string, string> = {
   'valley-1': '2bd8c4e1',
   'home-street': 'da373009',
   // New 2026-11-20 (Hay Run, kit v2 archetypes C1/C2/C3 over placer v1); frozen from here on.
-  'hay-run': '688106b4',
+  // Re-recorded 2026-11-25: Hay Run's ladder houses now emit climb zones (world.ladders); no other field changed.
+  'hay-run': '66299e91',
 };
 
 describe('graph level freeze', () => {

@@ -654,6 +654,7 @@ export function compileLevel(l: BuilderLevel): LevelJson {
     lines,
     tramps,
     cushions,
+    ...(draft.ladders.length > 0 ? { ladders: draft.ladders } : {}),
     hazards,
   };
 }
