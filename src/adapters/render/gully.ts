@@ -6,7 +6,7 @@
 // yards, goal yard) are cut out. One merged draw call, stock material.
 import { BufferGeometry, Color, Float32BufferAttribute, Mesh, MeshLambertMaterial } from 'three';
 import type { World } from '../../core/world';
-import { HILL_HALF_X, terrainY } from './terrain';
+import { HILL_HALF_X, terrainBreaks, terrainY } from './terrain';
 
 export const GULLY_COLOR = '#a8664c'; // same terracotta as the danger style in levelView
 const SLICE = 1; // m, z thickness of one fringe slice
@@ -116,18 +116,48 @@ export function buildGully(world: World, patches: readonly GullyPatch[]): Mesh |
   if (quads.length === 0) return null;
   const pos: number[] = [];
   const idx: number[] = [];
-  for (let i = 0; i < quads.length; i++) {
-    const [x0, z0, x1, z1] = quads[i];
-    // vertices sit on the drawn ground (terrainY), not on the straight plane
+  const br = terrainBreaks();
+  // The ground mesh is linear across a bank strip (two break lines <= 0.25 m apart), but terrainY
+  // steps at the strip's edge: a ribbon vertex inside a strip is lifted off the mesh's own line.
+  // Such vertices follow the mesh by bilinear interpolation between the strip's break lines.
+  const bracket = (list: readonly number[], v: number): [number, number] | null => {
+    for (let i = 0; i + 1 < list.length; i++)
+      if (v > list[i] + 1e-6 && v < list[i + 1] - 1e-6 && list[i + 1] - list[i] <= 0.2501)
+        return [list[i], list[i + 1]];
+    return null;
+  };
+  const groundY = (x: number, z: number): number => {
+    const bx = bracket(br?.xs ?? [], x);
+    const bz = bracket(br?.zs ?? [], z);
+    if (bx === null && bz === null) return terrainY(x, z);
+    const [xa, xb] = bx ?? [x, x];
+    const [za, zb] = bz ?? [z, z];
+    const tx = bx === null ? 0 : (x - xa) / (xb - xa);
+    const tz = bz === null ? 0 : (z - za) / (zb - za);
+    const lo = terrainY(xa, za) * (1 - tx) + terrainY(xb, za) * tx;
+    const hi = terrainY(xa, zb) * (1 - tx) + terrainY(xb, zb) * tx;
+    return lo * (1 - tz) + hi * tz;
+  };
+  const inside = (list: readonly number[], lo: number, hi: number): number[] =>
+    list.filter((v) => v > lo + 1e-6 && v < hi - 1e-6);
+  for (let q = 0; q < quads.length; q++) {
+    const [x0, qz0, x1, qz1] = quads[q];
+    // split in z and x at the ground mesh's break lines so the ribbon shares its vertices
+    const zEdges = [qz0, ...inside(br?.zs ?? [], qz0, qz1), qz1];
     const n = Math.max(1, Math.ceil((x1 - x0) / STEP));
-    const base = pos.length / 3;
-    for (let k = 0; k <= n; k++) {
-      const x = x0 + ((x1 - x0) * k) / n;
-      pos.push(x, terrainY(x, z0) + LIFT, z0, x, terrainY(x, z1) + LIFT, z1);
-    }
-    for (let k = 0; k < n; k++) {
-      const a = base + 2 * k; // (x_k, z0), a+1 = (x_k, z1), a+2 = (x_k+1, z0), a+3 = (x_k+1, z1)
-      idx.push(a, a + 3, a + 2, a, a + 1, a + 3); // faces up
+    const xv = new Set<number>(inside(br?.xs ?? [], x0, x1));
+    for (let k = 0; k <= n; k++) xv.add(x0 + ((x1 - x0) * k) / n);
+    const xList = Array.from(xv).sort((a, b) => a - b);
+    for (let zi = 0; zi + 1 < zEdges.length; zi++) {
+      const z0 = zEdges[zi];
+      const z1 = zEdges[zi + 1];
+      // vertices sit on the drawn ground (terrainY), not on the straight plane
+      const base = pos.length / 3;
+      for (const x of xList) pos.push(x, groundY(x, z0) + LIFT, z0, x, groundY(x, z1) + LIFT, z1);
+      for (let k = 0; k + 1 < xList.length; k++) {
+        const a = base + 2 * k; // (x_k, z0), a+1 = (x_k, z1), a+2 = (x_k+1, z0), a+3 = (x_k+1, z1)
+        idx.push(a, a + 3, a + 2, a, a + 1, a + 3); // faces up
+      }
     }
   }
   const geo = new BufferGeometry();

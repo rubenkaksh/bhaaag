@@ -24,7 +24,7 @@ import { buildStrategyFeatures, minSolidZ } from './strategyView';
 import { buildHouseDecor } from './decor/houseV2';
 import { STYLE_BODY, STYLE_PARAPET } from '../../content/house/houseSpec';
 import type { HouseSpec, PropSpec } from '../../content/house/houseSpec';
-import { setTerrainExtent, setTerrainField, setTerrainProfile } from './terrain';
+import { setTerrainBreaks, setTerrainExtent, setTerrainField, setTerrainProfile } from './terrain';
 import { tileNormal, tileTexture } from './tileTexture';
 
 // Palette: desaturated warm world, three-colour language on top (gold interactive,
@@ -255,6 +255,8 @@ export type BuildLevelOpts = {
     keep?: (solidIndex: number) => boolean;
     /** Segmented layouts: view-only ground along the road polyline (ADR 0015). */
     field?: (x: number, z: number) => { h: number; d: number };
+    /** Segmented layouts: extra ground-mesh grid lines on patch and sunk-rect edges. */
+    breaks?: { xs: readonly number[]; zs: readonly number[] };
   };
 };
 
@@ -264,6 +266,7 @@ export function buildLevelMeshes(world: World, opts: BuildLevelOpts = {}): Group
   const strategy = world.lineOnly === 1;
   setTerrainProfile(opts.graph === undefined ? null : opts.graph.profile);
   setTerrainField(opts.graph?.field ?? null);
+  setTerrainBreaks(opts.graph?.breaks ?? null);
   if (scenery) setTerrainExtent(strategy ? minSolidZ(world) : null);
   const g = new Group();
   g.name = 'level';

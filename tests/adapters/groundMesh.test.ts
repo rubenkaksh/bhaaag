@@ -1,6 +1,11 @@
 import { Color } from 'three';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { buildGroundMesh, groundColor } from '../../src/adapters/render/decor/groundMesh';
+import { loadGraph } from '../../src/content/graph/registry';
+import { placeGraph } from '../../src/content/graph/place';
+import { loadWorldFromObject } from '../../src/content/load';
+import { buildLevelMeshes } from '../../src/adapters/render/levelView';
+import { clearTerrain } from './terrainMeshHelpers';
 
 describe('groundMesh terraces', () => {
   const m = buildGroundMesh();
@@ -42,5 +47,46 @@ describe('groundMesh terraces', () => {
       hi = Math.max(hi, g);
     }
     expect(hi - lo).toBeGreaterThan(0.1);
+  });
+});
+
+// T6: breaks (graph-level patch edges) never leak into the stock mesh (chase, endless, no graph).
+// Baseline recorded on the code before the terrain-under-patches change.
+function posHash(p: ArrayLike<number>): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < p.length; i++) {
+    h ^= Math.round(p[i] * 1e4);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16);
+}
+
+describe('stock ground mesh is unchanged without graph breaks', () => {
+  afterEach(clearTerrain);
+  const stock = (): { count: number; hash: string } => {
+    const pos = buildGroundMesh().geometry.getAttribute('position');
+    return { count: pos.count, hash: posHash(pos.array) };
+  };
+
+  it('T6: 8025 vertices and the recorded position hash', () => {
+    expect(stock()).toEqual({ count: 8025, hash: '5455ad3f' });
+  });
+
+  it('T6: a graph build then a build without a graph returns to the stock mesh', () => {
+    const placed = placeGraph(loadGraph('hay-run'));
+    const world = loadWorldFromObject(placed.level);
+    const graph = {
+      houses: placed.houses,
+      props: placed.props,
+      profile: placed.profile,
+      seed: placed.seed,
+      patches: placed.patches,
+      field: placed.field,
+      breaks: placed.breaks,
+    };
+    buildLevelMeshes(world, { houseDress: false, graph });
+    expect(buildGroundMesh().geometry.getAttribute('position').count).toBeGreaterThan(8025);
+    buildLevelMeshes(world, { houseDress: false });
+    expect(stock()).toEqual({ count: 8025, hash: '5455ad3f' });
   });
 });
