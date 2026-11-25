@@ -1039,7 +1039,7 @@ function placeSegmentedOnce(g: GraphLevel, base: number): PlacedLevel {
   };
 
   // view-only ground: each run's own profile, blended by distance to the run's hazard strip
-  const field = (x: number, z: number): { h: number; d: number } => {
+  const profileField = (x: number, z: number): { h: number; d: number } => {
     for (const h of ordered)
       if (Math.abs(x - h.cx) <= HALF && Math.abs(z - h.cz) <= HALF) return { h: h.groundY, d: 0 };
     let sw = 0;
@@ -1057,6 +1057,29 @@ function placeSegmentedOnce(g: GraphLevel, base: number): PlacedLevel {
       dm = Math.min(dm, d);
     }
     return { h: sh / sw, d: dm };
+  };
+  // Stepped landing patches stand above the smooth profile: pull the drawn ground down to the
+  // patch top inside the rect plus a margin, easing back to the profile over PATCH_EASE metres.
+  const PATCH_MARGIN = 1;
+  const PATCH_EASE = 4;
+  const field = (x: number, z: number): { h: number; d: number } => {
+    const f = profileField(x, z);
+    // on a house footprint only the patch rect itself applies (no margin or easing)
+    const onHouse = ordered.some((o) => Math.abs(x - o.cx) <= HALF && Math.abs(z - o.cz) <= HALF);
+    let h = f.h;
+    let d = f.d;
+    for (const p of patches) {
+      const o = Math.hypot(Math.max(p.x0 - x, 0, x - p.x1), Math.max(p.z0 - z, 0, z - p.z1));
+      if (onHouse ? o > 0 : o >= PATCH_MARGIN + PATCH_EASE) continue;
+      const t = Math.max(0, Math.min(1, (o - PATCH_MARGIN) / PATCH_EASE));
+      const s = t * t * (3 - 2 * t);
+      const ph = p.y + s * (f.h - p.y);
+      if (ph < h) {
+        h = ph;
+        d = Math.min(d, f.d * s);
+      }
+    }
+    return { h, d };
   };
 
   return {
