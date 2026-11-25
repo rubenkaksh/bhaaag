@@ -15,6 +15,7 @@ import {
   CH_SPINE_PITCH,
   CLINGING,
   POSE_CLING,
+  POSE_CLIMB,
   POSE_WIN,
   CH_HIP_FLEX_L,
   CH_KNEE_L,
@@ -465,7 +466,7 @@ function trace(
 describe('heroPose animation layer', () => {
   it('H1 constants', () => {
     expect(CH_COUNT).toBe(25);
-    expect(POSE_COUNT).toBe(9);
+    expect(POSE_COUNT).toBe(10);
     expect(CLINGING).toBe(HERO_HANGING);
   });
 
@@ -587,6 +588,27 @@ describe('heroPose animation layer', () => {
     const inp = newHeroPoseInput();
     inp.state = CLINGING;
     expect(settle(inp, 0.5).active).toBe(POSE_CLING);
+  });
+
+  it('H9b climbing cling selects the climb pose and the limbs alternate', () => {
+    const inp = newHeroPoseInput();
+    inp.state = CLINGING;
+    expect(settle(inp, 0.5).active).toBe(POSE_CLING);
+    inp.climbing = true;
+    const st = newHeroPoseState();
+    expect(settle(inp, 0.5).active).toBe(POSE_CLIMB);
+    let dmin = Infinity;
+    let dmax = -Infinity;
+    for (let i = 0; i < 60; i++) {
+      inp.dt = 1 / 60;
+      stepHeroPose(st, inp, 0);
+      const l = st.channels[CH_SHOULDER_FLEX_L];
+      const r = st.channels[CH_SHOULDER_FLEX_R];
+      expect(Number.isFinite(l) && Number.isFinite(r)).toBe(true);
+      dmin = Math.min(dmin, l - r);
+      dmax = Math.max(dmax, l - r);
+    }
+    expect(dmax - dmin).toBeGreaterThan(0.3);
   });
 
   it('H10 death rows', () => {

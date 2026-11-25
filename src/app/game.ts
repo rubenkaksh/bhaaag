@@ -1167,6 +1167,7 @@ export function startGame(
     hv.brake = cur.mode === HERO_ATTACHED && (frame.buttons & BTN_REEL) !== 0;
     hv.rolling = cur.rollT > 0;
     hv.sliding = cur.slideT > 0;
+    hv.climbing = cur.mode === HERO_HANGING && cur.hillClimb === 1;
     hv.sprint = sprintK * cfg.hero.sprintCadence;
     hv.dive = diveStep(
       hv.dive,
