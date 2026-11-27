@@ -41,3 +41,6 @@ I found no new asset batch in this checkout beyond the 2026-11-18 painted backdr
 | Dragon sprites (cloud puffs, heads) | `public/assets/dragon/` | Not relevant. |
 | GLB models, audio files | none in repo | Mounts, animals, zombies and campfire do not exist. Primitives only (no GLB pipeline, CLAUDE.md and lean-scope); the GPT images are modelling reference, not shipped. The TripoSR dragon failed (2026-11-16), so do not route these images through image-to-3D. |
 | Reference photos (22 MB) | branch `assets` | Houses and hillside only; never in `main`. Nothing for mounts. |
+
+## Update 2026-11-27 (later): hero look and riders
+Hero look shared with the zipline game, rider views, harness and measurements are in `hero-look.md`. The zipline hero itself changed (beanie, face, hemp tunic, scarf and sash knots, bracers, boots), so Bhaaag's hero needs the usual phone check before it counts as done.

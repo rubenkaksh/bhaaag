@@ -198,7 +198,7 @@ describe('heroPose dead', () => {
 });
 
 describe('heroRig', () => {
-  it('stays tiny: under 1500 triangles, one material per colour', () => {
+  it('stays tiny: under 1500 triangles on Low, one material per colour', () => {
     let tris = 0;
     let meshes = 0;
     const mats = new Set<Material>();
@@ -211,7 +211,7 @@ describe('heroRig', () => {
       }
     });
     expect(tris).toBeLessThan(1500);
-    if (tris > 1100) console.warn(`hero tris ${tris} above 1100 target`);
+    if (tris > 1400) console.warn(`hero tris ${tris} near the 1500 Low cap`);
     expect(Object.keys(HERO_COLORS)).toEqual([
       'tunic',
       'trousers',
