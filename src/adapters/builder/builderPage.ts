@@ -12,23 +12,29 @@ import {
 import type { LinkChoice, Problem, Report } from '../../content/builder/compile';
 import { icon, iconImage } from './icons';
 import { drawHouseSpec } from './preview2d';
+import { propPlacement, propSize } from '../../content/builder/hayFinish';
 import type { IconName } from './icons';
 import {
   GAP_VIAS,
   HOUSE_HALF,
+  PROP_KINDS,
   emptyLevel,
   parseBuilderLevel,
   serializeBuilderLevel,
 } from '../../content/builder/format';
-import type { BuilderLevel, GapVia } from '../../content/builder/format';
+import type { BuilderLevel, GapVia, PropKind } from '../../content/builder/format';
 import {
   History,
   addEdge,
   addHouse,
+  addProp,
   archetypeStoreys,
   blocked,
   houseById,
   moveHouse,
+  moveProp,
+  propById,
+  removeProp,
   removeEdge,
   removeHouse,
   setGoal,
@@ -50,14 +56,33 @@ import {
   setLibraryVisible,
 } from '../../content/builder/library';
 
-type Tool = 'select' | 'house' | 'zip' | 'gap' | 'delete';
+type Tool = 'select' | 'house' | 'zip' | 'gap' | 'prop' | 'delete';
 const TOOLS: [Tool, IconName, string][] = [
   ['select', 'move', 'Move'],
   ['house', 'addhouse', 'Add house'],
   ['zip', 'zip', 'Zipline'],
   ['gap', 'gap', 'Gap link'],
+  ['prop', 'crate', 'Props'],
   ['delete', 'del', 'Delete'],
 ];
+const PROP_NAME: Record<PropKind, string> = {
+  crate: 'Crate',
+  boxPile: 'Box pile',
+  hay: 'Hay',
+  shed: 'Shed',
+};
+const PROP_HELP: Record<PropKind, string> = {
+  crate: 'Solid 0.9 m crate: a step or an obstacle.',
+  boxPile: 'Box pile with a soft top: a cushioned landing.',
+  hay: 'Free-standing haystack: a soft landing anywhere.',
+  shed: 'Solid 2.2 m shed: a wall to route around.',
+};
+const PROP_COLOR: Record<PropKind, string> = {
+  crate: '#a07848',
+  boxPile: '#c9a46a',
+  hay: '#efe3c2',
+  shed: '#8a8f98',
+};
 const VIA_ICON: Record<GapVia, IconName> = {
   jump: 'jump',
   tramp: 'tramp',
@@ -77,6 +102,7 @@ const TOOL_HINT: Record<Tool, string> = {
   house: 'Click empty ground to place a house.',
   zip: 'Drag from one house to another: a fixed zipline (start roof must be higher).',
   gap: 'Drag from one house to another to link them with the chosen gap type.',
+  prop: 'Click empty ground to place the chosen prop; drag a prop with Move.',
   delete: 'Click a house or a link to remove it.',
 };
 
@@ -130,6 +156,8 @@ export function mountBuilder(root: HTMLElement): void {
   let storeys: 1 | 2 = 1;
   let newArch: ArchetypeId | undefined; // palette pick for new houses; undefined = plain box
   let sel = -1;
+  let selProp = -1; // selected prop id
+  let propKind: PropKind = 'crate';
   let report: Report = validate(hist.present);
   let msg = '';
   const view = { cx: 0, cz: -50, scale: 5 }; // metres at screen centre, pixels per metre
@@ -222,6 +250,16 @@ export function mountBuilder(root: HTMLElement): void {
     }
     return -1;
   }
+  function hitProp(px: number, py: number): number {
+    const x = fromX(px);
+    const z = fromZ(py);
+    const props = cur().props ?? [];
+    for (let i = props.length - 1; i >= 0; i--) {
+      const h = Math.max(propSize(props[i].kind) / 2, 1);
+      if (Math.abs(x - props[i].x) <= h && Math.abs(z - props[i].z) <= h) return props[i].id;
+    }
+    return -1;
+  }
   function hitEdge(px: number, py: number): number {
     for (const e of cur().edges) {
       const a = houseById(cur(), e.a);
@@ -254,7 +292,7 @@ export function mountBuilder(root: HTMLElement): void {
   }
 
   let drag: {
-    kind: 'house' | 'pan' | 'edge';
+    kind: 'house' | 'pan' | 'edge' | 'prop';
     id: number;
     ox: number;
     oz: number;
@@ -317,6 +355,25 @@ export function mountBuilder(root: HTMLElement): void {
       ctx.strokeStyle = '#8a7a52';
       ctx.lineWidth = 1.5;
       ctx.strokeRect(toX(hay.hay.x) - hs / 2, toY(hay.hay.z) - hs / 2, hs, hs);
+    }
+    for (const p of l.props ?? []) {
+      const pl = propPlacement(p);
+      ctx.fillStyle = '#4a5a3a';
+      ctx.fillRect(
+        toX(pl.patch.x0),
+        toY(pl.patch.z1),
+        (pl.patch.x1 - pl.patch.x0) * view.scale,
+        (pl.patch.z1 - pl.patch.z0) * view.scale,
+      );
+      const ps = propSize(p.kind) * view.scale;
+      ctx.fillStyle = PROP_COLOR[p.kind];
+      ctx.fillRect(toX(p.x) - ps / 2, toY(p.z) - ps / 2, ps, ps);
+      ctx.strokeStyle = p.id === selProp ? '#fff' : '#3a2a1c';
+      ctx.lineWidth = p.id === selProp ? 3 : 1.5;
+      ctx.strokeRect(toX(p.x) - ps / 2, toY(p.z) - ps / 2, ps, ps);
+      ctx.fillStyle = '#222';
+      ctx.font = 'bold 10px system-ui';
+      ctx.fillText(PROP_NAME[p.kind], toX(p.x) - ps / 2, toY(p.z) - ps / 2 - 3);
     }
     const badHouses = new Set<number>();
     for (const pr of report.problems)
@@ -475,22 +532,51 @@ export function mountBuilder(root: HTMLElement): void {
       commit(next);
       return;
     }
+    const hitP = hit === -1 ? hitProp(p.x, p.y) : -1;
+    if (tool === 'prop' && hit === -1 && hitP === -1) {
+      const at = { x: Math.round(fromX(p.x)), z: Math.round(fromZ(p.y)) };
+      if (commitChecked(addProp(l, propKind, at.x, at.z))) {
+        const ps = hist.present.props ?? [];
+        selProp = ps[ps.length - 1].id;
+        sel = -1;
+        renderPanel();
+      }
+      return;
+    }
     if (tool === 'delete') {
       if (hit !== -1) commit(removeHouse(l, hit));
+      else if (hitP !== -1) commit(removeProp(l, hitP));
       else {
         const e = hitEdge(p.x, p.y);
         if (e !== -1) commit(removeEdge(l, e));
       }
       sel = -1;
+      selProp = -1;
       return;
     }
     if ((tool === 'zip' || tool === 'gap') && hit !== -1) {
       drag = { kind: 'edge', id: hit, ox: 0, oz: 0, sx: p.x, sy: p.y, cx: 0, cz: 0 };
       return;
     }
-    if (hit !== -1) {
+    if (hitP !== -1) {
+      const q = propById(l, hitP);
+      sel = -1;
+      selProp = hitP;
+      drag = {
+        kind: 'prop',
+        id: hitP,
+        ox: (q?.x ?? 0) - fromX(p.x),
+        oz: (q?.z ?? 0) - fromZ(p.y),
+        sx: p.x,
+        sy: p.y,
+        cx: 0,
+        cz: 0,
+      };
+      renderPanel();
+    } else if (hit !== -1) {
       const h = houseById(l, hit);
       sel = hit;
+      selProp = -1;
       drag = {
         kind: 'house',
         id: hit,
@@ -504,6 +590,7 @@ export function mountBuilder(root: HTMLElement): void {
       renderPanel();
     } else {
       sel = -1;
+      selProp = -1;
       drag = { kind: 'pan', id: -1, ox: 0, oz: 0, sx: p.x, sy: p.y, cx: view.cx, cz: view.cz };
       renderPanel();
     }
@@ -516,6 +603,23 @@ export function mountBuilder(root: HTMLElement): void {
     if (drag.kind === 'pan') {
       view.cx = drag.cx - (p.x - drag.sx) / view.scale;
       view.cz = drag.cz + (p.y - drag.sy) / view.scale;
+    } else if (drag.kind === 'prop') {
+      const cand = moveProp(
+        hist.present,
+        drag.id,
+        Math.round(fromX(p.x) + drag.ox),
+        Math.round(fromZ(p.y) + drag.oz),
+      );
+      const bad = newProblem(report, validate(cand));
+      if (bad === null) {
+        live = cand;
+        focus = null;
+        status = null;
+        renderHint();
+      } else {
+        focus = { houses: bad.houses, edges: bad.edges };
+        setStatus('Not allowed here: ' + bad.text, 'bad');
+      }
     } else if (drag.kind === 'house') {
       const s = snapPosition(hist.present, drag.id, fromX(p.x) + drag.ox, fromZ(p.y) + drag.oz);
       if (blocked(hist.present, drag.id, s.x, s.z)) {
@@ -553,7 +657,7 @@ export function mountBuilder(root: HTMLElement): void {
     const d = drag;
     drag = null;
     if (d === null) return;
-    if (d.kind === 'house' && live !== null) commit(live);
+    if ((d.kind === 'house' || d.kind === 'prop') && live !== null) commit(live);
     else if (d.kind === 'edge') {
       const to = hitHouse(p.x, p.y);
       preview = null;
@@ -591,6 +695,10 @@ export function mountBuilder(root: HTMLElement): void {
       if (ev.shiftKey ? hist.redo() : hist.undo()) changed();
     } else if (mod && ev.key.toLowerCase() === 'y') {
       if (hist.redo()) changed();
+    } else if ((ev.key === 'Delete' || ev.key === 'Backspace') && selProp !== -1) {
+      commit(removeProp(hist.present, selProp));
+      selProp = -1;
+      renderPanel();
     } else if ((ev.key === 'Delete' || ev.key === 'Backspace') && sel !== -1) {
       commit(removeHouse(hist.present, sel));
       sel = -1;
@@ -728,7 +836,14 @@ export function mountBuilder(root: HTMLElement): void {
           `</div><div class="note">${esc(VIA_HELP[via])}</div>`
         : tool === 'zip'
           ? '<div class="note">Solid gold line = fixed zipline, from a higher roof down to a lower one.</div>'
-          : '') +
+          : tool === 'prop'
+            ? `<h3>Prop</h3><div class="grid">` +
+              PROP_KINDS.map(
+                (k) =>
+                  `<button class="big ${k === propKind ? 'on' : ''}" data-pk="${k}" title="${esc(PROP_HELP[k])}">${icon('crate', 26)}${PROP_NAME[k]}</button>`,
+              ).join('') +
+              `</div><div class="note">${esc(PROP_HELP[propKind])} Each sits on a small ground patch; Check does not route-check props.</div>`
+            : '') +
       `<h3>New house size</h3><div class="grid"><button class="big ${storeys === 1 ? 'on' : ''}" data-st="1">${icon('house1', 26)}1 storey</button><button class="big ${storeys === 2 ? 'on' : ''}" data-st="2">${icon('house2', 26)}2 storeys</button></div>
       New houses: <select data-f="newarch"><option value="">plain box (uses size above)</option>${ARCHETYPE_IDS.map((a) => `<option ${a === newArch ? 'selected' : ''}>${a}</option>`).join('')}</select>
       <div class="note">Cream bar between houses = they touch (adjoining).</div>
@@ -817,6 +932,8 @@ export function mountBuilder(root: HTMLElement): void {
       tool = d.tool as Tool;
       status = null;
       renderHint();
+    } else if (d.pk !== undefined) {
+      propKind = d.pk as PropKind;
     } else if (d.via !== undefined) {
       via = d.via as GapVia;
       renderHint();

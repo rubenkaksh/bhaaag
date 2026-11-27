@@ -27,7 +27,7 @@ import {
 } from '../strategy/graph';
 import type { BuilderEdge, BuilderHouse, BuilderLevel, GapVia } from './format';
 import { HOUSE_HALF, STOREY_HEIGHT, TOUCH_EPS } from './format';
-import { hayFinish, patchHitsHouse } from './hayFinish';
+import { hayFinish, patchHitsHouse, patchesOverlap, propPlacement } from './hayFinish';
 import { addEdge, houseById, overlaps } from './model';
 
 // Geometry shared with the generator's emitter (kept numerically identical, gen.ts is frozen).
@@ -457,6 +457,39 @@ export function validate(l: BuilderLevel): Report {
       );
     }
   }
+  const props = l.props ?? [];
+  if (props.length > 0) {
+    add(
+      'warn',
+      'propsnote',
+      'props are not route-checked',
+      'Props are scenery and cushions: Check does not route-check them.',
+      'Play the level to see how they change the run.',
+    );
+  }
+  for (const p of props) {
+    const pp = propPlacement(p).patch;
+    for (const o of l.houses) {
+      if (!patchHitsHouse(pp, o)) continue;
+      add(
+        'error',
+        'propHouse:' + p.id + ':' + o.id,
+        'prop ' + p.id + ' overlaps house ' + o.id,
+        'A ' + p.kind + ' (prop ' + p.id + ') overlaps house ' + o.id + '.',
+        'Move prop ' + p.id + ' off the house.',
+        [o.id],
+      );
+    }
+    if (hay !== null && patchesOverlap(pp, hay.patch))
+      add(
+        'error',
+        'propHay:' + p.id,
+        'prop ' + p.id + ' overlaps the haystack',
+        'A ' + p.kind + ' (prop ' + p.id + ') overlaps the haystack finish.',
+        'Move prop ' + p.id + ' away from the haystack.',
+        l.goal >= 0 ? [l.goal] : [],
+      );
+  }
   if (r.errors.length > 0) {
     r.ok = false;
     return r;
@@ -657,6 +690,14 @@ export function compileLevel(l: BuilderLevel): LevelJson {
     style.push(0);
     emitProp(hay.hay, draft);
   }
+  const patches = [...(hay !== null ? [hay.patch] : [])];
+  for (const bp of l.props ?? []) {
+    const pl = propPlacement(bp);
+    solids.push(bx(pl.patch.x0, pl.patch.y - 1, pl.patch.z0, pl.patch.x1, pl.patch.y, pl.patch.z1));
+    style.push(0);
+    emitProp(pl.prop, draft);
+    patches.push(pl.patch);
+  }
   let xMin = Infinity;
   let xMax = -Infinity;
   let zMin = Infinity;
@@ -667,11 +708,18 @@ export function compileLevel(l: BuilderLevel): LevelJson {
     zMin = Math.min(zMin, h.z - H);
     zMax = Math.max(zMax, h.z + H);
   }
+  for (const bp of l.props ?? []) {
+    const q = propPlacement(bp).patch;
+    xMin = Math.min(xMin, q.x0);
+    xMax = Math.max(xMax, q.x1);
+    zMin = Math.min(zMin, q.z0);
+    zMax = Math.max(zMax, q.z1);
+  }
   const zEnd = zMin - HAZARD_PAST;
   for (let z = zMax + HAZARD_PAST; z > zEnd; z -= HAZARD_STRIP) {
     let top = planeY(z) + HAZARD_LIP;
-    if (hay !== null && hay.patch.z1 > z - HAZARD_STRIP && hay.patch.z0 < z)
-      top = Math.min(top, hay.patch.y - 0.5);
+    for (const p of patches)
+      if (p.z1 > z - HAZARD_STRIP && p.z0 < z) top = Math.min(top, p.y - 0.5);
     hazards.push(
       bx(xMin - HAZARD_MARGIN, top - HAZARD_DEPTH, z - HAZARD_STRIP, xMax + HAZARD_MARGIN, top, z),
     );

@@ -27,6 +27,17 @@ const houseSchema = z.object({
     .optional(),
 });
 
+export const PROP_KINDS = ['crate', 'boxPile', 'hay', 'shed'] as const;
+export type PropKind = (typeof PROP_KINDS)[number];
+
+/** A free-standing hillside prop (builder-sync plan slice 4): solid scenery; boxPile and hay also cushion. */
+const propSchema = z.object({
+  id: z.number().int().min(0),
+  kind: z.enum(PROP_KINDS),
+  x: z.number(),
+  z: z.number(),
+});
+
 const edgeSchema = z
   .object({
     id: z.number().int().min(0),
@@ -51,12 +62,19 @@ const levelSchema = z
     goal: z.number().int().min(-1),
     /** How the level ends: 'roof' (cushion on the goal roof) or 'hay' (haystack below the goal house). Absent = 'roof'. */
     finish: z.enum(['roof', 'hay']).optional(),
+    /** Free-standing props on the hillside. Absent = none. */
+    props: z.array(propSchema).optional(),
   })
   .superRefine((l, ctx) => {
     const ids = new Set<number>();
     for (const h of l.houses) {
       if (ids.has(h.id)) ctx.addIssue({ code: 'custom', message: 'duplicate house id ' + h.id });
       ids.add(h.id);
+    }
+    const propIds = new Set<number>();
+    for (const p of l.props ?? []) {
+      if (propIds.has(p.id)) ctx.addIssue({ code: 'custom', message: 'duplicate prop id ' + p.id });
+      propIds.add(p.id);
     }
     const edgeIds = new Set<number>();
     const zipFrom = new Set<number>();
@@ -79,6 +97,7 @@ const levelSchema = z
   });
 
 export type BuilderHouse = z.infer<typeof houseSchema>;
+export type BuilderProp = z.infer<typeof propSchema>;
 export type BuilderEdge = z.infer<typeof edgeSchema>;
 export type BuilderLevel = z.infer<typeof levelSchema>;
 

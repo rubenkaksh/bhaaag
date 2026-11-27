@@ -4,7 +4,7 @@
 import type { BuilderLevel } from '../../content/builder/format';
 import { HOUSE_HALF } from '../../content/builder/format';
 import { buildNodeSet } from '../../content/builder/compile';
-import { hayFinish } from '../../content/builder/hayFinish';
+import { hayFinish, propPlacement } from '../../content/builder/hayFinish';
 import type { LevelJson } from '../../content/load';
 import { NODE_ROOF, relation } from '../../content/strategy/graph';
 import { HK } from '../../content/house/houseSpec';
@@ -129,6 +129,13 @@ export function builderHome(src: BuilderLevel, level: LevelJson): HomeBundle {
         skip.add(k);
     }
   }
+  const propSpecs = [...(hay !== null ? [hay.hay] : [])];
+  const patchRects = hay !== null ? [hay.patch] : [];
+  for (const bp of src.props ?? []) {
+    const pl = propPlacement(bp);
+    propSpecs.push(pl.prop);
+    patchRects.push(pl.patch);
+  }
   if (HOUSE_HALF !== HK.half) throw new Error('builder house size differs from the kit');
   // Step blocks (boxes, stairs) share the body style but are not house bodies: no kit draws them.
   const keep = (i: number): boolean => sty[i] === 1 && !bodies.has(i);
@@ -137,14 +144,11 @@ export function builderHome(src: BuilderLevel, level: LevelJson): HomeBundle {
     graph: {
       keep,
       houses,
-      props: hay !== null ? [hay.hay] : [],
+      props: propSpecs,
       profile: terrainProfile(level.hazards ?? []),
       seed: hash(src.id),
       look: 'home',
-      patches:
-        hay !== null
-          ? [{ x0: hay.patch.x0, x1: hay.patch.x1, z0: hay.patch.z0, z1: hay.patch.z1 }]
-          : [],
+      patches: patchRects.map((p) => ({ x0: p.x0, x1: p.x1, z0: p.z0, z1: p.z1 })),
       kitSkip: (i: number) => skip.has(i),
       field: undefined,
     },

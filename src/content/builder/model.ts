@@ -1,7 +1,7 @@
 // Pure, immutable edit operations on a builder level (undo = keep the old object). No DOM.
 import { archetype as archetypePreset } from '../house/archetypes';
 import type { ArchetypeId } from '../house/archetypes';
-import type { BuilderEdge, BuilderHouse, BuilderLevel, GapVia } from './format';
+import type { BuilderEdge, BuilderHouse, BuilderLevel, BuilderProp, GapVia } from './format';
 import { HOUSE_SIZE } from './format';
 
 const SNAP_GRID = 1; // metres
@@ -96,6 +96,32 @@ export function setStart(l: BuilderLevel, id: number): BuilderLevel {
 
 export function setGoal(l: BuilderLevel, id: number): BuilderLevel {
   return houseById(l, id) === undefined ? l : { ...l, goal: id };
+}
+
+export function propById(l: BuilderLevel, id: number): BuilderProp | undefined {
+  return (l.props ?? []).find((p) => p.id === id);
+}
+
+export function addProp(
+  l: BuilderLevel,
+  kind: BuilderProp['kind'],
+  x: number,
+  z: number,
+): BuilderLevel {
+  const props = l.props ?? [];
+  return { ...l, props: [...props, { id: nextId(props), kind, x, z }] };
+}
+
+export function moveProp(l: BuilderLevel, id: number, x: number, z: number): BuilderLevel {
+  return { ...l, props: (l.props ?? []).map((p) => (p.id === id ? { ...p, x, z } : p)) };
+}
+
+export function removeProp(l: BuilderLevel, id: number): BuilderLevel {
+  const props = (l.props ?? []).filter((p) => p.id !== id);
+  if (props.length > 0) return { ...l, props };
+  const rest = { ...l };
+  delete rest.props;
+  return rest;
 }
 
 /** True when two houses' footprints overlap by more than a sliver (touching is fine). */
