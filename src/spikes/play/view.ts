@@ -48,7 +48,8 @@ function paintGeo(g: BoxGeometry, hex: string): BoxGeometry {
 
 export class SpikeView {
   readonly world: SpikeWorld;
-  readonly camera = new PerspectiveCamera(55, 1, 0.3, 900);
+  // far 3000 like scene.ts: the backdrop plate is a 900 m cylinder, so a 900 m far plane clipped it
+  readonly camera = new PerspectiveCamera(55, 1, 0.3, 3000);
   readonly rider: RiderView;
   private readonly pools = creaturePools();
   private readonly pickups: Record<'wood' | 'ammo' | 'meat', Pool>;
@@ -267,9 +268,11 @@ export class SpikeView {
   private placeCameraRide(dt: number): void {
     const r = this.run.ride;
     const portrait = this.aspect < 1;
-    const dist = portrait ? 10 : 8.5;
-    const h = portrait ? 5.2 : 4;
-    const target = new Vector3(r.x, 1.4, r.z + (portrait ? 12 : 11));
+    // low chase camera (owner 2026-11-27 "feels too 2D"): eye near rider height so the horizon,
+    // the backdrop range and the depth of the tree rows read; was 8.5-10 m back and 4-5.2 m up
+    const dist = portrait ? 8 : 6.5;
+    const h = portrait ? 3.6 : 2.6;
+    const target = new Vector3(r.x, 1.8, r.z + (portrait ? 14 : 13));
     const pos = new Vector3(
       r.x * 0.6 - Math.sin(r.heading) * dist,
       h + r.y * 0.4,

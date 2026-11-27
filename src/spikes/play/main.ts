@@ -10,6 +10,7 @@ import { hideEnd, setPhaseClass, showEnd, updateHud } from './hud';
 import { PlayInput } from './input';
 import { SpikeView } from './view';
 import { loadHorseTemplate } from '../view/horseGlb';
+import { pixelRatioFor } from '../../adapters/render/graphicsTier';
 
 const q = new URLSearchParams(location.search);
 const cfg = q.get('spike') === 'bike' ? BIKE_SPIKE : HORSE_SPIKE;
@@ -27,7 +28,10 @@ const renderer = new WebGLRenderer({
   antialias: tier === 'high',
   preserveDrawingBuffer: q.get('shot') === '1',
 });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, tier === 'high' ? 2 : 1.5));
+// same per-tier cap as the game (ADR 0009): phones get 1 at Low, 1.5 at High
+renderer.setPixelRatio(
+  pixelRatioFor(window.devicePixelRatio, matchMedia('(pointer: coarse)').matches, tier),
+);
 const input = new PlayInput(document.getElementById('touch') as HTMLElement);
 const stick = document.getElementById('stick') as HTMLElement;
 

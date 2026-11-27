@@ -68,3 +68,12 @@ Status ladder: **concept only / inventoried**. Nothing processed, nothing in the
 4. **Tier budget.** Low is under 1,500 triangles per hero; horse + rider + campfire already pushes that.
 
 **Recommendation:** keep primitives for every creature, bike and weapon. Optionally trial only the horse and the campfire, retextured to the project palette, behind the owner lifting the GLB rule; the crates are the cheapest win but gain little over the current boxes. Do not adopt anything until the owner answers the pipeline and licence questions above.
+
+## Phone test, round 1 (owner 2026-11-27)
+
+Fixed on the spike page:
+- **"Skybox is gone at high mode"**: the ride camera's far plane was 900 m and the backdrop plate is a 900 m cylinder, so it sat on the clip edge. The camera far plane is now 3000 m, like `scene.ts`.
+- **"Feels a little laggish at high mode"**: the spike set its own pixel ratio (2 at High, 1.5 at Low), above the game's phone caps. It now uses `pixelRatioFor` (ADR 0009): 1.5 at High and 1 at Low on touch.
+- **"Feels too 2D"** (partly): the ride camera is lower and closer (landscape 6.5 m back and 2.6 m up, was 8.5 and 4; portrait 8 and 3.6, was 10 and 5.2). The plate is lifted by 0.3 of its height in landscape, so the snow range sits above the horizon (handoff step 5). The ground is still flat; that is the bigger part of "2D".
+
+**Owner idea, after the spike, not started:** "rocks and rivers and downhills and uphills where horses and bike both have a chance of falling and sliding over which ends the game, or we could have 3 lives." Open questions for later: a height-field ride corridor instead of flat ground, river crossings as a hazard, a fall/slide rule per mount (speed and slope), and one life vs 3 lives. Run scout-first before any design.

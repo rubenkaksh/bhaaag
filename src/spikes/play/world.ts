@@ -19,6 +19,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
+  PerspectiveCamera,
   PlaneGeometry,
   PointLight,
   RingGeometry,
@@ -28,6 +29,9 @@ import type { Texture } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Obstacle } from '../ride';
 import { Rng } from '../rng';
+
+/** Landscape lift of the backdrop plate, in plate heights (spike ride camera only). */
+const PLATE_LIFT_LANDSCAPE = 0.3;
 import type { RideCfg } from '../ride';
 import type { GraphicsTier } from '../../adapters/render/graphicsTier';
 
@@ -225,6 +229,19 @@ export class SpikeWorld {
       const m = await import('../../adapters/render/backdrop');
       const g = await m.loadBackdrop(tier);
       if (this.disposed) return;
+      // The plate is placed for the game's descent camera, which sits high above the valley. The
+      // spike rides on flat ground with a low camera, so in landscape the snow range fell below
+      // the horizon. Lift the plate there (portrait is already stretched upward by backdrop.ts).
+      const plate = g.getObjectByName('backdrop_plate') as Mesh | undefined;
+      if (plate) {
+        const h = (plate.geometry as CylinderGeometry).parameters.height;
+        const base = plate.onBeforeRender;
+        plate.onBeforeRender = (...args) => {
+          base.apply(plate, args);
+          const cam = args[2] as PerspectiveCamera;
+          if (cam.aspect >= 1) plate.matrixWorld.elements[13] += h * PLATE_LIFT_LANDSCAPE;
+        };
+      }
       this.backdrop = g;
       this.scene.add(g);
       this.setNight(this.night);
