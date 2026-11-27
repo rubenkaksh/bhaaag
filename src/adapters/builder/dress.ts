@@ -4,6 +4,7 @@
 import type { BuilderLevel } from '../../content/builder/format';
 import { HOUSE_HALF } from '../../content/builder/format';
 import { buildNodeSet } from '../../content/builder/compile';
+import { hayFinish } from '../../content/builder/hayFinish';
 import type { LevelJson } from '../../content/load';
 import { NODE_ROOF, relation } from '../../content/strategy/graph';
 import { HK } from '../../content/house/houseSpec';
@@ -62,6 +63,10 @@ export function builderHome(src: BuilderLevel, level: LevelJson): HomeBundle {
     used[a][f] = true; // the face the move leaves by, and the one it arrives on, stay open
     used[b][OPPOSITE[f]] = true;
   }
+  // A haystack finish opens the goal house's downhill face: no guard rail where the hero drops off.
+  const hay = hayFinish(src);
+  const goalNode = ns.roofOf.get(src.goal);
+  if (hay !== null && goalNode !== undefined) used[goalNode][3] = true;
   const houses = [];
   const bodies = new Set<number>();
   const skip = new Set<number>();
@@ -132,11 +137,14 @@ export function builderHome(src: BuilderLevel, level: LevelJson): HomeBundle {
     graph: {
       keep,
       houses,
-      props: [],
+      props: hay !== null ? [hay.hay] : [],
       profile: terrainProfile(level.hazards ?? []),
       seed: hash(src.id),
       look: 'home',
-      patches: [],
+      patches:
+        hay !== null
+          ? [{ x0: hay.patch.x0, x1: hay.patch.x1, z0: hay.patch.z0, z1: hay.patch.z1 }]
+          : [],
       kitSkip: (i: number) => skip.has(i),
       field: undefined,
     },

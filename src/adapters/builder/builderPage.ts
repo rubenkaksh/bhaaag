@@ -34,6 +34,8 @@ import {
   snapPosition,
   updateHouse,
 } from '../../content/builder/model';
+import { HK } from '../../content/house/houseSpec';
+import { hayFinish } from '../../content/builder/hayFinish';
 import { ARCHETYPE_IDS } from '../../content/house/archetypes';
 import type { ArchetypeId } from '../../content/house/archetypes';
 import { kitSampleLevel, sampleLevel } from '../../content/builder/sample';
@@ -301,6 +303,18 @@ export function mountBuilder(root: HTMLElement): void {
       ctx.moveTo(toX(ha.x), toY(ha.z));
       ctx.lineTo(toX(hb.x), toY(hb.z));
       ctx.stroke();
+    }
+    const hay = hayFinish(l);
+    if (hay !== null) {
+      const p = hay.patch;
+      ctx.fillStyle = '#4a5a3a';
+      ctx.fillRect(toX(p.x0), toY(p.z1), (p.x1 - p.x0) * view.scale, (p.z1 - p.z0) * view.scale);
+      const hs = HK.haySize * view.scale;
+      ctx.fillStyle = '#efe3c2';
+      ctx.fillRect(toX(hay.hay.x) - hs / 2, toY(hay.hay.z) - hs / 2, hs, hs);
+      ctx.strokeStyle = '#8a7a52';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(toX(hay.hay.x) - hs / 2, toY(hay.hay.z) - hs / 2, hs, hs);
     }
     const badHouses = new Set<number>();
     for (const pr of report.problems)
@@ -694,6 +708,7 @@ export function mountBuilder(root: HTMLElement): void {
       `<div class="row"><b>Level builder</b> <a href="${location.pathname}" style="color:#c9a227;margin-left:auto">Back to game</a></div>
       <h3>Level</h3>
       <input type="text" data-f="id" value="${esc(l.id)}" title="file id: new iteration = new id"> <input type="text" data-f="name" value="${esc(l.name)}">
+      <div class="row">Finish <select data-f="finish" title="How the level ends: drop into a haystack below the goal house, or land on the goal roof"><option value="hay" ${l.finish === 'hay' ? 'selected' : ''}>Haystack</option><option value="roof" ${l.finish === 'hay' ? '' : 'selected'}>Roof</option></select></div>
       <h3>Tools</h3><div class="grid">` +
       TOOLS.map(
         ([t, ic, label]) =>
@@ -835,7 +850,10 @@ export function mountBuilder(root: HTMLElement): void {
       return;
     } else if (d.act === 'new') {
       sel = -1;
-      return commit(emptyLevel('level-' + Date.now().toString(36), 'New level'));
+      return commit({
+        ...emptyLevel('level-' + Date.now().toString(36), 'New level'),
+        finish: 'hay',
+      });
     } else if (d.act === 'kit') {
       sel = -1;
       return commit(kitSampleLevel());
@@ -862,6 +880,7 @@ export function mountBuilder(root: HTMLElement): void {
         .replace(/^-+/, '');
       if (id !== '') commit({ ...l, id });
     } else if (f === 'name') commit({ ...l, name: t.value });
+    else if (f === 'finish') commit({ ...l, finish: t.value === 'hay' ? 'hay' : 'roof' });
     else if (f === 'lift' && sel !== -1)
       void commitChecked(
         updateHouse(l, sel, { lift: Math.max(0, Math.min(12, Number(t.value) || 0)) }),
