@@ -5,11 +5,13 @@ import {
   linkOptions,
   newProblem,
   roofHeight,
+  specOf,
   validate,
   viaName,
 } from '../../content/builder/compile';
 import type { LinkChoice, Problem, Report } from '../../content/builder/compile';
 import { icon, iconImage } from './icons';
+import { drawHouseSpec } from './preview2d';
 import type { IconName } from './icons';
 import {
   GAP_VIAS,
@@ -328,7 +330,9 @@ export function mountBuilder(root: HTMLElement): void {
       ctx.lineWidth = h.id === sel ? 3 : 1.5;
       ctx.strokeStyle = h.id === sel ? '#fff' : '#3a2a1c';
       ctx.strokeRect(x, y, s, s);
-      if (h.balcony) {
+      const spec = specOf(h, l.houses);
+      if (spec !== undefined) drawHouseSpec(ctx, spec, x, y, s);
+      else if (h.balcony) {
         ctx.fillStyle = '#7a5a3c';
         ctx.fillRect(x, y - 2 * view.scale, s, 2 * view.scale);
       }
