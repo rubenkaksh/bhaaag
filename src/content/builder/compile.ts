@@ -740,6 +740,7 @@ export function compileLevel(l: BuilderLevel): LevelJson {
     route: [],
     lineOnly: 1,
     climb: 1,
+    ...(l.parkour === true ? { parkour: 1 } : {}),
     lines,
     tramps,
     cushions,

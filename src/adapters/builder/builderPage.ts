@@ -821,6 +821,7 @@ export function mountBuilder(root: HTMLElement): void {
       <h3>Level</h3>
       <input type="text" data-f="id" value="${esc(l.id)}" title="file id: new iteration = new id"> <input type="text" data-f="name" value="${esc(l.name)}">
       <div class="row">Finish <select data-f="finish" title="How the level ends: drop into a haystack below the goal house, or land on the goal roof"><option value="hay" ${l.finish === 'hay' ? 'selected' : ''}>Haystack</option><option value="roof" ${l.finish === 'hay' ? '' : 'selected'}>Roof</option></select></div>
+      <label class="row" title="Auto-vault, step-up, auto-mantle and landing slide in Play (as in Hay Run)"><input type="checkbox" data-f="parkour" ${l.parkour === true ? 'checked' : ''}> Parkour moves</label>
       <h3>Tools</h3><div class="grid">` +
       TOOLS.map(
         ([t, ic, label]) =>
@@ -1001,7 +1002,11 @@ export function mountBuilder(root: HTMLElement): void {
         .replace(/^-+/, '');
       if (id !== '') commit({ ...l, id });
     } else if (f === 'name') commit({ ...l, name: t.value });
-    else if (f === 'finish') commit({ ...l, finish: t.value === 'hay' ? 'hay' : 'roof' });
+    else if (f === 'parkour') {
+      const { parkour: _p, ...rest } = l;
+      void _p;
+      commit(t.checked ? { ...rest, parkour: true } : rest);
+    } else if (f === 'finish') commit({ ...l, finish: t.value === 'hay' ? 'hay' : 'roof' });
     else if (f === 'lift' && sel !== -1)
       void commitChecked(
         updateHouse(l, sel, { lift: Math.max(0, Math.min(12, Number(t.value) || 0)) }),

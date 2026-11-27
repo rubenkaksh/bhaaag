@@ -64,6 +64,8 @@ const levelSchema = z
     finish: z.enum(['roof', 'hay']).optional(),
     /** Free-standing props on the hillside. Absent = none. */
     props: z.array(propSchema).optional(),
+    /** Parkour moves (auto-vault, airborne step-up, auto-mantle, landing slide) on in Play. Absent = off. */
+    parkour: z.boolean().optional(),
   })
   .superRefine((l, ctx) => {
     const ids = new Set<number>();
