@@ -7,3 +7,4 @@ export * from './rng';
 export * from './run';
 export * from './types';
 export * from './weapons';
+export * from './bot';

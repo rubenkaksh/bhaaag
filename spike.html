@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Bhaaag hunting spike</title>
+    <style>
+      :root {
+        --ink: #fff4e0;
+        --card: rgba(24, 18, 14, 0.62);
+        --red: #dc2b34;
+        --gold: #e6b04a;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #101a33;
+        overflow: hidden;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        font-family: system-ui, sans-serif;
+        color: var(--ink);
+      }
+      canvas#c {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      #touch {
+        position: fixed;
+        inset: 0;
+      }
+      .hud {
+        position: fixed;
+        pointer-events: none;
+        text-shadow: 0 1px 3px #000a;
+      }
+      #top {
+        left: max(10px, env(safe-area-inset-left));
+        right: max(10px, env(safe-area-inset-right));
+        top: max(8px, env(safe-area-inset-top));
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        justify-content: space-between;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 10px;
+        padding: 6px 10px;
+        font-size: 13px;
+        line-height: 1.35;
+      }
+      .bar {
+        width: 120px;
+        height: 9px;
+        background: #0006;
+        border-radius: 5px;
+        overflow: hidden;
+        margin-top: 3px;
+      }
+      .bar > i {
+        display: block;
+        height: 100%;
+        background: var(--red);
+        width: 100%;
+      }
+      #boostbar > i {
+        background: var(--gold);
+      }
+      #fuelbar > i {
+        background: #ff8a2a;
+      }
+      #phase {
+        text-align: center;
+        font-weight: 700;
+        font-size: 15px;
+      }
+      #sub {
+        font-weight: 400;
+        font-size: 12px;
+        opacity: 0.9;
+      }
+      #btns {
+        right: max(12px, env(safe-area-inset-right));
+        bottom: max(14px, env(safe-area-inset-bottom));
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-end;
+        pointer-events: none;
+      }
+      .btn {
+        pointer-events: auto;
+        width: 74px;
+        height: 74px;
+        border-radius: 50%;
+        border: 2px solid #fff8;
+        background: #1c140f99;
+        color: var(--ink);
+        font-weight: 700;
+        font-size: 12px;
+        display: grid;
+        place-items: center;
+        touch-action: none;
+      }
+      .btn:active,
+      .btn.on {
+        background: #e6b04acc;
+        color: #231a10;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+      }
+      .camp-only,
+      .ride-only {
+        display: none;
+      }
+      body.ride .ride-only {
+        display: grid;
+      }
+      body.camp .camp-only {
+        display: grid;
+      }
+      #hint {
+        left: 12px;
+        right: 12px;
+        top: 96px;
+        text-align: center;
+        font-size: 14px;
+        opacity: 0.95;
+        transition: opacity 1s;
+      }
+      #end {
+        position: fixed;
+        inset: 0;
+        display: none;
+        place-items: center;
+        background: #000a;
+        text-align: center;
+      }
+      #end.show {
+        display: grid;
+      }
+      #end h1 {
+        margin: 0 0 6px;
+        font-size: 34px;
+      }
+      #end p {
+        margin: 4px 0;
+      }
+      #end .tap {
+        margin-top: 14px;
+        padding: 10px 18px;
+        border: 2px solid #fff8;
+        border-radius: 12px;
+        display: inline-block;
+        background: #e6b04a;
+        color: #231a10;
+        font-weight: 700;
+      }
+      #stick {
+        position: fixed;
+        width: 110px;
+        height: 110px;
+        margin: -55px 0 0 -55px;
+        border: 2px solid #fff6;
+        border-radius: 50%;
+        display: none;
+        pointer-events: none;
+      }
+      @media (max-height: 420px) {
+        .btn {
+          width: 60px;
+          height: 60px;
+          font-size: 11px;
+        }
+        .bar {
+          width: 96px;
+        }
+        .card {
+          font-size: 12px;
+          padding: 4px 8px;
+        }
+        #hint {
+          top: 66px;
+        }
+      }
+    </style>
+  </head>
+  <body class="ride">
+    <canvas id="c"></canvas>
+    <div id="touch"></div>
+    <div id="stick"></div>
+    <div id="top" class="hud">
+      <div class="card" id="left">
+        <div>HP <b id="hpn">10</b></div>
+        <div class="bar" id="hpbar"><i></i></div>
+        <div class="ride-only bar" id="boostbar"><i></i></div>
+        <div id="ammo"></div>
+      </div>
+      <div class="card" id="phase">
+        <div id="ptitle">Ride</div>
+        <div id="sub"></div>
+      </div>
+      <div class="card camp-only" id="inv" style="display: none">
+        <div id="invtext"></div>
+        <div class="bar" id="fuelbar"><i></i></div>
+      </div>
+    </div>
+    <div id="hint" class="hud"></div>
+    <div id="btns" class="hud">
+      <div class="row">
+        <div class="btn camp-only" data-act="reload">RELOAD</div>
+        <div class="btn camp-only" data-act="eat">EAT</div>
+      </div>
+      <div class="row">
+        <div class="btn ride-only" data-act="boost">BOOST</div>
+        <div class="btn camp-only" data-act="interact">COOK / FEED</div>
+        <div class="btn ride-only" data-act="jump">JUMP</div>
+      </div>
+    </div>
+    <div id="end">
+      <div>
+        <h1 id="endTitle"></h1>
+        <p id="endSub"></p>
+        <div class="tap">Tap to ride again</div>
+      </div>
+    </div>
+    <script type="module" src="/src/spikes/play/main.ts"></script>
+  </body>
+</html>

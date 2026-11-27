@@ -96,6 +96,8 @@ export interface Enemy {
   cd: number;
   /** Prey only: spooked by a shot, flees until dead. */
   alert: boolean;
+  /** Seconds a fire-shy animal has been held at a lit fire's edge; past PIN_GIVE_UP it loses interest and leaves. */
+  pin: number;
   dead: boolean;
 }
 
@@ -107,9 +109,10 @@ export interface FireZone {
 
 /** Reach added to the radius when a hostile attacks the player. */
 export const MELEE_REACH = 0.6;
+export const PIN_GIVE_UP = 14;
 
 export function spawnEnemy(id: number, kind: EnemyKind, x: number, z: number): Enemy {
-  return { id, kind, x, z, hp: ENEMY_DEFS[kind].hp, cd: 0.5, alert: false, dead: false };
+  return { id, kind, x, z, hp: ENEMY_DEFS[kind].hp, cd: 0.5, alert: false, pin: 0, dead: false };
 }
 
 /** Moves one enemy toward (or, for prey, away from) the target. Returns damage dealt this step. */
@@ -127,7 +130,7 @@ export function stepEnemy(
   const d = Math.hypot(dx, dz);
   let mx = 0;
   let mz = 0;
-  if (!def.hostile) {
+  if (!def.hostile || e.alert) {
     if (!e.alert && d >= 14) return 0;
     if (d > 1e-6) {
       mx = -dx / d;
@@ -136,6 +139,12 @@ export function stepEnemy(
   } else if (d > 1e-6) {
     mx = dx / d;
     mz = dz / d;
+  }
+  if (fire !== null && def.fearsFire && def.hostile) {
+    const fd = Math.hypot(e.x - fire.x, e.z - fire.z);
+    if (fd < fire.r + 3) e.pin += dt;
+    else e.pin = Math.max(0, e.pin - dt);
+    if (e.pin > PIN_GIVE_UP) e.alert = true;
   }
   let nx = e.x + mx * def.speed * dt;
   let nz = e.z + mz * def.speed * dt;
@@ -153,7 +162,7 @@ export function stepEnemy(
   }
   e.x = nx;
   e.z = nz;
-  if (def.hostile && d < def.radius + MELEE_REACH && e.cd <= 0) {
+  if (def.hostile && !e.alert && d < def.radius + MELEE_REACH && e.cd <= 0) {
     e.cd = def.attackCd;
     return def.damage;
   }

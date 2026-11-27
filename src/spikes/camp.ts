@@ -46,6 +46,13 @@ export interface CampCfg {
   heatPerShot: number;
   heatDecay: number;
   heatMax: number;
+  /** Ammo waiting in the camp's supply cache, added to the reserve on arrival. */
+  cacheAmmo: number;
+  /** Ammo crates lying around camp, rounds per crate, and the chance an undead drops a few rounds. */
+  ammoCrates: number;
+  crateAmount: number;
+  ammoDropChance: number;
+  ammoDropAmount: number;
   /** Chance a missed arrow can be picked up again. */
   arrowRecover: number;
   hurtCooldown: number;
@@ -119,8 +126,14 @@ export function createCamp(
     const r = rng.range(cfg.fireRadius + 3, cfg.fireRadius + 20);
     pickups.push({ kind: 'wood', x: Math.cos(a) * r, z: Math.sin(a) * r, amount: 1 });
   }
+  for (let i = 0; i < cfg.ammoCrates; i++) {
+    const a = rng.range(0, Math.PI * 2);
+    const r = rng.range(cfg.fireRadius + 2, cfg.fireRadius + 18);
+    pickups.push({ kind: 'ammo', x: Math.cos(a) * r, z: Math.sin(a) * r, amount: cfg.crateAmount });
+  }
   weapon.charge = 0;
   weapon.wasFire = false;
+  weapon.reserve += cfg.cacheAmmo;
   return {
     cfg,
     rng,
@@ -161,7 +174,7 @@ export function createCamp(
 function pickHostile(s: CampState, level: number): EnemyKind {
   const r = s.rng.next();
   if (s.rng.next() < s.cfg.zombieShare) {
-    if (level >= 6 && r < 0.15) return 'brute';
+    if (level >= 8 && r < 0.08) return 'brute';
     if (level >= 3 && r < 0.45) return 'runner';
     return 'zombie';
   }
@@ -235,6 +248,13 @@ export function stepCamp(s: CampState, input: SpikeInput, dt: number): void {
     s.kills += 1;
     if (!ENEMY_DEFS[e.kind].hostile) s.preyKilled += 1;
     dropMeat(s, e);
+    if (
+      ENEMY_DEFS[e.kind].hostile &&
+      ENEMY_DEFS[e.kind].meat === 0 &&
+      s.rng.next() < c.ammoDropChance
+    ) {
+      s.pickups.push({ kind: 'ammo', x: e.x, z: e.z, amount: c.ammoDropAmount });
+    }
   }
   if (s.weapon.cfg.kind === 'bow') {
     for (const p of expired) {
@@ -249,7 +269,10 @@ export function stepCamp(s: CampState, input: SpikeInput, dt: number): void {
     if (e.dead) continue;
     hurt(s, stepEnemy(e, s.x, s.z, fire, dt));
   }
-  for (let i = s.enemies.length - 1; i >= 0; i--) if (s.enemies[i].dead) s.enemies.splice(i, 1);
+  for (let i = s.enemies.length - 1; i >= 0; i--) {
+    const e = s.enemies[i];
+    if (e.dead || (e.alert && Math.hypot(e.x, e.z) > c.spawnRadius + 20)) s.enemies.splice(i, 1);
+  }
 
   // Walk-over pickups.
   for (let i = s.pickups.length - 1; i >= 0; i--) {
@@ -268,7 +291,7 @@ export function stepCamp(s: CampState, input: SpikeInput, dt: number): void {
       s.raw -= 1;
       s.cooking = true;
       s.cookT = 0;
-    } else if (s.wood > 0 && s.fuel < c.fuelMax) {
+    } else if (s.wood > 0 && s.fuel <= c.fuelMax - c.fuelPerWood * 0.5) {
       s.wood -= 1;
       s.fuel = Math.min(c.fuelMax, s.fuel + c.fuelPerWood);
     }

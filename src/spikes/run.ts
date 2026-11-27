@@ -47,11 +47,11 @@ export const DIRT_BIKE: MountCfg = {
   drag: 4,
   brake: 20,
   turnLow: 1.9,
-  turnHigh: 0.55,
-  grip: 3.2,
+  turnHigh: 0.9,
+  grip: 4.5,
   boostDrain: 0.35,
   boostRegen: 0.08,
-  jumpV: 4,
+  jumpV: 7.5,
   gravity: 18,
   radius: 1,
   trample: true,
@@ -73,10 +73,10 @@ const BASE_CAMP: CampCfg = {
   sickTime: 10,
   regenTime: 10,
   regenPerSec: 0.5,
-  waveEvery: 20,
+  waveEvery: 22,
   firstWave: 8,
   waveBase: 2,
-  waveGrowth: 1.4,
+  waveGrowth: 1,
   zombieShare: 0.5,
   bloodMoonAt: 0.8,
   bloodMoonCount: 8,
@@ -86,7 +86,12 @@ const BASE_CAMP: CampCfg = {
   heatPerShot: 0,
   heatDecay: 0.05,
   heatMax: 1.5,
-  arrowRecover: 0.6,
+  cacheAmmo: 0,
+  ammoCrates: 5,
+  crateAmount: 5,
+  ammoDropChance: 0.15,
+  ammoDropAmount: 2,
+  arrowRecover: 0.75,
   hurtCooldown: 0.5,
 };
 
@@ -97,7 +102,7 @@ export const HORSE_SPIKE: SpikeCfg = {
   ride: {
     mount: HORSE,
     weapon: BOW,
-    reserve: 24,
+    reserve: 32,
     distance: 900,
     halfWidth: 14,
     hp: 10,
@@ -108,7 +113,14 @@ export const HORSE_SPIKE: SpikeCfg = {
     spawnIntervalEnd: 3,
     parTime: 90,
   },
-  camp: { ...BASE_CAMP, zombieShare: 0.35, heatPerShot: 0 },
+  camp: {
+    ...BASE_CAMP,
+    zombieShare: 0.4,
+    heatPerShot: 0,
+    cacheAmmo: 24,
+    ammoCrates: 8,
+    waveGrowth: 0.65,
+  },
 };
 
 /** Spike 2: dirt bike and rifle. Loud shots, so every shot speeds up the horde. */
@@ -129,7 +141,17 @@ export const BIKE_SPIKE: SpikeCfg = {
     spawnIntervalEnd: 2,
     parTime: 100,
   },
-  camp: { ...BASE_CAMP, zombieShare: 0.7, heatPerShot: 0.08, startWood: 2 },
+  camp: {
+    ...BASE_CAMP,
+    zombieShare: 0.7,
+    heatPerShot: 0.08,
+    startWood: 2,
+    cacheAmmo: 24,
+    crateAmount: 8,
+    ammoDropAmount: 4,
+    ammoDropChance: 0.25,
+    waveGrowth: 0.8,
+  },
 };
 
 export function createRun(cfg: SpikeCfg, seed: number): RunState {

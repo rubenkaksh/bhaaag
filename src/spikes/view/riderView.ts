@@ -3,6 +3,7 @@
 // and calls update() each render frame with values taken from the spike core (src/spikes).
 import { Group, Quaternion, Vector3 } from 'three';
 import { HeroRig } from '../../adapters/render/heroRig';
+import { HERO_HIP_H } from '../../adapters/render/heroPose';
 import { riderLook } from '../../adapters/render/heroLook';
 import { BikeView } from './bike';
 import { BowView } from './bow';
@@ -13,7 +14,7 @@ import { buildRifle } from './rifle';
 export type SpikeKind = 'horse-bow' | 'bike-rifle';
 
 export interface RiderFrame {
-  /** Horse gallop phase in radians, or bike distance in metres (wheel spin). */
+  /** Horse: gallop phase in radians. Bike: metres travelled since the last frame (wheel spin). */
   gait: number;
   /** 0..1 of top speed. */
   speed01: number;
@@ -68,6 +69,15 @@ export class RiderView {
   readonly rifle: Group | null;
   readonly kind: SpikeKind;
   private readonly anchors: RiderAnchors;
+  /** Dismounted: the mount is hidden and the rider stands and walks (camp). */
+  onFoot = false;
+  /** Walk cycle phase in radians and 0..1 of walking speed, used when on foot. */
+  walkPhase = 0;
+  walkSpeed01 = 0;
+  private readonly footL = new Vector3();
+  private readonly footR = new Vector3();
+  private readonly footRest = new Vector3(0.15, 0.95, 0.3);
+  private readonly footSeat = new Vector3();
 
   constructor(kind: SpikeKind, detail: 0 | 1 = 0) {
     this.kind = kind;
@@ -104,11 +114,17 @@ export class RiderView {
   }
 
   update(f: RiderFrame): void {
+    if (this.horse) this.horse.root.visible = !this.onFoot;
+    if (this.bike) this.bike.root.visible = !this.onFoot;
+    if (this.onFoot) {
+      this.updateOnFoot(f);
+      return;
+    }
     const bob = this.horse ? Math.abs(Math.sin(f.gait)) * 0.03 * f.speed01 * (1 - f.air) : 0;
     let lean = 0.1 + 0.12 * f.speed01;
     if (this.horse) this.horse.update(f.gait, f.air, f.speed01);
     if (this.bike) {
-      this.bike.update(f.gait === 0 ? 0 : 0, f.steer, f.steer * f.speed01, 0);
+      this.bike.update(f.gait, f.steer, f.steer * f.speed01, f.air * 0.5);
       this.bike.grip(0, this.anchors.restHand);
       lean += 0.25;
     }
@@ -150,5 +166,58 @@ export class RiderView {
     }
     void _grip;
     void _nock;
+  }
+
+  private updateOnFoot(f: RiderFrame): void {
+    const p = this.walkPhase;
+    const k = this.walkSpeed01;
+    const sw = Math.sin(p) * 0.28 * k;
+    const sw2 = Math.sin(p + Math.PI) * 0.28 * k;
+    const lift = (v: number): number => Math.max(0, Math.cos(v)) * 0.14 * k;
+    this.footL.set(0.11, 0.09 + lift(p), sw);
+    this.footR.set(-0.11, 0.09 + lift(p + Math.PI), sw2);
+    this.footSeat.set(0, HERO_HIP_H + 0.0 - Math.abs(Math.sin(p)) * 0.025 * k, 0);
+    const anchors: RiderAnchors = {
+      seat: this.footSeat,
+      footL: this.footL,
+      footR: this.footR,
+      restHand: this.footRest,
+    };
+    // the pelvis sits at HERO_HIP_H above the ground, so the seat anchor is the standing pelvis
+    applyRiderPose(
+      this.rig,
+      anchors,
+      {
+        weapon: this.horse ? 'bow' : 'rifle',
+        aimYaw: f.aimYaw,
+        aimPitch: f.aimPitch,
+        charge: f.charge,
+        reload: f.reload,
+        recoil: f.recoil,
+        lean: 0.05 + 0.1 * k,
+        bob: 0,
+        flutter: 0.2 + 0.5 * k + Math.sin(f.t * 8) * 0.05 * k,
+      },
+      _wh,
+      _dh,
+    );
+    this.rig.root.position.y = 0;
+    _qy.setFromAxisAngle(_up, f.aimYaw);
+    _qp.setFromAxisAngle(new Vector3(-1, 0, 0), f.aimPitch);
+    _q.copy(_qy).multiply(_qp);
+    const rp = this.rig.root.position;
+    if (this.bow) {
+      this.bow.group.quaternion.copy(_q);
+      this.bow.group.position.copy(_wh).add(rp);
+      this.bow.update(f.charge, f.hasArrow);
+    }
+    if (this.rifle) {
+      _qp.setFromAxisAngle(
+        new Vector3(-1, 0, 0),
+        f.aimPitch + f.recoil * 0.12 - Math.sin(f.reload * Math.PI) * 0.4,
+      );
+      this.rifle.quaternion.copy(_qy).multiply(_qp);
+      this.rifle.position.copy(_wh).add(rp);
+    }
   }
 }
