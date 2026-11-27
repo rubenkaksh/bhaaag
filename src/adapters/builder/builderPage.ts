@@ -615,7 +615,7 @@ export function mountBuilder(root: HTMLElement): void {
       if (!savePlayLevel(compileLevel(hist.present), serializeBuilderLevel(hist.present)))
         throw new Error('storage blocked');
       msg = 'Opened in a new tab.';
-      window.open(location.pathname + '?mode=classic&level=builder', '_blank');
+      window.open(location.pathname + '?mode=classic&level=builder', 'bhaaag-play');
     } catch (err) {
       msg = 'Cannot play: ' + (err instanceof Error ? err.message : String(err));
     }
