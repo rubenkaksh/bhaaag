@@ -7,7 +7,9 @@ import { HERO_HIP_H } from '../../adapters/render/heroPose';
 import { riderLook } from '../../adapters/render/heroLook';
 import { BikeView } from './bike';
 import { BowView } from './bow';
-import { HorseView } from './horse';
+import { HorseView, type HorseLike } from './horse';
+import { HorseGlbView } from './horseGlb';
+import type { Object3D } from 'three';
 import { applyRiderPose, type RiderAnchors } from './riderPose';
 import { buildRifle } from './rifle';
 
@@ -63,7 +65,7 @@ const _nock = new Vector3();
 export class RiderView {
   readonly group = new Group();
   readonly rig: HeroRig;
-  readonly horse: HorseView | null;
+  readonly horse: HorseLike | null;
   readonly bike: BikeView | null;
   readonly bow: BowView | null;
   readonly rifle: Group | null;
@@ -79,12 +81,13 @@ export class RiderView {
   private readonly footRest = new Vector3(0.15, 0.95, 0.3);
   private readonly footSeat = new Vector3();
 
-  constructor(kind: SpikeKind, detail: 0 | 1 = 0) {
+  /** horseGlb: a loaded GLB template (?horse=glb trial); null keeps the primitive pony. */
+  constructor(kind: SpikeKind, detail: 0 | 1 = 0, horseGlb: Object3D | null = null) {
     this.kind = kind;
     const horse = kind === 'horse-bow';
     this.rig = new HeroRig(riderLook(horse ? 'quiver' : 'bandolier', detail));
     if (horse) {
-      this.horse = new HorseView(detail === 1);
+      this.horse = horseGlb ? new HorseGlbView(horseGlb) : new HorseView(detail === 1);
       this.bike = null;
       this.group.add(this.horse.root);
       this.bow = new BowView();

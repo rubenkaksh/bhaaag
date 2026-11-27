@@ -45,7 +45,7 @@ for (const detail of process.env.DETAIL ? [Number(process.env.DETAIL)] : [0, 1])
     const errs = [];
     p.on('pageerror', (e) => errs.push(e.message));
     p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
-    await p.goto(`${base}?kind=${kind}&view=${view}&detail=${detail}${extra}`);
+    await p.goto(`${base}?kind=${kind}&view=${view}&detail=${detail}${extra}${process.env.EXTRA ?? ''}`);
     await p
       .waitForFunction(() => window.__ready === true, null, { timeout: 30000 })
       .catch(() => {});

@@ -51,7 +51,7 @@ for (const spike of ['horse', 'bike']) {
       p.on('pageerror', (e) => errs.push(e.message));
       p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
       await p.goto(
-        `${base}?spike=${spike}&bot=1&seed=${process.env.SEED ?? 4}&shot=1&gfx=${process.env.GFX ?? 'low'}${extra}`,
+        `${base}?spike=${spike}&bot=1&seed=${process.env.SEED ?? 4}&shot=1&gfx=${process.env.GFX ?? 'low'}${extra}${process.env.EXTRA ?? ''}`,
       );
       await p.waitForTimeout(3500);
       const info = await p.evaluate(

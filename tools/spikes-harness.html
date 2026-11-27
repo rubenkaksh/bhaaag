@@ -19,6 +19,7 @@
       } from 'three';
       import { RiderView, neutralFrame } from '/src/spikes/view/riderView.ts';
       import { HeroRig } from '/src/adapters/render/heroRig.ts';
+      import { loadHorseTemplate } from '/src/spikes/view/horseGlb.ts';
       const q = new URLSearchParams(location.search);
       const kind = q.get('kind') ?? 'horse-bow';
       const view = q.get('view') ?? 'side';
@@ -36,7 +37,9 @@
       scene.add(sun);
       scene.add(new AmbientLight('#ffffff', 0.25));
       const isHero = kind === 'hero';
-      const rv = isHero ? { group: new HeroRig({ detail }).root, update() {} } : new RiderView(kind, detail);
+      // &horse=glb: the Wild West Town 3D horse trial (art/spike-assets/horse.glb)
+      const glb = q.get('horse') === 'glb' ? await loadHorseTemplate() : null;
+      const rv = isHero ? { group: new HeroRig({ detail }).root, update() {} } : new RiderView(kind, detail, glb);
       const f = neutralFrame();
       f.charge = Number(q.get('charge') ?? 1);
       f.aimYaw = Number(q.get('yaw') ?? 0);

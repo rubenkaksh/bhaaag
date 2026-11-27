@@ -44,3 +44,27 @@ I found no new asset batch in this checkout beyond the 2026-11-18 painted backdr
 
 ## Update 2026-11-27 (later): hero look and riders
 Hero look shared with the zipline game, rider views, harness and measurements are in `hero-look.md`. The zipline hero itself changed (beanie, face, hemp tunic, scarf and sash knots, bracers, boots), so Bhaaag's hero needs the usual phone check before it counts as done.
+
+## Asset evaluation: `~/projects/sandbox/workspaces/assets-gamedev` (2026-11-27)
+Status ladder: **concept only / inventoried**. Nothing processed, nothing in the repo, nothing engine-verified. Models were not opened; counts come from each pack's `models.json` and README.
+
+**What is there:** 13 packs. Four are music/VFX/ocean for Godot (Aria, Cyberpunk-Music-Set, mega-combat-vfx-kit, emberflash, tidewater x2): not usable in three.js as shipped. Firmament (sky, trees, grass) is Godot/Unity/Defold. The usable ones are generic glTF/FBX: `wild-west-town-3d` (363 low-poly models, 48 px/m pixel textures), `landscape-kit` (20 rocks, walls, timber), `stone-circle` (1 mesh) and the Firmament props.
+
+**Gaps (nothing in any pack):** wolf, boar, deer, rabbit, zombie, runner, brute, tent, dirt bike, bow/rifle/arrow meshes, bow/rifle/wolf/zombie sound effects. Audio is music only. Those stay primitives, as the owner decided.
+
+| Placeholder | Candidate | Triangles | Verdict |
+|---|---|---|---|
+| Horse mount | `wild-west-town-3d/models/glb/vehicles/horse.glb` | 1,416, rigged (`horse_rig`), clips idle/graze | Only real fit. No gallop or ride clip, no saddle slot; needs a hand-made gait. |
+| Fire | `props/campfire_lit.glb` | 1,288, 9 flame meshes + `flicker` clip | Fits the camp. Triangle count is high for the Low tier. |
+| Crates | `props/crate_a/b/big.glb` | 178 / 238 / 558 | Cheap, drop-in. Replaces the current ammo/wood crate boxes. |
+| Hay, bedroll, logpile, sack, barrel | `props/*.glb` | 68 to 1,332 | Optional camp dressing. Bedroll is heavy for what it is. |
+| Rocks, fences, cairn | `landscape-kit`, Firmament props | not read | Ride-corridor dressing; unchecked. |
+| VFX (arrow, fire, muzzle) | mega-combat-vfx-kit | n/a | Godot `.tscn`: reference for timing and colour only. |
+
+**Blockers before any of it ships:**
+1. **Pipeline conflict.** CLAUDE.md and lean-scope drop the GLB pipeline ("primitives only"). Using any GLB needs the owner to lift that for the spikes (GLTFLoader from three's examples, no new dependency, but a new code path and chunk).
+2. **Licence** (`wild-west-town-3d/LICENSE.md`, Out Of Tokens): commercial use, modification and shipping inside a finished build are allowed, even if the project source is public, **provided the assets are not offered as assets in their own right**. Committing the GLBs to this public repo, or leaving them as raw downloadable files in the GitHub Pages build, is the grey zone ("ship the assets inside something, not as something"). Art stays out of git anyway (`art/`, CLAUDE.md), so any use needs a build-time bake to a compact form, or a reading of the licence by the owner. The Defold and Unity Firmament packs carry no licence file of their own. Record each pack in a `SOURCES.tsv` when anything is adopted.
+3. **Style.** 48 px/m pixel-art textures against the painted, lit look of the zipline game (graphics-spec.md). The horse would read as a different game unless retextured with the palette atlas.
+4. **Tier budget.** Low is under 1,500 triangles per hero; horse + rider + campfire already pushes that.
+
+**Recommendation:** keep primitives for every creature, bike and weapon. Optionally trial only the horse and the campfire, retextured to the project palette, behind the owner lifting the GLB rule; the crates are the cheapest win but gain little over the current boxes. Do not adopt anything until the owner answers the pipeline and licence questions above.

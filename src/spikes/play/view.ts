@@ -10,6 +10,7 @@ import {
   Vector2,
   Vector3,
 } from 'three';
+import type { Object3D } from 'three';
 import type { GraphicsTier } from '../../adapters/render/graphicsTier';
 import { riderViewKinds } from './kinds';
 import { creaturePools, groupByKind, Pool, PICKUP_GEO } from './creatures';
@@ -69,10 +70,11 @@ export class SpikeView {
   constructor(
     readonly run: RunState,
     tier: GraphicsTier,
+    horseGlb: Object3D | null = null,
   ) {
     this.world = new SpikeWorld(run.cfg.ride, run.ride.obstacles, run.seed, tier);
     const kind = riderViewKinds(run.cfg.id);
-    this.rider = new RiderView(kind, tier === 'high' ? 1 : 0);
+    this.rider = new RiderView(kind, tier === 'high' ? 1 : 0, horseGlb);
     this.world.add(this.rider.group);
     for (const p of Object.values(this.pools)) this.world.add(p.mesh);
     this.pickups = {

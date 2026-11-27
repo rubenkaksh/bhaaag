@@ -7,10 +7,20 @@ import {
   SphereGeometry,
   Vector3,
 } from 'three';
+import type { Object3D } from 'three';
 import { MOUNT_COLORS as C, joint, packSkinned, part } from './kit';
 
+/** What RiderView needs from a horse: the primitive pony or the GLB trial (horseGlb.ts). */
+export interface HorseLike {
+  readonly root: Object3D;
+  readonly seat: Vector3;
+  readonly stirrup: Vector3[];
+  readonly reins: Vector3;
+  update(phase: number, tuck: number, speed01: number): void;
+}
+
 /** Toy-like mountain pony, about 2 m long. +z is forward. Stock parts, packed to a few skinned draws. */
-export class HorseView {
+export class HorseView implements HorseLike {
   readonly root = new Group();
   readonly body: Group;
   readonly neck: Group;

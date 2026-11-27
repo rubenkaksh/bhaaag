@@ -9,6 +9,7 @@ import { DT, neutralInput } from '../types';
 import { hideEnd, setPhaseClass, showEnd, updateHud } from './hud';
 import { PlayInput } from './input';
 import { SpikeView } from './view';
+import { loadHorseTemplate } from '../view/horseGlb';
 
 const q = new URLSearchParams(location.search);
 const cfg = q.get('spike') === 'bike' ? BIKE_SPIKE : HORSE_SPIKE;
@@ -17,6 +18,8 @@ const botOn = q.get('bot') === '1';
 let seed = Number(q.get('seed') ?? Math.floor(Math.random() * 1e6));
 const ff = Number(q.get('ff') ?? 0);
 const campAt = q.get('campAt') === null ? -1 : Number(q.get('campAt'));
+// ?horse=glb: trial of the Wild West Town 3D horse (art/spike-assets/horse.glb, never committed).
+const horseGlb = q.get('horse') === 'glb' ? await loadHorseTemplate() : null;
 
 const canvas = document.getElementById('c') as HTMLCanvasElement;
 const renderer = new WebGLRenderer({
@@ -49,7 +52,7 @@ function start(): void {
   run = createRun(cfg, seed);
   mem = newBotMem();
   if (view) view.world.dispose();
-  view = new SpikeView(run, tier);
+  view = new SpikeView(run, tier, horseGlb);
   size();
   ended = false;
   lastPhase = '';
