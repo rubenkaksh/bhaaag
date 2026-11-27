@@ -1,7 +1,7 @@
 // Builder level -> MazeNodes -> validation report and ordinary LevelJson (ADR 0014).
 // Edge legality comes from the strategy graph model (graph.ts, tuning-driven); nothing here edits it.
 import { archetype } from '../house/archetypes';
-import { emitHouse, newDraft } from '../house/houseKit';
+import { emitHouse, emitProp, newDraft } from '../house/houseKit';
 import { deckY, validateHouse } from '../house/houseSpec';
 import type { HouseSpec } from '../house/houseSpec';
 import type { LevelJson } from '../load';
@@ -27,6 +27,7 @@ import {
 } from '../strategy/graph';
 import type { BuilderEdge, BuilderHouse, BuilderLevel, GapVia } from './format';
 import { HOUSE_HALF, STOREY_HEIGHT, TOUCH_EPS } from './format';
+import { hayFinish, patchHitsHouse } from './hayFinish';
 import { addEdge, houseById, overlaps } from './model';
 
 // Geometry shared with the generator's emitter (kept numerically identical, gen.ts is frozen).
@@ -85,7 +86,7 @@ export interface NodeSet {
 export function buildNodeSet(l: BuilderLevel): NodeSet {
   const nodes: MazeNode[] = [];
   const roofOf = new Map<number, number>();
-  const cushion = new Set<number>([l.goal]);
+  const cushion = new Set<number>(l.finish === 'hay' ? [] : [l.goal]);
   const tramp = new Set<number>();
   for (const e of l.edges) {
     if (e.via === 'cushion') cushion.add(e.b);
@@ -425,6 +426,37 @@ export function validate(l: BuilderLevel): Report {
       'Choose a different house for the goal.',
       [l.start],
     );
+  const hay = hayFinish(l);
+  if (hay !== null) {
+    const gh = houseById(l, l.goal) as BuilderHouse;
+    const blocked = l.houses.some(
+      (o) =>
+        o.id !== gh.id &&
+        Math.abs(Math.abs(o.z - gh.z) - 2 * HOUSE_HALF) <= TOUCH_EPS &&
+        o.z < gh.z &&
+        Math.abs(o.x - gh.x) < 2 * HOUSE_HALF - TOUCH_EPS,
+    );
+    if (blocked)
+      add(
+        'error',
+        'hayopen',
+        'haystack needs an open downhill side',
+        'The goal house touches a house on its downhill side, so the haystack has no room.',
+        'Move the house below the goal away, or switch the finish to Roof.',
+        [gh.id],
+      );
+    for (const o of l.houses) {
+      if (o.id === gh.id || !patchHitsHouse(hay.patch, o)) continue;
+      add(
+        'error',
+        'haypatch:' + o.id,
+        'haystack patch overlaps house ' + o.id,
+        'The haystack below the goal house overlaps house ' + o.id + '.',
+        'Move house ' + o.id + ' away from the goal house, or switch the finish to Roof.',
+        [gh.id, o.id],
+      );
+    }
+  }
   if (r.errors.length > 0) {
     r.ok = false;
     return r;
@@ -618,6 +650,13 @@ export function compileLevel(l: BuilderLevel): LevelJson {
   for (const e of l.edges) {
     if (e.via === 'boxes' || e.via === 'stairs') emitSteps(ns, e, e.via, solids, style);
   }
+  const hay = hayFinish(l);
+  if (hay !== null) {
+    const p = hay.patch;
+    solids.push(bx(p.x0, p.y - 1, p.z0, p.x1, p.y, p.z1));
+    style.push(0);
+    emitProp(hay.hay, draft);
+  }
   let xMin = Infinity;
   let xMax = -Infinity;
   let zMin = Infinity;
@@ -630,7 +669,9 @@ export function compileLevel(l: BuilderLevel): LevelJson {
   }
   const zEnd = zMin - HAZARD_PAST;
   for (let z = zMax + HAZARD_PAST; z > zEnd; z -= HAZARD_STRIP) {
-    const top = planeY(z) + HAZARD_LIP;
+    let top = planeY(z) + HAZARD_LIP;
+    if (hay !== null && hay.patch.z1 > z - HAZARD_STRIP && hay.patch.z0 < z)
+      top = Math.min(top, hay.patch.y - 0.5);
     hazards.push(
       bx(xMin - HAZARD_MARGIN, top - HAZARD_DEPTH, z - HAZARD_STRIP, xMax + HAZARD_MARGIN, top, z),
     );
@@ -647,7 +688,7 @@ export function compileLevel(l: BuilderLevel): LevelJson {
     style,
     ramps: draft.ramps,
     anchors,
-    goal: bx(gl.x - H, gy, gl.z - H, gl.x + H, gy + GOAL_REACH, gl.z + H),
+    goal: hay !== null ? hay.goal : bx(gl.x - H, gy, gl.z - H, gl.x + H, gy + GOAL_REACH, gl.z + H),
     route: [],
     lineOnly: 1,
     climb: 1,

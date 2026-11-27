@@ -49,6 +49,8 @@ const levelSchema = z
     edges: z.array(edgeSchema),
     start: z.number().int().min(-1),
     goal: z.number().int().min(-1),
+    /** How the level ends: 'roof' (cushion on the goal roof) or 'hay' (haystack below the goal house). Absent = 'roof'. */
+    finish: z.enum(['roof', 'hay']).optional(),
   })
   .superRefine((l, ctx) => {
     const ids = new Set<number>();
