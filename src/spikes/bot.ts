@@ -90,6 +90,7 @@ export function botRide(run: RunState, mem: BotMem): SpikeInput {
     if (dz < -1 || dz > look) continue;
     const reach = o.r + m.radius + 1.2;
     if (Math.abs(o.x - r.x) > reach) continue;
+    if (o.kind === 'log' && m.overLogs === true) continue;
     if (o.kind === 'log' && m.jumpV >= 7) {
       if (dz < 5 && dz > 1.5) inp.jump = true;
       continue;

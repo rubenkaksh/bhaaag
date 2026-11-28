@@ -1,8 +1,11 @@
 // Playable hunting spike (dev and preview only, not in the production build):
-//   /spike.html?spike=horse|bike  [&gfx=low|high] [&seed=N] [&bot=1] [&ff=ticks]
+//   /spike.html?spike=horse|bike  [&gfx=low|high|ultra] [&seed=N] [&bot=1] [&ff=ticks] [&map=off] [&export=heightmap]
+// A painted public/spikes/heightmaps/<horse|bike>.png replaces the noise hills (map=off ignores it);
+// export=heightmap shows the hills as a PNG to paint over instead of the game.
 // bot=1 lets the scripted player drive (used by tools/shots-play.mjs); ff fast-forwards the bot
 // before the first frame so a screenshot can start mid-ride or at camp.
-import { WebGLRenderer } from 'three';
+import { DirectionalLight, Mesh, WebGLRenderer } from 'three';
+import { ultraMaterials, ultraPipeline, type UltraPipeline } from '../view/ultra';
 import { botInput, newBotMem } from '../bot';
 import { createRun, stepRun, BIKE_SPIKE, HORSE_SPIKE, type RunState } from '../run';
 import { DT, neutralInput } from '../types';
@@ -11,14 +14,27 @@ import { PlayInput } from './input';
 import { SpikeView } from './view';
 import { loadHorseTemplate } from '../view/horseGlb';
 import { pixelRatioFor } from '../../adapters/render/graphicsTier';
+import { trailSpecFor } from '../ride';
+import { buildTrailField } from '../trailGen';
+import { loadHillMap, showExport } from './heightmap';
 
 const q = new URLSearchParams(location.search);
 const cfg = q.get('spike') === 'bike' ? BIKE_SPIKE : HORSE_SPIKE;
-const tier = q.get('gfx') === 'high' ? 'high' : 'low';
+// gfx=ultra: the "no limits" look-dev (High geometry plus physical materials, env light, shadows, AO, post)
+const ultra = q.get('gfx') === 'ultra';
+const tier = q.get('gfx') === 'high' || ultra ? 'high' : 'low';
 const botOn = q.get('bot') === '1';
 let seed = Number(q.get('seed') ?? Math.floor(Math.random() * 1e6));
 const ff = Number(q.get('ff') ?? 0);
 const campAt = q.get('campAt') === null ? -1 : Number(q.get('campAt'));
+const mapName = cfg === BIKE_SPIKE ? 'bike' : 'horse';
+const trailSpec = trailSpecFor(cfg.ride);
+const painted =
+  trailSpec !== null && q.get('map') !== 'off' ? await loadHillMap(mapName, trailSpec.seed) : false;
+if (q.get('export') === 'heightmap' && trailSpec !== null) {
+  showExport(buildTrailField(trailSpec), mapName, painted);
+  await new Promise(() => {}); // the export page replaces the game: stop here
+}
 // ?horse=glb: trial of the Wild West Town 3D horse (art/spike-assets/horse.glb, never committed).
 const horseGlb = q.get('horse') === 'glb' ? await loadHorseTemplate() : null;
 
@@ -37,6 +53,8 @@ const stick = document.getElementById('stick') as HTMLElement;
 
 let run: RunState;
 let view: SpikeView;
+let pipe: UltraPipeline | null = null;
+let sun: DirectionalLight | null = null;
 let mem = newBotMem();
 let lastPhase = '';
 let acc = 0;
@@ -50,6 +68,7 @@ function size(): void {
   const h = window.innerHeight;
   renderer.setSize(w, h, false);
   view?.resize(w, h);
+  pipe?.setSize(w, h);
 }
 
 function start(): void {
@@ -57,6 +76,29 @@ function start(): void {
   mem = newBotMem();
   if (view) view.world.dispose();
   view = new SpikeView(run, tier, horseGlb);
+  if (ultra) {
+    ultraMaterials(view.rider.group);
+    sun = null;
+    view.world.scene.traverse((o) => {
+      if (o instanceof Mesh) o.receiveShadow = true;
+      if (o instanceof DirectionalLight && sun === null) sun = o;
+    });
+    if (sun !== null) {
+      const l: DirectionalLight = sun;
+      l.castShadow = true;
+      l.shadow.mapSize.set(2048, 2048);
+      l.shadow.radius = 6;
+      l.shadow.blurSamples = 16;
+      l.shadow.bias = -0.0005;
+      const sc = l.shadow.camera;
+      sc.left = sc.bottom = -10;
+      sc.right = sc.top = 10;
+      sc.near = 1;
+      sc.far = 120;
+      view.world.scene.add(l.target);
+    }
+    pipe = ultraPipeline(renderer, view.world.scene, view.camera, window.innerWidth, window.innerHeight, 0.35, 0.8);
+  }
   size();
   ended = false;
   lastPhase = '';
@@ -112,7 +154,15 @@ function frame(now: number): void {
     hintUntil = performance.now() + 6000;
   }
   view.sync(lastInput, dt);
-  renderer.render(view.world.scene, view.camera);
+  if (pipe !== null) {
+    const rp = view.rider.group.position;
+    if (sun !== null) {
+      const l: DirectionalLight = sun;
+      l.position.set(rp.x - 30, rp.y + 40, rp.z + 20);
+      l.target.position.copy(rp);
+    }
+    pipe.render();
+  } else renderer.render(view.world.scene, view.camera);
   updateHud(run, hintText(), now < hintUntil && !ended);
   const so = input.stickOrigin;
   stick.style.display = so ? 'block' : 'none';

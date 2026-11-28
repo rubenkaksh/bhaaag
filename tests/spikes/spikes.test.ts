@@ -157,6 +157,27 @@ describe('ride', () => {
     expect(attempt(true)).toBe(HORSE_SPIKE.ride.hp);
   });
 
+  it('the bike has no jump and rides over a log unhurt, losing a little speed', () => {
+    const s = run(BIKE_SPIKE.ride);
+    s.enemies = [];
+    s.spawnTimer = 1e9;
+    s.obstacles = [];
+    stepRide(s, inp({ jump: true }), DT);
+    expect(s.vy).toBe(0);
+    s.obstacles = [{ kind: 'log', x: 0, z: 30, r: 1.4, h: 0.8 }];
+    s.speed = 18;
+    s.vz = 18;
+    let before = 0;
+    for (let i = 0; i < 200 && s.z < 40; i++) {
+      if (s.z < 27) before = s.speed;
+      stepRide(s, inp({ throttle: 0 }), DT);
+    }
+    expect(s.z).toBeGreaterThan(35);
+    expect(s.hp).toBe(BIKE_SPIKE.ride.hp);
+    expect(s.crashes).toBe(0);
+    expect(s.speed).toBeLessThan(before);
+  });
+
   it('a ramp launches the bike', () => {
     const s = run(BIKE_SPIKE.ride);
     s.enemies = [];

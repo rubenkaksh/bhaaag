@@ -62,7 +62,8 @@ export const DIRT_BIKE: MountCfg = {
   grip: 4.5,
   boostDrain: 0.35,
   boostRegen: 0.08,
-  jumpV: 7.5,
+  jumpV: 0, // no jump (owner 2026-11-28); logs are ridden over instead
+  overLogs: true,
   gravity: 18,
   radius: 1,
   trample: true,
@@ -121,7 +122,7 @@ export const HORSE_SPIKE: SpikeCfg = {
     halfWidth: 14,
     hp: 10,
     obstacleKinds: ['log', 'log', 'rock', 'mud'],
-    obstacleGap: [22, 38],
+    obstacleGap: [12, 22], // owner 2026-11-28: "a lot more obstacles" (was [22, 38])
     enemyKinds: ['wolf', 'wolf', 'boar'],
     spawnIntervalStart: 7,
     spawnIntervalEnd: 3,
@@ -164,8 +165,8 @@ export const BIKE_SPIKE: SpikeCfg = {
     distance: 1600,
     halfWidth: 16,
     hp: 10,
-    obstacleKinds: ['ramp', 'ramp', 'log', 'rock', 'mud'],
-    obstacleGap: [30, 50],
+    obstacleKinds: ['log', 'log', 'ramp', 'rock', 'mud'],
+    obstacleGap: [16, 28], // "a lot more obstacles" (was [30, 50]); logs are ridden over
     enemyKinds: ['zombie', 'runner', 'zombie', 'wolf'],
     spawnIntervalStart: 5,
     spawnIntervalEnd: 2,

@@ -33,6 +33,8 @@ export interface TrailField {
   nz: number;
   h: Float32Array;
   waterY: number;
+  /** The hills before the trail was carved (same layout as h): what the heightmap export paints. */
+  hills?: Float32Array;
 }
 
 /** Shallow water on the trail (the ford), deep water off it. */

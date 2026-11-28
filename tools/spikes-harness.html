@@ -13,11 +13,14 @@
     <script type="module">
       // Dev-only harness (not part of the build): renders one rider on flat grey light at a reference
       // camera so tools/shots-spikes.mjs can compare it with the GPT reference images.
+      // &ultra=1: the "no limits" look (physical materials, studio env light, soft shadows, AO, bloom, SMAA)
       // ?kind=horse-bow|bike-rifle &view=side|three|front|back &detail=0|1 &charge=0..1 &yaw=rad &pitch=rad &air=0..1
       import {
         AmbientLight, DirectionalLight, HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer, Color, Vector3,
       } from 'three';
+      import { Mesh, PlaneGeometry, ShadowMaterial } from 'three';
       import { RiderView, neutralFrame } from '/src/spikes/view/riderView.ts';
+      import { ultraMaterials, ultraPipeline } from '/src/spikes/view/ultra.ts';
       import { HeroRig } from '/src/adapters/render/heroRig.ts';
       import { loadHorseTemplate } from '/src/spikes/view/horseGlb.ts';
       const q = new URLSearchParams(location.search);
@@ -31,11 +34,27 @@
       renderer.setPixelRatio(1);
       const scene = new Scene();
       scene.background = new Color('#858585');
-      scene.add(new HemisphereLight('#fff4e0', '#8a8a90', 1.0));
-      const sun = new DirectionalLight('#ffffff', 1.4);
+      const ultra = q.get('ultra') === '1';
+      const sun = new DirectionalLight('#ffffff', ultra ? 2.0 : 1.4);
       sun.position.set(-4, 7, 5);
       scene.add(sun);
-      scene.add(new AmbientLight('#ffffff', 0.25));
+      if (!ultra) {
+        scene.add(new HemisphereLight('#fff4e0', '#8a8a90', 1.0));
+        scene.add(new AmbientLight('#ffffff', 0.25));
+      } else {
+        scene.add(new HemisphereLight('#fff8ee', '#9a9aa0', 0.35));
+        sun.castShadow = true;
+        sun.shadow.mapSize.set(2048, 2048);
+        sun.shadow.radius = 10;
+        sun.shadow.blurSamples = 20;
+        sun.shadow.bias = -0.0005;
+        const sc = sun.shadow.camera;
+        sc.left = sc.bottom = -4; sc.right = sc.top = 4; sc.near = 1; sc.far = 25;
+        const floor = new Mesh(new PlaneGeometry(40, 40), new ShadowMaterial({ opacity: 0.28 }));
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+      }
       const isHero = kind === 'hero';
       // &horse=glb: the Wild West Town 3D horse trial (art/spike-assets/horse.glb)
       const glb = q.get('horse') === 'glb' ? await loadHorseTemplate() : null;
@@ -48,6 +67,7 @@
       f.gait = Number(q.get('gait') ?? 0.9);
       f.speed01 = Number(q.get('speed') ?? 0.85);
       f.t = 0.4;
+      if (ultra) ultraMaterials(rv.group);
       rv.update(f);
       scene.add(rv.group);
       const cam = new PerspectiveCamera(22, 1, 0.1, 100);
@@ -56,7 +76,8 @@
       const pos = { side: [-R, target.y, 0.1], three: [R * 0.5, target.y + R * 0.18, R * 0.87], front: [0, target.y, R], back: [0, target.y + 0.5, -R] }[view];
       cam.position.set(pos[0], pos[1], pos[2]);
       cam.lookAt(target);
-      renderer.render(scene, cam);
+      if (ultra) ultraPipeline(renderer, scene, cam, size, size, 0.55).render();
+      else renderer.render(scene, cam);
       window.__info = { calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
       window.__ready = true;
     </script>

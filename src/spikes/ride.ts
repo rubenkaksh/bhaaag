@@ -27,7 +27,10 @@ export interface MountCfg {
   /** Boost meter per second, 0..1. */
   boostDrain: number;
   boostRegen: number;
+  /** Jump take-off speed; 0 = no jump (the bike, owner 2026-11-28: "bikes don't really jump"). */
   jumpV: number;
+  /** Rides over logs with a bump instead of crashing (dirt bike: "can go through logs with their build"). */
+  overLogs?: boolean;
   gravity: number;
   radius: number;
   /** Bike runs zombies over above 8 m/s. */
@@ -131,6 +134,8 @@ const OBSTACLE_SHAPE: Record<ObstacleKind, { r: number; h: number }> = {
 };
 const CRASH_DAMAGE: Record<ObstacleKind, number> = { log: 1, rock: 2, ramp: 0, mud: 0 };
 const HURT_COOLDOWN = 1;
+/** Speed kept rolling a bike over a log. */
+const LOG_ROLL_KEEP = 0.85;
 const TRAMPLE_SPEED = 8;
 const BOOST_MIN = 0.05;
 const BOOST_RECOVER = 0.3;
@@ -343,7 +348,7 @@ export function stepRide(s: RideState, input: SpikeInput, dt: number): void {
     const k = 1 - Math.exp(-m.grip * dt);
     s.vx += (fx - s.vx) * k;
     s.vz += (fz - s.vz) * k;
-    if (input.jump) s.vy = m.jumpV;
+    if (input.jump && m.jumpV > 0) s.vy = m.jumpV;
   }
   s.x += s.vx * dt;
   s.z += s.vz * dt;
@@ -387,6 +392,12 @@ export function stepRide(s: RideState, input: SpikeInput, dt: number): void {
       s.speed = Math.min(s.speed, m.maxSpeed * 0.5);
     } else if (o.kind === 'ramp') {
       if (grounded && s.speed > 3) s.vy = 3 + s.speed * 0.25;
+    } else if (o.kind === 'log' && m.overLogs === true) {
+      // the bike rolls over: a bump and a little speed lost, once per log (airborne after the bump)
+      if (grounded && s.vy <= 0) {
+        s.vy = 2.5;
+        s.speed *= LOG_ROLL_KEEP;
+      }
     } else if (s.y - s.ground < o.h) {
       const nd = d > 1e-6 ? d : 1;
       // a crash only when riding into it; touching it slowly just slides you off (no pinning)

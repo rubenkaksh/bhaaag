@@ -132,3 +132,23 @@ Not verified in a browser or on a phone yet.
   back out of; the horse loses at sundown (dark), the bike can go on with a headlight but it gets very hard; cliffs and
   hard ground the owner wants to design himself; he wants the full current terrain look described and to know
   whether it can be shaped his way (see `docs/spikes/terrain-visuals.md`).
+
+### Built on `claude/bhaaag-two-phase` (2026-11-28, not committed yet)
+- Bike: `jumpV 0` (no jump; the JUMP button hides) and `overLogs: true`: a log gives a 2.5 m/s bump and keeps 85 % of
+  the speed, no damage. The horse keeps its jump. Boost unchanged on both.
+- More obstacles: horse gap [12, 22] m (was [22, 38]), bike [16, 28] (was [30, 50]); the bike's mix is now
+  log, log, ramp, rock, mud. Course counts on seed 1: horse 36 → 56, bike 38 → 76.
+- Bot over 12 seeds: both reach camp 12/12. Dawns fell: horse 5 → 3, bike 7 → 4, because crashes doubled
+  (horse 20 → 44). The ride is harder, as asked; the camp may need a balance pass once the owner has played it.
+- Tests 43/43 in `tests/spikes` (new: the bike has no jump and rides over a log); lint and typecheck clean.
+
+### Next designs (scout-first, Rule 5)
+- Terrain shaping is covered by the 2026-11-27 scout entry (`~/knowledge/scout/games/ride-trails-terrain-threejs.md`,
+  fresh until 2027-02-25). THREE.Terrain imports a painted heightmap image, so no new library is needed.
+  The options are in `docs/spikes/terrain-visuals.md` section 7.
+- Maze trails (branches, dead ends, riding back) and sundown (horse out at dark, bike with a headlight) are new
+  game design, not library questions. They need the owner's layout and rules first; scout them when one is picked.
+- Owner picked "Painted heightmap" (2026-11-28): built. A painted `public/spikes/heightmaps/<horse|bike>.png`
+  replaces the noise hills; `?export=heightmap` gives the starting PNG and a guide. How-to:
+  `docs/spikes/terrain-visuals.md` section 8. Tests 45/45 in `tests/spikes`; full suite 1071/1072 (the
+  nagarkot-home route bot failure is pre-existing).

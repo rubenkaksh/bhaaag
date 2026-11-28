@@ -22,6 +22,8 @@ export function setPhaseClass(phase: string): void {
 }
 
 export function updateHud(run: RunState, melee: string, hintOn: boolean): void {
+  // the bike has no jump (owner 2026-11-28): hide the button
+  document.body.classList.toggle('nojump', run.cfg.ride.mount.jumpV <= 0);
   const ride = run.ride;
   const camp = run.camp;
   const inCamp = camp !== null && run.phase !== 'ride';
