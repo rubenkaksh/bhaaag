@@ -3,7 +3,7 @@
 Owner request 2026-11-27. Isolated spike code (owner choice): `src/spikes/`, tests in `tests/spikes/`. Nothing in `src/app` or `src/adapters` imports it, so the lobby, the mode registry, PRODUCT.md and the 255 KB initial-chunk budget are untouched. Both spikes sit outside the current Non-goals (melee is backlog, no new modes), so they stay throwaway until the owner amends PRODUCT.md.
 
 ## Loop (both spikes)
-1. **Ride** to the camp site (horse 900 m, bike 1600 m): steer, boost, jump logs, ramps launch the bike, mud slows. Aim is independent of heading. Enemies come from ahead and behind, faster the further you ride. Arrive under `parTime` for one bonus wood. HP, weapon and ammo carry into camp.
+1. **Ride** to the camp site (horse 900 m, bike 1600 m) on a fixed trail per spike over THREE.Terrain hills (2026-11-27, `docs/spikes/trails-plan.md`): uphills slow, downhills speed up, one river ford, boulders on the banks. 3 lives: a fall (bend too fast, steep side slope, ford too fast, deep water) respawns 8 m back. Steer, boost, jump logs, ramps launch the bike, mud slows. Aim is independent of heading. Enemies come from ahead and behind, faster the further you ride. Arrive under `parTime` for one bonus wood. HP, weapon and ammo carry into camp.
 2. **Camp night** (240 s, dusk to dawn): fire, wood piles, hunting, cooking, health.
 3. **Dawn** = win, HP 0 = dead. Instant restart, same as the main game.
 

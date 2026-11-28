@@ -3,6 +3,8 @@
 // winnable and by the playable spike's attract/auto mode. Pure TS, deterministic.
 import { ENEMY_DEFS, type Enemy } from './enemies';
 import type { RunState } from './run';
+import { trailX, waterDepth } from './trail';
+import { safeSteer } from './ride';
 import { neutralInput, type SpikeInput } from './types';
 
 export interface BotMem {
@@ -78,23 +80,29 @@ export function botRide(run: RunState, mem: BotMem): SpikeInput {
   const r = run.ride;
   const inp = neutralInput();
   const m = r.cfg.mount;
-  let targetX = 0;
+  const cx = (z: number): number => (r.trail === null ? 0 : trailX(r.trail.spec, z));
+  let targetX: number | null = null;
   let slow = false;
+  // look about 1.6 s ahead (the trail packs obstacles into a narrower band than the old corridor)
+  const look = Math.max(22, r.speed * 1.6 + 6);
   for (const o of r.obstacles) {
     const dz = o.z - r.z;
-    if (dz < -1 || dz > 22) continue;
-    const reach = o.r + m.radius + 0.8;
+    if (dz < -1 || dz > look) continue;
+    const reach = o.r + m.radius + 1.2;
     if (Math.abs(o.x - r.x) > reach) continue;
     if (o.kind === 'log' && m.jumpV >= 7) {
       if (dz < 5 && dz > 1.5) inp.jump = true;
       continue;
     }
     if (o.kind === 'ramp') continue;
-    targetX = o.x + (r.x >= o.x ? reach : -reach);
-    if (dz < 14 && o.kind === 'rock') slow = true;
+    // pass on the side nearer the trail centre unless already well past the other side
+    const c = cx(o.z);
+    const side = Math.abs(r.x - o.x) > reach * 0.6 ? Math.sign(r.x - o.x) : Math.sign(c - o.x) || 1;
+    targetX = o.x + side * reach;
+    if (dz < look * 0.6 && o.kind === 'rock') slow = true;
   }
-  // bleed toward the corridor centre when nothing is in the way
-  if (targetX === 0) targetX = r.x * 0.5;
+  // follow the trail centreline a little ahead when nothing is in the way
+  if (targetX === null) targetX = r.trail === null ? r.x * 0.5 : cx(r.z + 6);
   let nearDz = 14;
   for (const o of r.obstacles) {
     const dz = o.z - r.z;
@@ -108,9 +116,19 @@ export function botRide(run: RunState, mem: BotMem): SpikeInput {
       nearDz = Math.max(3, dz);
   }
   const want = Math.atan2(targetX - r.x, nearDz);
-  inp.steer = Math.max(-1, Math.min(1, (want - r.heading) * 4));
-  inp.throttle = slow ? 0.5 : 1;
-  inp.boost = !slow && r.boost > 0.4;
+  const lim = r.trail === null ? 1 : safeSteer(r) * 0.9;
+  inp.steer = Math.max(-lim, Math.min(lim, (want - r.heading) * 4));
+  inp.throttle = slow ? (r.speed > m.maxSpeed * 0.6 ? -0.4 : 0.5) : 1;
+  inp.boost = !slow && r.boost > 0.4 && r.grade > -0.04;
+  // ease off for the ford: brake to a safe speed before the water
+  if (r.trail !== null) {
+    let wetAhead = false;
+    for (let d = 2; d <= 30; d += 2) if (waterDepth(r.trail, cx(r.z + d), r.z + d) > 0.05) wetAhead = true;
+    if (wetAhead && r.water <= 0.05 && r.speed > m.fordSafe - 2) {
+      inp.throttle = -1;
+      inp.boost = false;
+    }
+  }
   // shoot the nearest hostile ahead or behind
   const e = nearest(r.enemies, r.x, r.z, true, 70);
   if (e !== null) {

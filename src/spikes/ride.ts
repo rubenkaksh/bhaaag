@@ -1,5 +1,6 @@
 import { ENEMY_DEFS, spawnEnemy, stepEnemy, type Enemy, type EnemyKind } from './enemies';
 import { Rng } from './rng';
+import { groundY, trailHeading, trailX, waterDepth, type TrailField, type TrailSpec } from './trail';
 import type { SpikeInput } from './types';
 import {
   createWeapon,
@@ -31,7 +32,16 @@ export interface MountCfg {
   radius: number;
   /** Bike runs zombies over above 8 m/s. */
   trample: boolean;
+  /** Falls (trails): lateral load speed * yaw rate (m/s^2) that throws you on flat ground; less downhill. */
+  fallLat: number;
+  /** Side slope (rise over run across the heading) that rolls you over. */
+  sideMax: number;
+  /** Hitting the ford faster than this (m/s) is a fall. */
+  fordSafe: number;
 }
+
+/** A spike's trail shape; distance and camp come from the ride config. */
+export type TrailShape = Omit<TrailSpec, 'distance' | 'campZ'>;
 
 export type ObstacleKind = 'log' | 'rock' | 'ramp' | 'mud';
 
@@ -60,7 +70,15 @@ export interface RideCfg {
   spawnIntervalEnd: number;
   /** Arrive faster than this for a bonus wood bundle at camp. */
   parTime: number;
+  /** Chance of a boulder on the trail bank after each trail obstacle (trails only). */
+  bankRocks?: number;
+  /** Falls allowed before the ride ends (owner 2026-11-27: 3 lives). */
+  lives: number;
+  /** Absent: the old flat corridor along x = 0 (unit tests). */
+  trail?: TrailShape;
 }
+
+export type FallCause = 'bend' | 'slope' | 'ford' | 'river';
 
 export interface RideState {
   cfg: RideCfg;
@@ -90,6 +108,19 @@ export interface RideState {
   weapon: WeaponState;
   finished: boolean;
   dead: boolean;
+  trail: TrailField | null;
+  /** Ground height under the mount; y is absolute. */
+  ground: number;
+  /** Grade along the heading (+ uphill) and water depth under the mount, for the view and HUD. */
+  grade: number;
+  water: number;
+  lives: number;
+  falls: number;
+  /** > 0 while down after a fall; respawn when it runs out. */
+  fallT: number;
+  /** 0..1 balance lost to over-hard turning; a fall at 1. The view wobbles the mount with it. */
+  tip: number;
+  fallCause: FallCause | null;
 }
 
 const OBSTACLE_SHAPE: Record<ObstacleKind, { r: number; h: number }> = {
@@ -103,17 +134,64 @@ const HURT_COOLDOWN = 1;
 const TRAMPLE_SPEED = 8;
 const BOOST_MIN = 0.05;
 const BOOST_RECOVER = 0.3;
+/** Grade pull along the slope, m/s^2 per unit grade. */
+const GRADE_G = 6;
+const UPHILL_CAP = 2.5;
+const DOWNHILL_CAP = 1.5;
+const DOWNHILL_FALL = 2.5;
+const ROUGH_CAP = 0.75;
+const FALL_TIME = 1.4;
+/** Most live enemies within 60 m of the rider before spawns pause. */
+const MAX_PACK = 3;
+const RESPAWN_BACK = 8;
+const RESPAWN_GRACE = 2;
+/** Tip meter: gain per second per unit of overload, and recovery per second. */
+const TIP_GAIN = 2;
+const TIP_RECOVER = 1.5;
 
-export function createRide(cfg: RideCfg, seed: number): RideState {
+/** Largest |steer| that does not overload the turn at the current speed and grade. */
+export function safeSteer(s: RideState): number {
+  const m = s.cfg.mount;
+  const rate = m.turnLow + (m.turnHigh - m.turnLow) * Math.min(1, s.speed / m.maxSpeed);
+  const limit = m.fallLat * Math.max(0.35, 1 + DOWNHILL_FALL * Math.min(0, s.grade));
+  return s.speed * rate <= 1e-6 ? 1 : Math.min(1, limit / (s.speed * rate));
+}
+
+export function trailSpecFor(cfg: RideCfg): TrailSpec | null {
+  if (cfg.trail === undefined) return null;
+  return { ...cfg.trail, distance: cfg.distance, campZ: cfg.distance + 40 };
+}
+
+const centreX = (s: RideState, z: number): number =>
+  s.trail === null ? 0 : trailX(s.trail.spec, z);
+const groundAt = (s: RideState, x: number, z: number): number =>
+  s.trail === null ? 0 : groundY(s.trail, x, z);
+
+export function createRide(cfg: RideCfg, seed: number, trail: TrailField | null = null): RideState {
   const rng = new Rng(seed);
   const obstacles: Obstacle[] = [];
-  let z = 40;
+  let z = trail === null ? 40 : 60;
   while (z < cfg.distance - 30) {
     const kind = cfg.obstacleKinds[Math.floor(rng.next() * cfg.obstacleKinds.length)];
     const shape = OBSTACLE_SHAPE[kind];
-    obstacles.push({ kind, x: rng.range(-0.8, 0.8) * cfg.halfWidth, z, r: shape.r, h: shape.h });
+    if (trail === null) {
+      obstacles.push({ kind, x: rng.range(-0.8, 0.8) * cfg.halfWidth, z, r: shape.r, h: shape.h });
+    } else {
+      // on or beside the dirt band, never in the river valley; a boulder on the bank every so often
+      const sp = trail.spec;
+      const off = rng.range(-1, 1) * (sp.band + 2);
+      const nearFord = Math.abs(z - sp.ford.z) < sp.ford.halfWidth + 30;
+      if (!nearFord) obstacles.push({ kind, x: trailX(sp, z) + off, z, r: shape.r, h: shape.h });
+      if (!nearFord && rng.next() < (cfg.bankRocks ?? 0.5)) {
+        const side = rng.next() < 0.5 ? -1 : 1;
+        const bz = z + cfg.obstacleGap[0] * 0.5;
+        const bx = trailX(sp, bz) + side * rng.range(sp.band + 3, cfg.halfWidth - 2);
+        obstacles.push({ kind: 'rock', x: bx, z: bz, r: OBSTACLE_SHAPE.rock.r, h: OBSTACLE_SHAPE.rock.h });
+      }
+    }
     z += rng.range(cfg.obstacleGap[0], cfg.obstacleGap[1]);
   }
+  const g0 = trail === null ? 0 : groundY(trail, 0, 0);
   return {
     cfg,
     rng,
@@ -123,7 +201,7 @@ export function createRide(cfg: RideCfg, seed: number): RideState {
     vx: 0,
     vz: 0,
     speed: 0,
-    y: 0,
+    y: g0,
     vy: 0,
     boost: 1,
     exhausted: false,
@@ -142,7 +220,48 @@ export function createRide(cfg: RideCfg, seed: number): RideState {
     weapon: createWeapon(cfg.weapon, cfg.reserve),
     finished: false,
     dead: false,
+    trail,
+    ground: g0,
+    grade: 0,
+    water: 0,
+    lives: cfg.lives,
+    falls: 0,
+    fallT: 0,
+    tip: 0,
+    fallCause: null,
   };
+}
+
+/** A fall costs a life; the last one ends the ride. */
+function fall(s: RideState, cause: FallCause): void {
+  s.falls += 1;
+  s.lives -= 1;
+  s.fallCause = cause;
+  s.speed = 0;
+  s.vx = 0;
+  s.vz = 0;
+  s.vy = 0;
+  if (s.lives <= 0) {
+    s.lives = 0;
+    s.dead = true;
+  } else s.fallT = FALL_TIME;
+}
+
+/** Back on the trail a few metres behind the fall, out of the water, facing along the trail. */
+function respawn(s: RideState): void {
+  let z = Math.max(0, s.z - RESPAWN_BACK);
+  if (s.trail !== null) {
+    for (let k = 0; k < 40 && z > 0 && waterDepth(s.trail, centreX(s, z), z) > 0; k++)
+      z = Math.max(0, z - 3);
+  }
+  s.z = z;
+  s.x = centreX(s, z);
+  s.heading = s.trail === null ? 0 : trailHeading(s.trail.spec, z);
+  s.ground = groundAt(s, s.x, s.z);
+  s.y = s.ground;
+  s.hurtCd = RESPAWN_GRACE;
+  s.tip = 0;
+  for (const e of s.enemies) if (Math.hypot(e.x - s.x, e.z - s.z) < 14) e.dead = true;
 }
 
 function hurt(s: RideState, dmg: number): void {
@@ -160,7 +279,25 @@ export function stepRide(s: RideState, input: SpikeInput, dt: number): void {
   const m = s.cfg.mount;
   s.time += dt;
   s.hurtCd = Math.max(0, s.hurtCd - dt);
-  const grounded = s.y <= 0 && s.vy <= 0;
+  if (s.fallT > 0) {
+    s.fallT -= dt;
+    if (s.fallT <= 0) {
+      s.fallT = 0;
+      respawn(s);
+    }
+    return;
+  }
+  const grounded = s.y <= s.ground + 0.01 && s.vy <= 0;
+  const sh = Math.sin(s.heading);
+  const ch = Math.cos(s.heading);
+  // grade along the heading and side slope across it, sampled 1.5 m each way
+  s.grade =
+    (groundAt(s, s.x + sh * 1.5, s.z + ch * 1.5) - groundAt(s, s.x - sh * 1.5, s.z - ch * 1.5)) / 3;
+  const side =
+    (groundAt(s, s.x + ch * 1.5, s.z - sh * 1.5) - groundAt(s, s.x - ch * 1.5, s.z + sh * 1.5)) / 3;
+  const lat = Math.abs(s.x - centreX(s, s.z));
+  const wasWet = s.water > 0.05;
+  s.water = s.trail === null ? 0 : waterDepth(s.trail, s.x, s.z);
 
   // Boost meter: drains while held, locks out at empty until it recovers a little.
   const wantBoost = input.boost && !s.exhausted && s.boost > BOOST_MIN && input.throttle > 0;
@@ -174,8 +311,12 @@ export function stepRide(s: RideState, input: SpikeInput, dt: number): void {
 
   if (grounded) {
     const rate = m.turnLow + (m.turnHigh - m.turnLow) * Math.min(1, s.speed / m.maxSpeed);
-    s.heading += Math.max(-1, Math.min(1, input.steer)) * rate * dt;
-    const top = wantBoost ? m.boostSpeed : m.maxSpeed;
+    const yaw = Math.max(-1, Math.min(1, input.steer)) * rate;
+    s.heading += yaw * dt;
+    let top = wantBoost ? m.boostSpeed : m.maxSpeed;
+    top *= s.grade > 0 ? 1 - UPHILL_CAP * s.grade : 1 - DOWNHILL_CAP * s.grade;
+    if (s.trail !== null && lat > s.trail.spec.band + 1) top *= ROUGH_CAP;
+    if (s.water > 0.05) top *= 0.45;
     if (input.throttle > 0) {
       const target = top * input.throttle;
       s.speed =
@@ -187,6 +328,16 @@ export function stepRide(s: RideState, input: SpikeInput, dt: number): void {
     } else {
       s.speed = Math.max(0, s.speed - m.drag * dt);
     }
+    s.speed = Math.max(0, Math.min(m.boostSpeed * 1.2, s.speed - GRADE_G * s.grade * dt));
+    if (s.water > 0.05) s.speed = Math.max(0, s.speed - 6 * dt);
+    // falls: a hard turn at speed (worse downhill), a steep side slope, the ford too fast, deep water
+    const limit = m.fallLat * Math.max(0.35, 1 + DOWNHILL_FALL * Math.min(0, s.grade));
+    const over = (s.speed * Math.abs(yaw)) / limit - 1;
+    s.tip = over > 0 ? s.tip + over * TIP_GAIN * dt : Math.max(0, s.tip - TIP_RECOVER * dt);
+    if (s.tip >= 1) return fall(s, 'bend');
+    if (Math.abs(side) > m.sideMax && s.speed > 3) return fall(s, 'slope');
+    if (s.water > 0.05 && !wasWet && s.speed > m.fordSafe) return fall(s, 'ford');
+    if (s.water > 1) return fall(s, 'river');
     const fx = Math.sin(s.heading) * s.speed;
     const fz = Math.cos(s.heading) * s.speed;
     const k = 1 - Math.exp(-m.grip * dt);
@@ -194,21 +345,32 @@ export function stepRide(s: RideState, input: SpikeInput, dt: number): void {
     s.vz += (fz - s.vz) * k;
     if (input.jump) s.vy = m.jumpV;
   }
-  s.vy -= m.gravity * dt;
-  s.y += s.vy * dt;
-  if (s.y <= 0) {
-    s.y = 0;
-    s.vy = 0;
-  }
   s.x += s.vx * dt;
   s.z += s.vz * dt;
 
-  // Corridor walls scrub speed instead of killing.
+  // Corridor walls either side of the trail scrub speed instead of killing.
   const hw = s.cfg.halfWidth;
-  if (Math.abs(s.x) > hw) {
-    s.x = Math.sign(s.x) * hw;
-    s.vx *= 0.5;
-    s.speed *= 0.97;
+  const cx = centreX(s, s.z);
+  if (Math.abs(s.x - cx) > hw) {
+    const out = Math.sign(s.x - cx);
+    s.x = cx + out * hw;
+    // scrub only while pushing outward, so riding along the wall as the trail bends away is not a trap
+    if (s.vx * out > 0) {
+      s.vx *= 0.5;
+      s.speed *= 0.97;
+    }
+  }
+  s.ground = groundAt(s, s.x, s.z);
+  if (grounded && s.vy <= 0) {
+    // stay on the ground over crests and dips
+    s.y = s.ground;
+  } else {
+    s.vy -= m.gravity * dt;
+    s.y += s.vy * dt;
+  }
+  if (s.y <= s.ground) {
+    s.y = s.ground;
+    s.vy = 0;
   }
   if (s.z < 0) {
     s.z = 0;
@@ -225,13 +387,22 @@ export function stepRide(s: RideState, input: SpikeInput, dt: number): void {
       s.speed = Math.min(s.speed, m.maxSpeed * 0.5);
     } else if (o.kind === 'ramp') {
       if (grounded && s.speed > 3) s.vy = 3 + s.speed * 0.25;
-    } else if (s.y < o.h) {
-      hurt(s, CRASH_DAMAGE[o.kind]);
-      s.crashes += 1;
-      s.speed *= 0.35;
-      s.vx *= 0.35;
-      s.vz *= 0.35;
+    } else if (s.y - s.ground < o.h) {
       const nd = d > 1e-6 ? d : 1;
+      // a crash only when riding into it; touching it slowly just slides you off (no pinning)
+      const into = -(s.vx * dx + s.vz * dz) / nd;
+      if (into > 2) {
+        hurt(s, CRASH_DAMAGE[o.kind]);
+        s.crashes += 1;
+        s.speed *= 0.35;
+        s.vx *= 0.35;
+        s.vz *= 0.35;
+      } else if (into > 0) {
+        // slide along it: drop the velocity into the obstacle and the speed with it
+        s.vx += (into * dx) / nd;
+        s.vz += (into * dz) / nd;
+        s.speed = Math.min(s.speed, Math.hypot(s.vx, s.vz));
+      }
       s.x = o.x + (dx / nd) * (o.r + m.radius);
       s.z = o.z + (dz / nd) * (o.r + m.radius);
     }
@@ -256,14 +427,21 @@ export function stepRide(s: RideState, input: SpikeInput, dt: number): void {
     const kinds = s.cfg.enemyKinds;
     const kind = kinds[Math.floor(s.rng.next() * kinds.length)];
     const ahead = s.rng.next() < 0.5;
-    const ex = Math.max(-hw, Math.min(hw, s.x + s.rng.range(-8, 8)));
-    s.enemies.push(spawnEnemy(s.nextId++, kind, ex, s.z + (ahead ? 45 : -40)));
+    const ez = s.z + (ahead ? 45 : -40);
+    const ecx = centreX(s, ez);
+    const ex = Math.max(ecx - hw, Math.min(ecx + hw, ecx + (s.x - cx) + s.rng.range(-8, 8)));
+    // Nothing spawns in the river, and the pack stays small: a slow climb out of the ford must not
+    // pile up enemies (time-based spawns outpace a rider who is crawling uphill).
+    const wet = s.trail !== null && waterDepth(s.trail, ex, ez) > 0;
+    let live = 0;
+    for (const e of s.enemies) if (!e.dead && Math.abs(e.z - s.z) < 60) live++;
+    if (!wet && live < MAX_PACK) s.enemies.push(spawnEnemy(s.nextId++, kind, ex, ez));
   }
   for (const e of s.enemies) {
     if (e.dead) continue;
     stepEnemy(e, s.x, s.z, null, dt);
     const def = ENEMY_DEFS[e.kind];
-    if (!def.hostile || s.y > 1) continue;
+    if (!def.hostile || s.y - s.ground > 1) continue;
     if (Math.hypot(e.x - s.x, e.z - s.z) < def.radius + m.radius) {
       if (m.trample && s.speed > TRAMPLE_SPEED && e.kind !== 'brute') {
         e.dead = true;

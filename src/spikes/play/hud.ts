@@ -1,5 +1,14 @@
 // DOM HUD for the spike page. Plain element updates, no framework.
 import type { RunState } from '../run';
+import type { FallCause } from '../ride';
+
+/** What the rider did wrong, in the player's words. */
+const FALL_TEXT: Record<FallCause, string> = {
+  bend: 'Too fast into that bend',
+  slope: 'Too steep across the slope',
+  ford: 'Hit the ford too fast: slow down for water',
+  river: 'Deep water: cross at the ford',
+};
 
 const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
 const fill = (id: string, v: number): void => {
@@ -26,7 +35,8 @@ export function updateHud(run: RunState, melee: string, hintOn: boolean): void {
   if (!inCamp) {
     fill('boostbar', ride.boost);
     $('ptitle').textContent = 'Ride to camp';
-    $('sub').textContent = `${Math.max(0, Math.round(ride.cfg.distance - ride.z))} m to go`;
+    const hearts = '♥'.repeat(ride.lives) + '♡'.repeat(Math.max(0, ride.cfg.lives - ride.lives));
+    $('sub').textContent = `${hearts} · ${Math.max(0, Math.round(ride.cfg.distance - ride.z))} m to go`;
   } else if (camp !== null) {
     const left = Math.max(0, camp.cfg.nightLength - camp.t);
     $('ptitle').textContent = run.phase === 'dawn' ? 'Dawn' : 'Night at camp';
@@ -37,8 +47,9 @@ export function updateHud(run: RunState, melee: string, hintOn: boolean): void {
     fill('fuelbar', camp.fuel / camp.cfg.fuelMax);
   }
   const h = $('hint');
-  h.style.opacity = hintOn ? '1' : '0';
-  h.textContent = melee;
+  const fell = !inCamp && ride.fallT > 0 && ride.fallCause !== null;
+  h.style.opacity = hintOn || fell ? '1' : '0';
+  h.textContent = fell && ride.fallCause !== null ? `Fell! ${FALL_TEXT[ride.fallCause]}` : melee;
 }
 
 export function showEnd(run: RunState): void {
@@ -55,7 +66,11 @@ export function showEnd(run: RunState): void {
     $('endTitle').textContent = camp === null ? 'You fell on the ride' : 'The night won';
     $('endSub').textContent =
       camp === null
-        ? `${Math.round(run.ride.z)} m of ${run.ride.cfg.distance} m`
+        ? `${Math.round(run.ride.z)} m of ${run.ride.cfg.distance} m${
+            run.ride.lives <= 0 && run.ride.fallCause !== null
+              ? ` · ${FALL_TEXT[run.ride.fallCause].toLowerCase()}`
+              : ''
+          }`
         : `survived ${Math.round(camp.t)} s · ${camp.kills} kills`;
   }
 }

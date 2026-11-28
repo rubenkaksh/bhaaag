@@ -16,6 +16,7 @@ import { riderViewKinds } from './kinds';
 import { creaturePools, groupByKind, Pool, PICKUP_GEO } from './creatures';
 import { SpikeWorld } from './world';
 import type { RunState } from '../run';
+import { trailHeading } from '../trail';
 import { RiderView, neutralFrame, type RiderFrame } from '../view/riderView';
 import type { Projectile } from '../weapons';
 import type { SpikeInput } from '../types';
@@ -64,6 +65,7 @@ export class SpikeView {
   private lastCZ = 0;
   private walkPhase = 0;
   private camInit = false;
+  private fallSide = 1;
   private t = 0;
   private aspect = 1;
   campFacing = 0;
@@ -73,9 +75,10 @@ export class SpikeView {
     tier: GraphicsTier,
     horseGlb: Object3D | null = null,
   ) {
-    this.world = new SpikeWorld(run.cfg.ride, run.ride.obstacles, run.seed, tier);
+    this.world = new SpikeWorld(run.cfg.ride, run.ride.obstacles, run.seed, tier, run.ride.trail);
     const kind = riderViewKinds(run.cfg.id);
     this.rider = new RiderView(kind, tier === 'high' ? 1 : 0, horseGlb);
+    this.rider.group.rotation.order = 'YXZ'; // heading, then pitch to the grade, then the fall roll
     this.world.add(this.rider.group);
     for (const p of Object.values(this.pools)) this.world.add(p.mesh);
     this.pickups = {
@@ -118,8 +121,10 @@ export class SpikeView {
   project(clientX: number, clientY: number, w: number, h: number): { x: number; z: number } | null {
     _ndc.set((clientX / w) * 2 - 1, -(clientY / h) * 2 + 1);
     _ray.setFromCamera(_ndc, this.camera);
+    const camp = this.run.phase === 'camp';
+    AIM_PLANE.constant = -((camp ? this.world.campY : this.run.ride.ground) + 0.8);
     if (_ray.ray.intersectPlane(AIM_PLANE, _hit) === null) return null;
-    const off = this.run.phase === 'camp' ? this.campZ : 0;
+    const off = camp ? this.campZ : 0;
     return { x: _hit.x, z: _hit.z - off };
   }
 
@@ -154,9 +159,15 @@ export class SpikeView {
       this.rider.onFoot = false;
       this.rider.group.position.set(r.x, r.y, r.z);
       this.rider.group.rotation.y = r.heading;
+      // pitch with the grade; a fall rolls the mount over, the tip meter makes it lean and wobble
+      this.rider.group.rotation.x = -Math.atan(r.grade) * 0.8;
+      const fall = r.fallT > 0 ? Math.min(1, (1.4 - r.fallT) * 4) : 0;
+      if (r.fallT <= 0) this.fallSide = input.steer < 0 ? -1 : 1; // keep the side the rider went down on
+      const lean = this.fallSide * (fall * 1.3 + r.tip * 0.25);
+      this.rider.group.rotation.z = lean + r.tip * 0.06 * Math.sin(this.t * 18);
       const m = r.cfg.mount;
       f.speed01 = Math.min(1, r.speed / m.boostSpeed);
-      f.air = r.y > 0.05 ? 1 : 0;
+      f.air = r.y - r.ground > 0.05 ? 1 : 0;
       f.steer = input.steer;
       f.aimYaw = wrap(Math.atan2(r.aimX, r.aimZ) - r.heading);
       f.aimPitch = r.cfg.weapon.kind === 'bow' ? 0.04 : 0.12;
@@ -169,6 +180,7 @@ export class SpikeView {
       this.world.setNight(0);
       this.world.animate(this.t, 1, false, 7);
       this.placeCameraRide(dt);
+      this.world.cullAround(r.z);
       this.drawEnemies(r.enemies, 0);
       for (const p of Object.values(this.pickups)) p.commit(0);
     } else {
@@ -184,8 +196,8 @@ export class SpikeView {
       this.rider.walkPhase = this.walkPhase;
       this.rider.walkSpeed01 = Number.isFinite(sp) ? sp : 0;
       this.campFacing = Math.atan2(camp.aimX, camp.aimZ);
-      this.rider.group.position.set(camp.x, 0, camp.z + offZ);
-      this.rider.group.rotation.y = this.campFacing;
+      this.rider.group.position.set(camp.x, this.world.campY, camp.z + offZ);
+      this.rider.group.rotation.set(0, this.campFacing, 0);
       f.aimYaw = 0;
       f.aimPitch = 0.02;
       f.steer = 0;
@@ -202,6 +214,7 @@ export class SpikeView {
         camp.cfg.fireRadius,
       );
       this.placeCameraCamp(dt);
+      this.world.cullAround(this.campZ);
       this.drawEnemies(camp.enemies, offZ);
       const counts = { wood: 0, ammo: 0, meat: 0 };
       for (const p of camp.pickups) {
@@ -215,6 +228,7 @@ export class SpikeView {
           0,
           0.6 + this.t * 0.0,
           1.3,
+          this.world.campY,
         );
       }
       this.pickups.wood.commit(counts.wood);
@@ -235,7 +249,7 @@ export class SpikeView {
         0,
         Math.atan2(p.vx, p.vz),
         1,
-        1.5 + (offZ === 0 ? r.y : 0),
+        1.5 + (offZ === 0 ? r.y : this.world.campY),
       );
       live.add(n++);
     }
@@ -257,6 +271,9 @@ export class SpikeView {
           e.z + offZ,
           this.t,
           k === 'rabbit' ? 0.25 : k === 'zombie' || k === 'brute' ? 0.06 : 0.14,
+          undefined,
+          1,
+          offZ === 0 ? this.world.heightAt(e.x, e.z) : this.world.campY,
         );
         live.add(e.id);
       });
@@ -272,12 +289,17 @@ export class SpikeView {
     // the backdrop range and the depth of the tree rows read; was 8.5-10 m back and 4-5.2 m up
     const dist = portrait ? 8 : 6.5;
     const h = portrait ? 3.6 : 2.6;
-    const target = new Vector3(r.x, 1.8, r.z + (portrait ? 14 : 13));
-    const pos = new Vector3(
-      r.x * 0.6 - Math.sin(r.heading) * dist,
-      h + r.y * 0.4,
-      r.z - Math.cos(r.heading) * dist,
-    );
+    // trails (2026-11-27): look along the trail ahead and sit behind the rider on it, mostly following
+    // the trail's heading so a weaving rider does not swing the camera; height clears the ground
+    const ahead = portrait ? 14 : 13;
+    const th = r.trail === null ? 0 : trailHeading(r.trail.spec, r.z + ahead * 0.5);
+    const camH = r.trail === null ? r.heading : th * 0.7 + r.heading * 0.3;
+    const tx = r.x + Math.sin(th) * ahead;
+    const tz = r.z + Math.cos(th) * ahead;
+    const target = new Vector3(tx, r.y + 1.8 + 0.3 * (this.world.heightAt(tx, tz) - r.y), tz);
+    const px = (r.trail === null ? r.x * 0.6 : r.x) - Math.sin(camH) * dist;
+    const pz = r.z - Math.cos(camH) * dist;
+    const pos = new Vector3(px, Math.max(r.y, this.world.heightAt(px, pz)) + h, pz);
     this.ease(pos, target, dt);
   }
 
@@ -285,10 +307,11 @@ export class SpikeView {
     const c = this.run.camp;
     if (c === null) return;
     const portrait = this.aspect < 1;
-    const target = new Vector3(c.x * 0.8, 0.8, c.z + this.campZ + (portrait ? 3.5 : 2.5));
+    const cy = this.world.campY;
+    const target = new Vector3(c.x * 0.8, cy + 0.8, c.z + this.campZ + (portrait ? 3.5 : 2.5));
     const pos = new Vector3(
       c.x * 0.8,
-      portrait ? 13.5 : 10.5,
+      cy + (portrait ? 13.5 : 10.5),
       c.z + this.campZ - (portrait ? 10 : 8.5),
     );
     this.ease(pos, target, dt);

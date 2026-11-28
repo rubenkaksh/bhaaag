@@ -24,11 +24,14 @@ import {
   PointLight,
   RingGeometry,
   Scene,
+  Vector3,
 } from 'three';
 import type { Texture } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Obstacle } from '../ride';
 import { Rng } from '../rng';
+import { groundY, trailX, type TrailField } from '../trail';
+import { buildTerrainMesh, buildWater, inRiver } from './terrainMesh';
 
 /** Landscape lift of the backdrop plate, in plate heights (spike ride camera only). */
 const PLATE_LIFT_LANDSCAPE = 0.3;
@@ -63,9 +66,15 @@ function inst(geo: BufferGeometry, color: string, n: number): InstancedMesh {
 
 export class SpikeWorld {
   readonly scene = new Scene();
-  readonly ground: Mesh;
+  readonly ground: Object3D;
+  private readonly groundMat: MeshStandardMaterial;
   /** Camp offset along +z: camp sim coordinates are drawn at (x, z + campZ). */
   readonly campZ: number;
+  /** Ground height under the camp (sim camp coordinates are drawn on this plane). */
+  readonly campY: number;
+  private readonly field: TrailField | null;
+  private readonly groundDay: Color;
+  private readonly groundNight: Color;
   private readonly hemi: HemisphereLight;
   private readonly sun: DirectionalLight;
   private readonly amb: AmbientLight;
@@ -75,9 +84,17 @@ export class SpikeWorld {
   private readonly campGroup = new Group();
   private backdrop: Group | null = null;
   private night = 0;
+  /** Things hidden when their z range is out of sight of the rider (terrain chunks, tree bands). */
+  private readonly bands: { o: Object3D; z0: number; z1: number }[] = [];
   private disposed = false;
 
-  constructor(cfg: RideCfg, obstacles: Obstacle[], seed: number, tier: GraphicsTier) {
+  constructor(
+    cfg: RideCfg,
+    obstacles: Obstacle[],
+    seed: number,
+    tier: GraphicsTier,
+    field: TrailField | null = null,
+  ) {
     const s = this.scene;
     s.background = DAY.sky.clone();
     s.fog = new Fog(DAY.fog.clone(), 60, 420);
@@ -87,35 +104,88 @@ export class SpikeWorld {
     this.amb = new AmbientLight('#ffffff', 0.2);
     s.add(this.hemi, this.sun, this.amb);
     this.campZ = cfg.distance + 40;
+    this.field = field;
+    this.campY = this.heightAt(0, this.campZ);
     const length = this.campZ + 260;
-
-    this.ground = new Mesh(
-      new PlaneGeometry(900, length + 200).rotateX(-Math.PI / 2),
-      mat(DAY.ground.getStyle(), 0.05),
-    );
-    this.ground.position.set(0, 0, length / 2 - 100);
-    s.add(this.ground);
-
-    // trees along both edges
     const rng = new Rng(seed ^ 0x5eed);
+
+    if (field !== null) {
+      // trail terrain (owner 2026-11-27): the vertex colours carry the look, the material colour the dusk tint
+      const t = buildTerrainMesh(field, tier === 'low' ? 2 : 1);
+      this.ground = t.group;
+      this.groundMat = t.material;
+      this.groundDay = new Color('#ffffff');
+      this.groundNight = new Color('#4a5878');
+      s.add(this.ground, buildWater(field));
+    } else {
+      this.groundMat = mat(DAY.ground.getStyle(), 0.05);
+      this.ground = new Mesh(
+        new PlaneGeometry(900, length + 200).rotateX(-Math.PI / 2),
+        this.groundMat,
+      );
+      this.ground.position.set(0, 0, length / 2 - 100);
+      this.groundDay = DAY.ground;
+      this.groundNight = NIGHT.ground;
+      s.add(this.ground);
+    }
+
     const treeGeo = mergeGeometries([
       new CylinderGeometry(0.25, 0.35, 2, 5).translate(0, 1, 0),
       new ConeGeometry(1.6, 3.6, 6).translate(0, 3.6, 0),
       new ConeGeometry(1.2, 2.8, 6).translate(0, 5.4, 0),
     ]);
+    // trees along both sides, seated on the ground, kept off the trail band and out of the river
     const pos: number[][] = [];
-    for (let z = -20; z < length; z += 7) {
+    const rocks: number[][] = [];
+    const edge = field === null ? 440 : (field.nx * field.dx) / 2 - 3;
+    const clear = field === null ? cfg.halfWidth + 5 : field.spec.band + 5;
+    for (let z = -20; z < length; z += field === null ? 7 : 5) {
+      const cx = field === null ? 0 : trailX(field.spec, z);
       for (const side of [-1, 1]) {
-        const x = side * (cfg.halfWidth + 5 + rng.range(0, 40));
-        pos.push([x, z + rng.range(-3, 3), rng.range(0.8, 1.5)]);
+        const x = cx + side * (clear + rng.range(0, field === null ? 40 : 70));
+        const tz = z + rng.range(-3, 3);
+        if (Math.abs(x) > edge) continue;
+        if (field !== null && inRiver(field, x, tz, 4)) continue;
+        if (Math.hypot(x, tz - this.campZ) < 30) continue;
+        pos.push([x, tz, rng.range(0.8, 1.5), this.heightAt(x, tz) - 0.1]);
+      }
+      if (field !== null && rng.next() < 0.35) {
+        const side = rng.next() < 0.5 ? -1 : 1;
+        const x = cx + side * (field.spec.band + 3 + rng.range(0, 45));
+        if (Math.abs(x) < edge && !inRiver(field, x, z, 1) && Math.hypot(x, z - this.campZ) > 25)
+          rocks.push([x, z, rng.range(0.6, 2.2), this.heightAt(x, z) - 0.3, rng.range(0, 6.3)]);
       }
     }
-    const trees = inst(treeGeo, '#2f5a34', pos.length);
+    // trees in 200 m bands so bands past the fog can be hidden (see cullAround)
     const m4 = new Matrix4();
-    pos.forEach((p, i) =>
-      trees.setMatrixAt(i, m4.makeScale(p[2], p[2], p[2]).setPosition(p[0], 0, p[1])),
-    );
-    s.add(trees);
+    const BAND = 200;
+    for (let z0 = -40; z0 < length + 40; z0 += BAND) {
+      const band = pos.filter((p) => p[1] >= z0 && p[1] < z0 + BAND);
+      if (band.length === 0) continue;
+      const trees = inst(treeGeo, '#2f5a34', band.length);
+      band.forEach((p, i) =>
+        trees.setMatrixAt(i, m4.makeScale(p[2], p[2], p[2]).setPosition(p[0], p[3], p[1])),
+      );
+      this.bands.push({ o: trees, z0, z1: z0 + BAND });
+      s.add(trees);
+    }
+    if (field !== null)
+      for (const c of this.ground.children) {
+        const sph = (c as Mesh).geometry.boundingSphere;
+        if (sph !== null)
+          this.bands.push({ o: c, z0: sph.center.z - sph.radius, z1: sph.center.z + sph.radius });
+      }
+    if (rocks.length > 0) {
+      const boulders = inst(new DodecahedronGeometry(1, 0).scale(1.2, 0.8, 1), '#857f76', rocks.length);
+      const m5 = new Matrix4();
+      rocks.forEach((p, i) =>
+        boulders.setMatrixAt(
+          i,
+          m5.makeRotationY(p[4]).scale(new Vector3(p[2], p[2], p[2])).setPosition(p[0], p[3], p[1]),
+        ),
+      );
+      s.add(boulders);
+    }
 
     // course obstacles
     const by: Record<string, Obstacle[]> = { log: [], rock: [], ramp: [], mud: [] };
@@ -143,21 +213,22 @@ export class SpikeWorld {
     );
 
     // destination: pole with flags and a tent over the camp
-    this.campGroup.position.set(0, 0, this.campZ);
+    this.campGroup.position.set(0, this.campY, this.campZ);
     s.add(this.campGroup);
     this.buildCamp(cfg);
     const dest = new Group();
     for (const sx of [-1, 1]) {
       const pole = new Mesh(new CylinderGeometry(0.1, 0.12, 7, 5), mat('#6b4a2f'));
-      pole.position.set(sx * 6, 3.5, cfg.distance);
+      const fy = this.heightAt(sx * 6, cfg.distance);
+      pole.position.set(sx * 6, fy + 3.5, cfg.distance);
       const flag = new Mesh(new BoxGeometry(2.2, 1.2, 0.05), mat('#b8483c', 0.3));
-      flag.position.set(sx * 6 + 1.2, 6.2, cfg.distance);
+      flag.position.set(sx * 6 + 1.2, fy + 6.2, cfg.distance);
       dest.add(pole, flag);
     }
     s.add(dest);
 
     this.fireLight = new PointLight('#ff9a4a', 0, 40, 1.6);
-    this.fireLight.position.set(0, 2.2, this.campZ);
+    this.fireLight.position.set(0, this.campY + 2.2, this.campZ);
     s.add(this.fireLight);
     this.ring = new Mesh(
       new RingGeometry(0.97, 1, 48).rotateX(-Math.PI / 2),
@@ -168,7 +239,7 @@ export class SpikeWorld {
         depthWrite: false,
       }),
     );
-    this.ring.position.set(0, 0.06, this.campZ);
+    this.ring.position.set(0, this.campY + 0.06, this.campZ);
     s.add(this.ring);
 
     void this.loadBackdrop(tier);
@@ -178,8 +249,15 @@ export class SpikeWorld {
     if (list.length === 0) return;
     const m = inst(geo, color, list.length);
     const m4 = new Matrix4();
-    list.forEach((o, i) => m.setMatrixAt(i, m4.makeTranslation(o.x, 0, o.z)));
+    list.forEach((o, i) =>
+      m.setMatrixAt(i, m4.makeTranslation(o.x, this.heightAt(o.x, o.z) - 0.05, o.z)),
+    );
     this.scene.add(m);
+  }
+
+  /** Ground height at (x, z): the trail field, or 0 on the flat course. */
+  heightAt(x: number, z: number): number {
+    return this.field === null ? 0 : groundY(this.field, x, z);
   }
 
   private buildCamp(cfg: RideCfg): void {
@@ -250,6 +328,11 @@ export class SpikeWorld {
     }
   }
 
+  /** Hides terrain chunks and tree bands well behind the rider or past the fog (far 420 m). */
+  cullAround(z: number): void {
+    for (const b of this.bands) b.o.visible = b.z1 > z - 80 && b.z0 < z + 460;
+  }
+
   /** 0 = golden hour (ride), 1 = night (camp). */
   setNight(k: number): void {
     this.night = k;
@@ -259,7 +342,9 @@ export class SpikeWorld {
     fog.color.copy(DAY.fog).lerp(NIGHT.fog, k);
     fog.near = 60 - 30 * k;
     fog.far = 420 - 260 * k;
-    (this.ground.material as MeshStandardMaterial).color.copy(DAY.ground).lerp(NIGHT.ground, k);
+    this.groundMat.color
+      .copy(this.groundDay)
+      .lerp(this.groundNight, k);
     this.hemi.intensity = 1 - 0.6 * k;
     this.hemi.color.set('#fff0d8').lerp(new Color('#7a8cc8'), k);
     this.sun.intensity = 1.5 * (1 - k) + 0.25 * k;

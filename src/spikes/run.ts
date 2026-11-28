@@ -1,5 +1,13 @@
 import { createCamp, stepCamp, type CampCfg, type CampState } from './camp';
-import { createRide, stepRide, type MountCfg, type RideCfg, type RideState } from './ride';
+import {
+  createRide,
+  stepRide,
+  trailSpecFor,
+  type MountCfg,
+  type RideCfg,
+  type RideState,
+} from './ride';
+import { buildTrailField } from './trailGen';
 import { DT, type SpikeInput } from './types';
 import { BOW, RIFLE } from './weapons';
 
@@ -37,6 +45,9 @@ export const HORSE: MountCfg = {
   gravity: 20,
   radius: 0.9,
   trample: false,
+  fallLat: 14,
+  sideMax: 0.5,
+  fordSafe: 7,
 };
 
 export const DIRT_BIKE: MountCfg = {
@@ -55,6 +66,9 @@ export const DIRT_BIKE: MountCfg = {
   gravity: 18,
   radius: 1,
   trample: true,
+  fallLat: 24,
+  sideMax: 0.4,
+  fordSafe: 8,
 };
 
 const BASE_CAMP: CampCfg = {
@@ -102,16 +116,32 @@ export const HORSE_SPIKE: SpikeCfg = {
   ride: {
     mount: HORSE,
     weapon: BOW,
-    reserve: 32,
+    reserve: 44, // trail ride is ~35 s longer (was 32)
     distance: 900,
     halfWidth: 14,
     hp: 10,
     obstacleKinds: ['log', 'log', 'rock', 'mud'],
-    obstacleGap: [18, 34],
+    obstacleGap: [22, 38],
     enemyKinds: ['wolf', 'wolf', 'boar'],
     spawnIntervalStart: 7,
     spawnIntervalEnd: 3,
-    parTime: 90,
+    parTime: 100, // trail ride: hills and the ford add ~10 s (was 90 on the flat)
+    lives: 3,
+    bankRocks: 0.3,
+    // fixed trail (owner 2026-11-27): S-bends down to a ford at 520 m, then a climb to camp
+    trail: {
+      seed: 1907,
+      waves: [
+        { amp: 30, cycles: 1.5, phase: 0.4 },
+        { amp: 12, cycles: 4, phase: 1.1 },
+      ],
+      band: 3.5,
+      blend: 16,
+      maxHeight: 30,
+      minHeight: -4,
+      maxGrade: 0.16,
+      ford: { z: 520, halfWidth: 7, valleyDepth: 6, valleyWidth: 55 },
+    },
   },
   camp: {
     ...BASE_CAMP,
@@ -130,16 +160,32 @@ export const BIKE_SPIKE: SpikeCfg = {
   ride: {
     mount: DIRT_BIKE,
     weapon: RIFLE,
-    reserve: 40,
+    reserve: 52, // trail ride is longer (was 40)
     distance: 1600,
     halfWidth: 16,
     hp: 10,
     obstacleKinds: ['ramp', 'ramp', 'log', 'rock', 'mud'],
-    obstacleGap: [22, 42],
+    obstacleGap: [30, 50],
     enemyKinds: ['zombie', 'runner', 'zombie', 'wolf'],
     spawnIntervalStart: 5,
     spawnIntervalEnd: 2,
-    parTime: 100,
+    parTime: 115, // trail ride (was 100 on the flat)
+    lives: 3,
+    bankRocks: 0.2,
+    // fixed trail: longer, wider swings, a ford at 980 m in a deeper valley
+    trail: {
+      seed: 2207,
+      waves: [
+        { amp: 40, cycles: 2, phase: 0.2 },
+        { amp: 16, cycles: 6, phase: 2.0 },
+      ],
+      band: 4,
+      blend: 18,
+      maxHeight: 36,
+      minHeight: -4,
+      maxGrade: 0.18,
+      ford: { z: 980, halfWidth: 8, valleyDepth: 8, valleyWidth: 70 },
+    },
   },
   camp: {
     ...BASE_CAMP,
@@ -155,7 +201,9 @@ export const BIKE_SPIKE: SpikeCfg = {
 };
 
 export function createRun(cfg: SpikeCfg, seed: number): RunState {
-  return { cfg, seed, phase: 'ride', ride: createRide(cfg.ride, seed), camp: null, tick: 0 };
+  const spec = trailSpecFor(cfg.ride);
+  const trail = spec === null ? null : buildTrailField(spec);
+  return { cfg, seed, phase: 'ride', ride: createRide(cfg.ride, seed, trail), camp: null, tick: 0 };
 }
 
 export function stepRun(run: RunState, input: SpikeInput, dt: number = DT): void {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { trailX, waterDepth } from '../../src/spikes/trail';
 import {
   BIKE_SPIKE,
   BOW,
@@ -302,10 +303,12 @@ describe('full run', () => {
           if (o.kind === 'rock') steer = o.x > r.x ? -1 : 1;
         }
       }
-      steer += -r.heading * 2;
+      const tx = r.trail === null ? 0 : trailX(r.trail.spec, r.z + 6);
+      steer += (Math.atan2(tx - r.x, 10) - r.heading) * 3;
+      const wet = r.trail !== null && waterDepth(r.trail, tx, r.z + 12) > 0.05 && r.water <= 0.05;
       stepRun(
         run,
-        inp({ throttle: 1, steer: Math.max(-1, Math.min(1, steer)), jump, aimZ: 1 }),
+        inp({ throttle: wet && r.speed > 5 ? -1 : 1, steer: Math.max(-1, Math.min(1, steer)), jump, aimZ: 1 }),
         DT,
       );
     }
