@@ -61,6 +61,8 @@ export type Lobby = {
   show: () => void;
   hide: () => void;
   visible: () => boolean;
+  setBusy: (label: string | null) => void;
+  notice: (text: string | null) => void;
 };
 
 export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
@@ -76,7 +78,7 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
       .join('') +
     '</div>' +
     '<div id="lobby-level" role="radiogroup" aria-label="Classic level"></div>' +
-    '<button id="lobby-play" type="button">PLAY</button><p id="lobby-best"></p>' +
+    '<button id="lobby-play" type="button">PLAY</button><p id="lobby-best"></p><p id="lobby-notice" role="alert" hidden></p>' +
     '<div id="lobby-gfx" role="radiogroup" aria-label="Graphics quality"><span class="lbl">Graphics</span>' +
     GRAPHICS_TIERS.map(
       (t) =>
@@ -105,9 +107,11 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
 
   const playQ = lobby.querySelector<HTMLButtonElement>('#lobby-play');
   const bestQ = lobby.querySelector<HTMLElement>('#lobby-best');
-  if (playQ === null || bestQ === null) throw new Error('lobby markup');
+  const noticeQ = lobby.querySelector<HTMLElement>('#lobby-notice');
+  if (playQ === null || bestQ === null || noticeQ === null) throw new Error('lobby markup');
   const playBtn: HTMLButtonElement = playQ;
   const bestEl: HTMLElement = bestQ;
+  const noticeEl: HTMLElement = noticeQ;
 
   // Graphics tier (graphics-spec "Implemented tiers"): saved at once; a running scene applies
   // it live via GRAPHICS_TIER_EVENT. The lobby doubles as the pause menu (Esc / MENU).
@@ -231,5 +235,18 @@ export function createLobby(root: HTMLElement, h: LobbyHandlers): Lobby {
 
   showMode();
   show();
-  return { show, hide, visible: () => shown };
+  function setBusy(label: string | null): void {
+    if (label !== null) {
+      playBtn.disabled = true;
+      playBtn.textContent = label;
+    } else {
+      playBtn.disabled = false;
+      playBtn.textContent = started ? 'RESUME' : 'PLAY';
+    }
+  }
+  function notice(text: string | null): void {
+    noticeEl.textContent = text ?? '';
+    noticeEl.hidden = text === null;
+  }
+  return { show, hide, visible: () => shown, setBusy, notice };
 }

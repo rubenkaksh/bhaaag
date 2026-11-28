@@ -8,6 +8,7 @@ import type { Selection } from './modes/levels';
 import type { LevelJson } from '../content/load';
 import type { BuilderLevel } from '../content/builder/format';
 import type { HomeBundle } from './homeAssets';
+import { WebGLUnavailableError } from '../adapters/render/scene';
 import { createLobby } from '../adapters/ui/lobby';
 import { createOrientation } from '../adapters/ui/orientation';
 import { fetchTuningOverrides, tuningUrlFrom } from '../adapters/config/remoteTuning';
@@ -136,13 +137,14 @@ async function levelOverrideFor(
   }
 }
 function play(sel: Selection): void {
+  requestImmersive(); // must run inside the tap, so it goes before any wait
+  if (orientation.pref() !== 'auto') orientation.setPref(orientation.pref()); // retry the lock inside this tap
+  lobby.notice(null);
   if (!tuningSettled) {
     pendingPlay = sel;
+    lobby.setBusy('LOADING…');
     return;
   }
-  lobby.hide();
-  requestImmersive();
-  if (orientation.pref() !== 'auto') orientation.setPref(orientation.pref()); // retry the lock inside this tap
   const key = resolvePlayKey(sel, playable());
   const id = sel.mode === 'chase' ? 'chase' : sel.level;
   if (game !== null && runningId !== id) {
@@ -150,6 +152,8 @@ function play(sel: Selection): void {
     game = null;
   }
   if (game !== null) {
+    lobby.setBusy(null);
+    lobby.hide();
     game.resume();
     return;
   }
@@ -160,13 +164,20 @@ function play(sel: Selection): void {
     isGraphMode(key) ||
     playable().find((l) => l.id === sel.level)?.builder !== undefined;
   if (!lazy) {
-    game = startGame(canvas, document.body, key);
-    runningId = id;
+    lobby.setBusy(null);
+    try {
+      game = startGame(canvas, document.body, key);
+      runningId = id;
+      lobby.hide();
+    } catch (e) {
+      startFailed(e);
+    }
     return;
   }
   // Cloud Village, graph levels and builder levels: fetch their code and data on demand (kept out of the initial chunk).
   if (starting) return;
   starting = true;
+  lobby.setBusy('LOADING…');
   const prepare = async (): Promise<GameHandle> => {
     if (key === 'village') {
       const { village } = await import('./villageAssets');
@@ -207,14 +218,22 @@ function play(sel: Selection): void {
         game = g;
         runningId = id;
       } else g.destroy();
+      lobby.setBusy(null);
+      lobby.hide();
     })
-    .catch(() => {
-      // Chunk fetch failed (offline): bring the lobby back instead of a black screen.
-      lobby.show();
-    })
+    .catch(startFailed)
     .finally(() => {
       starting = false;
     });
+}
+function startFailed(e: unknown): void {
+  lobby.setBusy(null);
+  lobby.show();
+  lobby.notice(
+    e instanceof WebGLUnavailableError
+      ? 'This browser can’t run 3D here. Open the link in Safari or Chrome.'
+      : 'Couldn’t load the level. Check your connection and tap PLAY to retry.',
+  );
 }
 // HUD pause button (hud.ts) asks for the same menu path as the lobby's onMenu.
 window.addEventListener('zt-menu', () => {
