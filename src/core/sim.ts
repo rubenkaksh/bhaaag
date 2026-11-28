@@ -803,6 +803,10 @@ function wallHit(s: HeroState, w: World, cfg: Tuning): void {
   if (scratchHit.ny === 0) {
     s.hangNx = scratchHit.nx;
     s.hangNz = scratchHit.nz;
+  } else {
+    // not a wall face (eave underside): drop any normal left from an earlier hang
+    s.hangNx = 0;
+    s.hangNz = 0;
   }
   if (w.climb === 1) recordLedge(s, w, cfg, hitSolid, cfg.climb.reachMin, cfg.climb.reachMax);
   resetHook(h);
