@@ -92,6 +92,13 @@ const SLAB_TOL = 0.05; // a tramp/cushion slab counts when its top is this close
 const LADDER_FEET_TOL = 0.5; // m above the feet probed against ladder zones (a hero at the base counts as inside)
 const STICK_MIN = 0.5; // stick magnitude the automatic parkour moves need
 const AIR_LIFT = 0.002; // feet clearance above a ledge after an airborne step-up, metres
+// Edge slip (thin air, owner 2026-11-20): the footprint keeps the hero supported until fully clear
+// of an edge, so it could stand with its centre up to a radius past a roof edge, drawn over the
+// drop. A hero at rest there (no stick, nearly stopped) is pulled back onto the top at this speed
+// (m/s); walking off with the stick is unchanged.
+const EDGE_CORE = 0.1; // metres: centre support radius
+const EDGE_SLIP = 2.5;
+const EDGE_REST = 0.5; // m/s: below this horizontal speed the hero counts as at rest
 const GRAB_PROBE = 0.08; // airborne wall probe length toward the stick, metres (ledge grab)
 
 // Index of the solid that blocked the last sweepAxis / sweepVec call (-1 when none). Written
@@ -302,6 +309,29 @@ function groundHeight(w: World, x: number, z: number, radius: number, maxH: numb
     }
   }
   return best;
+}
+
+// Thin air: when only the rim of the footprint is on a solid top (the centre core is over a
+// drop) and the hero is at rest, pull it back onto that top so it never stands on air.
+function edgeSlip(s: HeroState, w: World, cfg: Tuning, gh: number, dt: number): void {
+  if (stickMag >= STICK_MIN || s.vx * s.vx + s.vz * s.vz > EDGE_REST * EDGE_REST) return;
+  if (groundHeight(w, s.px, s.pz, EDGE_CORE, gh + SLAB_TOL) >= gh - cfg.hero.stepUp) return;
+  const r = cfg.hero.radius;
+  let dx = 0;
+  let dz = 0;
+  for (let i = 0; i < w.solids.length; i++) {
+    const b = w.solids[i];
+    if (b.max.y < gh - SLAB_TOL || b.max.y > gh + SLAB_TOL) continue;
+    if (!circleOverlapsAabbXZ(b, s.px, s.pz, r)) continue;
+    dx += s.px - clampScalar(s.px, b.min.x, b.max.x);
+    dz += s.pz - clampScalar(s.pz, b.min.z, b.max.z);
+  }
+  const l = Math.sqrt(dx * dx + dz * dz);
+  if (l < 1e-6) return;
+  const step = -(EDGE_SLIP * dt) / l; // toward the support
+  const h = cfg.hero.height;
+  s.px += sweepAxis(w, s.px, s.py, s.pz, h, r, 0, dx * step);
+  s.pz += sweepAxis(w, s.px, s.py, s.pz, h, r, 2, dz * step);
 }
 
 // Highest ramp surface over the capsule footprint (clamped to each ramp's xz rect, so
@@ -769,6 +799,11 @@ function wallHit(s: HeroState, w: World, cfg: Tuning): void {
   s.vy = 0;
   s.vz = 0;
   s.eventBits |= HERO_EV_CLING;
+  // The face normal is kept even without a ledge, so a wall jump can push off it (T352).
+  if (scratchHit.ny === 0) {
+    s.hangNx = scratchHit.nx;
+    s.hangNz = scratchHit.nz;
+  }
   if (w.climb === 1) recordLedge(s, w, cfg, hitSolid, cfg.climb.reachMin, cfg.climb.reachMax);
   resetHook(h);
 }
@@ -791,7 +826,16 @@ function hangStep(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
   s.vy = 0;
   s.vz = 0;
   if (wasPressed(input, BTN_JUMP)) {
+    // Wall jump (T352): push off the face. The hanging yaw faces the wall, so a jump along it
+    // went straight back into the same wall and re-hung: the hero looked stuck.
+    const wnx = s.hangNx;
+    const wnz = s.hangNz;
     releaseHero(s, cfg, true);
+    if (wnx !== 0 || wnz !== 0) {
+      s.vx = wnx * cfg.release.jumpFwd;
+      s.vz = wnz * cfg.release.jumpFwd;
+      s.yaw = Math.atan2(wnx, wnz);
+    }
     return;
   }
   if (wasPressed(input, BTN_DROP)) {
@@ -1471,6 +1515,7 @@ function moveFree(s: HeroState, input: InputFrame, world: World, cfg: Tuning, dt
     if (gh > NO_GROUND && gh >= s.py - cfg.hero.stepUp) {
       s.py = gh;
       s.vy = 0;
+      if (s.hill === 0 && groundRamp < 0) edgeSlip(s, world, cfg, gh, dt);
     } else {
       s.grounded = 0;
       // Off the eave: keep the slope's vertical rate (slipSupport left its frame in scratch).
