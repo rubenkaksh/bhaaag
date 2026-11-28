@@ -23,7 +23,8 @@ const FROZEN: Record<string, string> = {
   // applies only within 1 m of each tile, so the hazard list changed. docs/briefs/terrain-glitch-design.md 2.7.
   'home-street': '884b63b0',
   // New 2026-11-20 (Hay Run, kit v2 archetypes C1/C2/C3 over placer v1); frozen from here on.
-  'hay-run': 'de332045',
+  // Re-recorded 2026-11-28 after merging climbable ladders: Hay Run's ladder houses emit climb zones (world.ladders).
+  'hay-run': 'b734dcfc',
 };
 
 describe('graph level freeze', () => {

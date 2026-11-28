@@ -95,6 +95,7 @@ export class World {
   tramps: AABB[]; // thin slabs on roof tops: landing bounces (never lethal)
   cushions: AABB[]; // thin slabs on roof tops: landing is absorbed (never lethal)
   hazards: AABB[]; // volumes that kill on contact (open hillside between houses)
+  ladders: AABB[]; // climb zones in front of a ladder; stick held into the wall inside one starts the wall climb
 
   constructor() {
     this.solids = [];
@@ -115,7 +116,23 @@ export class World {
     this.tramps = [];
     this.cushions = [];
     this.hazards = [];
+    this.ladders = [];
   }
+}
+
+// True when the point is inside any ladder climb zone (inclusive).
+export function ladderAt(w: World, x: number, y: number, z: number): boolean {
+  for (let i = 0; i < w.ladders.length; i++) {
+    const b = w.ladders[i];
+    if (
+      x >= b.min.x && x <= b.max.x &&
+      y >= b.min.y && y <= b.max.y &&
+      z >= b.min.z && z <= b.max.z
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Appends a fixed zipline and returns its id (= index into w.lines).

@@ -66,6 +66,15 @@ export function emitHouse(h: HouseSpec, out: LevelJsonDraft): void {
     STYLE_BODY,
   );
 
+  // Ladder climb zone: from the wall face 0.7 m outward, ground to deck.
+  if (h.ladder !== undefined) {
+    const lr = faceRect(h, h.ladder, -0.45, 0.45, k, k + 0.7);
+    out.ladders.push({
+      min: [round6(lr.x0), round6(g), round6(lr.z0)],
+      max: [round6(lr.x1), round6(deck), round6(lr.z1)],
+    });
+  }
+
   // Parapets (none on party sides or over the balcony).
   for (let f = 0; f < 4; f++) {
     const segs = parapetSegments(h, f as Face);
