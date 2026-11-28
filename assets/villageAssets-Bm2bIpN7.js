@@ -1,4 +1,4 @@
-import{B as e,F as t,G as n,L as r,N as i,R as a,V as o,W as s,Z as c,k as l,nt as u,z as d}from"./index-DL91IGzn.js";var f=`{
+import{B as e,F as t,G as n,L as r,N as i,R as a,V as o,W as s,Z as c,k as l,nt as u,z as d}from"./index-BaBKQL4_.js";var f=`{
   "version": 1,
   "spawn": [0, 0, 0],
   "spawnYaw": 3.14159,
