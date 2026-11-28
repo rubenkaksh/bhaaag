@@ -166,8 +166,10 @@ export class TouchInput {
       else if (this.pressMode === 'hook') buttons |= BTN_HOOK | BTN_ACTION;
       else if (this.pressMode === 'brake' && this.tapper.holding(now, BRAKE_HOLD_MS))
         buttons |= BTN_REEL;
-      else if (this.pressMode === 'climb' && this.tapper.holding(now, CLIMB_HOLD_MS))
-        buttons |= BTN_CLIMB;
+      // CLIMB is held from the press: the sim's own climb.holdSec times the mantle, so a hold
+      // waits one threshold, not this one plus the sim's (T352). A release before
+      // CLIMB_HOLD_MS still becomes a wall jump (onJumpUp).
+      else if (this.pressMode === 'climb') buttons |= BTN_CLIMB;
     }
     // Completed tap sequence: double tap = Hook (jump context only), triple tap = Drop.
     const taps = this.tapper.poll(now);

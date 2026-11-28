@@ -4,6 +4,7 @@
 import type { BuilderLevel } from '../../content/builder/format';
 import { HOUSE_HALF } from '../../content/builder/format';
 import { buildNodeSet } from '../../content/builder/compile';
+import { hayFinish, propPlacement } from '../../content/builder/hayFinish';
 import type { LevelJson } from '../../content/load';
 import { NODE_ROOF, relation } from '../../content/strategy/graph';
 import { HK } from '../../content/house/houseSpec';
@@ -62,6 +63,10 @@ export function builderHome(src: BuilderLevel, level: LevelJson): HomeBundle {
     used[a][f] = true; // the face the move leaves by, and the one it arrives on, stay open
     used[b][OPPOSITE[f]] = true;
   }
+  // A haystack finish opens the goal house's downhill face: no guard rail where the hero drops off.
+  const hay = hayFinish(src);
+  const goalNode = ns.roofOf.get(src.goal);
+  if (hay !== null && goalNode !== undefined) used[goalNode][3] = true;
   const houses = [];
   const bodies = new Set<number>();
   const skip = new Set<number>();
@@ -124,6 +129,13 @@ export function builderHome(src: BuilderLevel, level: LevelJson): HomeBundle {
         skip.add(k);
     }
   }
+  const propSpecs = [...(hay !== null ? [hay.hay] : [])];
+  const patchRects = hay !== null ? [hay.patch] : [];
+  for (const bp of src.props ?? []) {
+    const pl = propPlacement(bp);
+    propSpecs.push(pl.prop);
+    patchRects.push(pl.patch);
+  }
   if (HOUSE_HALF !== HK.half) throw new Error('builder house size differs from the kit');
   // Step blocks (boxes, stairs) share the body style but are not house bodies: no kit draws them.
   const keep = (i: number): boolean => sty[i] === 1 && !bodies.has(i);
@@ -132,11 +144,11 @@ export function builderHome(src: BuilderLevel, level: LevelJson): HomeBundle {
     graph: {
       keep,
       houses,
-      props: [],
+      props: propSpecs,
       profile: terrainProfile(level.hazards ?? []),
       seed: hash(src.id),
       look: 'home',
-      patches: [],
+      patches: patchRects.map((p) => ({ x0: p.x0, x1: p.x1, z0: p.z0, z1: p.z1 })),
       kitSkip: (i: number) => skip.has(i),
       field: undefined,
     },

@@ -69,6 +69,8 @@ export interface LevelJsonDraft {
   anchors: { pos: [number, number, number] }[];
   tramps: Box3[];
   cushions: Box3[];
+  /** Climb zones in front of ladders (see World.ladders). */
+  ladders: Box3[];
   /** House id -> index of its pole anchor in `anchors`. */
   poleAnchorIds: Record<number, number>;
 }
@@ -81,6 +83,7 @@ export function newDraft(): LevelJsonDraft {
     anchors: [],
     tramps: [],
     cushions: [],
+    ladders: [],
     poleAnchorIds: {},
   };
 }

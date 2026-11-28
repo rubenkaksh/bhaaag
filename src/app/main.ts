@@ -112,6 +112,12 @@ async function levelOverrideFor(
       try {
         const f = await import('../content/builder/format');
         source = f.parseBuilderLevel(f.serializeBuilderLevel(source));
+        // Recompile from the saved source so compile fixes reach old saves; the stored level stays the fallback.
+        try {
+          level = (await import('../content/builder/compile')).compileLevel(source);
+        } catch {
+          // keep the stored compiled level
+        }
       } catch {
         source = null;
       }

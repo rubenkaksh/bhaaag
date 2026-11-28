@@ -35,6 +35,7 @@ export function sampleLevel(): BuilderLevel {
     ],
     start: 0,
     goal: 7,
+    finish: 'hay',
   };
 }
 
@@ -71,5 +72,6 @@ export function kitSampleLevel(): BuilderLevel {
     ],
     start: 0,
     goal: 4,
+    finish: 'hay',
   };
 }

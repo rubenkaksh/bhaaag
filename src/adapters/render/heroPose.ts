@@ -31,6 +31,7 @@ export interface HeroPoseInput {
   sliding: boolean; // landing slide in progress (core slideT > 0)
   sprint: number; // extra run cycle rate, 0 = none (core sprintFrac x hero.sprintCadence)
   dive: boolean; // swan dive toward a cushion (render only, see diveTrigger.ts)
+  climbing: boolean; // ladder climb in progress (core HERO_HANGING with hillClimb 1)
 }
 
 export function newHeroPoseInput(): HeroPoseInput {
@@ -53,6 +54,7 @@ export function newHeroPoseInput(): HeroPoseInput {
     sliding: false,
     sprint: 0,
     dive: false,
+    climbing: false,
   };
 }
 
@@ -66,7 +68,8 @@ export const POSE_ROLL = 5;
 export const POSE_DEAD = 6;
 export const POSE_WIN = 7;
 export const POSE_CLING = 8;
-export const POSE_COUNT = 9;
+export const POSE_CLIMB = 9; // hand-over-hand ladder climb
+export const POSE_COUNT = 10;
 
 // Channels. Frame: +x is the hero's left, +y up, +z forward (facing).
 // Sign conventions (the rig converts to three rotations):
@@ -115,7 +118,7 @@ export const HERO_FOREARM = 0.28; // elbow to the grip (hand centre)
 export const HERO_GRIP_X = 0.07; // half the gap between the two hands on the handle
 
 // Fade-in time constants per target pose, s (63% of the way after one tau).
-const FADE_TAU = [0.12, 0.1, 0.08, 0.08, 0.07, 0.04, 0.2, 0.15, 0.06];
+const FADE_TAU = [0.12, 0.1, 0.08, 0.08, 0.07, 0.04, 0.2, 0.15, 0.06, 0.08];
 
 const RUN_ENTER_SPEED = 0.5;
 const RUN_EXIT_SPEED = 0.3;
@@ -430,6 +433,7 @@ export class HeroPoseState {
   readonly rows = new Float64Array(POSE_COUNT * CH_COUNT); // per-frame pose rows
   active = POSE_IDLE; // current target pose
   phase = 0; // run cycle, [0, 1)
+  climbPhase = 0; // ladder climb cycle, [0, 1)
   time = 0;
   rollT = 0;
   prevState = -1;
@@ -478,7 +482,7 @@ export function selectPose(st: HeroPoseState, inp: HeroPoseInput): number {
   if (inp.state === DEAD) return POSE_DEAD;
   if (inp.win === 1) return POSE_WIN;
   if (inp.state === ATTACHED) return inp.brake ? POSE_BRAKE : POSE_HANG;
-  if (inp.state === CLINGING) return POSE_CLING;
+  if (inp.state === CLINGING) return inp.climbing ? POSE_CLIMB : POSE_CLING;
   if (inp.state === VAULTING) return POSE_AIR;
   if (inp.rolling) return POSE_ROLL;
   if (inp.state === AIRBORNE) return POSE_AIR;
@@ -654,6 +658,28 @@ function writeHang(st: HeroPoseState, inp: HeroPoseInput, yaw: number, speed: nu
   r[o + CH_KNEE_L] += 0.12 * k * Math.sin(TWO_PI * HANG_LEG_HZ * t + Math.PI / 2);
   r[o + CH_KNEE_R] += 0.12 * k * Math.sin(TWO_PI * HANG_LEG_HZ * t - Math.PI / 2);
   solveHangArms(r, o);
+}
+
+const CLIMB_HZ = 1.6; // climb cycles per second (one cycle = two rungs)
+
+function writeClimb(st: HeroPoseState, inp: HeroPoseInput): void {
+  if (st.active === POSE_CLIMB && inp.dt > 0) {
+    st.climbPhase = (st.climbPhase + inp.dt * CLIMB_HZ) % 1;
+  }
+  const o = copyRow(st, POSE_CLIMB, CLING_ROW);
+  const r = st.rows;
+  const a = Math.sin(st.climbPhase * TWO_PI);
+  r[o + CH_HIPS_Y] += 0.015 * Math.abs(a);
+  r[o + CH_SHOULDER_FLEX_L] += 0.3 * a;
+  r[o + CH_SHOULDER_FLEX_R] -= 0.3 * a;
+  r[o + CH_SHOULDER_RAISE_L] += 0.08 * a;
+  r[o + CH_SHOULDER_RAISE_R] -= 0.08 * a;
+  r[o + CH_ELBOW_L] += 0.25 * (1 - a);
+  r[o + CH_ELBOW_R] += 0.25 * (1 + a);
+  r[o + CH_HIP_FLEX_L] += 0.3 * a;
+  r[o + CH_HIP_FLEX_R] -= 0.3 * a;
+  r[o + CH_KNEE_L] += 0.25 * a;
+  r[o + CH_KNEE_R] -= 0.25 * a;
 }
 
 function writeRoll(st: HeroPoseState): void {
@@ -1002,6 +1028,7 @@ export function stepHeroPose(st: HeroPoseState, inp: HeroPoseInput, yaw: number)
   copyRow(st, POSE_DEAD, inp.deadCause === 3 ? CRUMPLE : DEAD_ROW);
   writeWin(st);
   addBreath(st, copyRow(st, POSE_CLING, CLING_ROW));
+  writeClimb(st, inp);
 
   const inv = sum > 0 ? 1 / sum : 0;
   for (let c = 0; c < CH_COUNT; c++) {

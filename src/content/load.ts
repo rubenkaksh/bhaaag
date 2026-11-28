@@ -82,6 +82,7 @@ const worldSchema = z
     tramps: z.array(boxSchema).optional(),
     cushions: z.array(boxSchema).optional(),
     hazards: z.array(boxSchema).optional(),
+  ladders: z.array(boxSchema).optional(),
   })
   .refine((w) => w.lines === undefined || w.lines.every((l) => l.anchor < w.anchors.length), {
     message: 'lines: anchor id out of range',
@@ -178,6 +179,7 @@ export function loadWorldFromObject(obj: unknown): World {
   pushBoxes(w.tramps, data.tramps);
   pushBoxes(w.cushions, data.cushions);
   pushBoxes(w.hazards, data.hazards);
+pushBoxes(w.ladders, data.ladders);
   return w;
 }
 

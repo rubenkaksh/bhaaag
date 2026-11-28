@@ -104,7 +104,11 @@ describe('compileLevel', () => {
     const g = json.goal as { min: number[]; max: number[] };
     const gh = l.houses[7];
     expect((g.min[0] + g.max[0]) / 2).toBe(gh.x);
-    expect((g.min[2] + g.max[2]) / 2).toBe(gh.z);
+    // the sample ends in the haystack just downhill of the goal house
+    expect((g.min[2] + g.max[2]) / 2).toBeLessThan(gh.z - 4);
+    expect((g.min[2] + g.max[2]) / 2).toBeGreaterThan(gh.z - 9);
+    const roof = compileLevel({ ...l, finish: 'roof' }).goal as { min: number[]; max: number[] };
+    expect((roof.min[2] + roof.max[2]) / 2).toBe(gh.z);
   });
 
   it('emits steps for boxes and a pad for a tramp edge', () => {

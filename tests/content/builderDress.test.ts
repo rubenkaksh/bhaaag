@@ -18,9 +18,13 @@ describe('builder dressing (Nagarkot kit)', () => {
     const guarded = home.graph.houses.filter((h) => (h.guard ?? []).length > 0);
     expect(guarded.length).toBeGreaterThan(0);
     for (const h of home.graph.houses) expect((h.guard ?? []).length).toBeLessThanOrEqual(4);
-    // the goal roof is a cushion roof: no guard
+    // a roof-finish goal roof is a cushion roof: no guard
     const goal = src.houses.findIndex((h) => h.id === src.goal);
-    expect(home.graph.houses[goal].guard ?? []).toEqual([]);
+    const roofSrc = { ...src, finish: 'roof' as const };
+    const roofHome = builderHome(roofSrc, compileLevel(roofSrc));
+    expect(roofHome.graph.houses[goal].guard ?? []).toEqual([]);
+    // a hay-finish goal roof is guarded except its open downhill face
+    expect(home.graph.houses[goal].guard ?? []).not.toContain(3);
   });
 
   it('leaves the collider level untouched and has no path camera', () => {

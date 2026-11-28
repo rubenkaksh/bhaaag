@@ -57,11 +57,15 @@ export function classicLevels(
     key: 'strategy',
     builder: 'library',
   }));
-  if (!showLegacy) return [HOME_LEVEL, HAY_LEVEL, ...saved];
-  const out: LevelEntry[] = [HOME_LEVEL, HAY_LEVEL, ...LEGACY_LEVELS];
-  for (const b of shippedBuilderMeta()) {
-    out.push({ id: 'b:' + b.id, label: b.name, key: 'strategy', builder: 'shipped' });
-  }
+  // Shipped builder levels (content/builders) reach the phone whatever the legacy flag says, after Hay Run.
+  const shipped = shippedBuilderMeta().map((b): LevelEntry => ({
+    id: 'b:' + b.id,
+    label: b.name,
+    key: 'strategy',
+    builder: 'shipped',
+  }));
+  if (!showLegacy) return [HOME_LEVEL, HAY_LEVEL, ...shipped, ...saved];
+  const out: LevelEntry[] = [HOME_LEVEL, HAY_LEVEL, ...LEGACY_LEVELS, ...shipped];
   if (hasLocalBuilder) {
     out.push({ id: LOCAL_BUILDER_ID, label: 'My level', key: 'strategy', builder: 'local' });
   }

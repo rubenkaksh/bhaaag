@@ -19,9 +19,12 @@ const FROZEN: Record<string, string> = {
   // Re-recorded 2026-11-13 (owner report, hero stuck on the roof parapet on diagonal ziplines): run-out gap now spans the whole
   // launch zone, spawn moved 2.8 m left of it. A shipped-level edit by explicit owner-reported bug; future changes are new levels.
   'valley-1': '2bd8c4e1',
-  'home-street': 'da373009',
+  // Re-recorded 2026-11-25 (owner approved, "still I can enter inside the grass"): hazard lowering under patches now
+  // applies only within 1 m of each tile, so the hazard list changed. docs/briefs/terrain-glitch-design.md 2.7.
+  'home-street': '884b63b0',
   // New 2026-11-20 (Hay Run, kit v2 archetypes C1/C2/C3 over placer v1); frozen from here on.
-  'hay-run': '688106b4',
+  // Re-recorded 2026-11-28 after merging climbable ladders: Hay Run's ladder houses emit climb zones (world.ladders).
+  'hay-run': 'b734dcfc',
 };
 
 describe('graph level freeze', () => {

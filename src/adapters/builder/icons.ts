@@ -20,6 +20,7 @@ const P: Record<string, string> = {
   boxes:
     '<rect x="3" y="15" width="6" height="6"/><rect x="9" y="10" width="6" height="11"/><rect x="15" y="5" width="6" height="16"/>',
   stairs: '<path d="M3 21h4v-4h4v-4h4V9h4V5"/><path d="M3 21h18"/>',
+  crate: '<rect x="4" y="8" width="16" height="12" rx="1"/><path d="M4 12h16M12 8v12M7 5h10"/>',
   del: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
   start: '<path d="M6 21V3"/><path d="M6 4h12l-3 4 3 4H6" fill="currentColor" fill-opacity=".25"/>',
   goal: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>',
