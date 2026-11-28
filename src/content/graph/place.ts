@@ -59,6 +59,67 @@ export interface PlacedLevel {
   goalRot?: number;
   /** Segmented levels only: view-only ground height field that follows the road polyline. */
   field?: (x: number, z: number) => { h: number; d: number };
+  /** Segmented levels only, view-only: merged world rects whose hazard top is lowered under a patch. */
+  sunk?: SunkRect[];
+  /** Segmented levels only, view-only: ground-mesh grid lines (patch and sunk rect edges +-0.25 m). */
+  breaks?: { xs: number[]; zs: number[] };
+}
+
+export interface SunkRect {
+  x0: number;
+  x1: number;
+  z0: number;
+  z1: number;
+  y: number;
+}
+
+const SUNK_MARGIN = 1; // m: hazard lowering reaches this far past a patch rect
+const SUNK_DROP = 0.5; // m: hazard top (and drawn grass) under the patch top
+const BREAK_D = 0.25; // m: mesh grid lines either side of every edge
+
+function inRect(r: { x0: number; x1: number; z0: number; z1: number }, x: number, z: number): boolean {
+  return x >= r.x0 - 1e-6 && x <= r.x1 + 1e-6 && z >= r.z0 - 1e-6 && z <= r.z1 + 1e-6;
+}
+
+/** Joins rects of equal top that share a full edge, until nothing more merges. */
+function mergeSunk(list: SunkRect[]): SunkRect[] {
+  const out = list.map((r) => ({ ...r }));
+  const eq = (a: number, b: number): boolean => Math.abs(a - b) < 1e-6;
+  for (let again = true; again;) {
+    again = false;
+    for (let i = 0; i < out.length && !again; i++)
+      for (let j = i + 1; j < out.length && !again; j++) {
+        const a = out[i];
+        const b = out[j];
+        if (!eq(a.y, b.y)) continue;
+        const sameX = eq(a.x0, b.x0) && eq(a.x1, b.x1);
+        const sameZ = eq(a.z0, b.z0) && eq(a.z1, b.z1);
+        if (sameX && (eq(a.z1, b.z0) || eq(b.z1, a.z0))) {
+          a.z0 = Math.min(a.z0, b.z0);
+          a.z1 = Math.max(a.z1, b.z1);
+        } else if (sameZ && (eq(a.x1, b.x0) || eq(b.x1, a.x0))) {
+          a.x0 = Math.min(a.x0, b.x0);
+          a.x1 = Math.max(a.x1, b.x1);
+        } else continue;
+        out.splice(j, 1);
+        again = true;
+      }
+  }
+  return out;
+}
+
+function sunkBreaks(
+  sunk: readonly SunkRect[],
+  patches: readonly { x0: number; x1: number; z0: number; z1: number }[],
+): { xs: number[]; zs: number[] } {
+  const xs = new Set<number>();
+  const zs = new Set<number>();
+  for (const r of [...sunk, ...patches])
+    for (const d of [-BREAK_D, 0, BREAK_D]) {
+      for (const e of [r.x0, r.x1]) xs.add(round6(e + d));
+      for (const e of [r.z0, r.z1]) zs.add(round6(e + d));
+    }
+  return { xs: Array.from(xs).sort((a, b) => a - b), zs: Array.from(zs).sort((a, b) => a - b) };
 }
 
 /** Optional inputs that turn `layout` into one segment of a segmented level (ADR 0015). */
@@ -917,6 +978,7 @@ function placeSegmentedOnce(g: GraphLevel, base: number): PlacedLevel {
   // hazards: per run, 1 m bands in the run's own frame (top = the drawn ground there), cut around
   // houses of other runs and lowered under every patch (any run's), then turned into world boxes.
   const hazards: { min: P3; max: P3 }[] = [];
+  const sunk: SunkRect[] = [];
   const strips: { r: SegRec; xa: number; xb: number; za: number; zb: number }[] = [];
   for (const r of recs) {
     const back = (4 - r.frame.k) % 4;
@@ -952,9 +1014,11 @@ function placeSegmentedOnce(g: GraphLevel, base: number): PlacedLevel {
     for (let b = 0; b < bands; b++) {
       const z = zTop - b * HAZARD_BAND;
       const zl = z - HAZARD_BAND;
-      let top = Math.max(gyL(z), gyL(zl)) - 0.05;
+      const bandTop = Math.max(gyL(z), gyL(zl)) - 0.05;
+      // lowering applies only within SUNK_MARGIN of a patch (not the whole band), see below
+      const wins: [number, number, number][] = [];
       for (const p of lp)
-        if (p.z1 > zl && p.z0 < z && p.x1 > xa && p.x0 < xb) top = Math.min(top, p.y - 0.5);
+        if (p.z1 > zl && p.z0 < z) wins.push([p.x0 - SUNK_MARGIN, p.x1 + SUNK_MARGIN, p.y - SUNK_DROP]);
       let spans: [number, number][] = [[xa, xb]];
       const cuts: [number, number][] = [];
       for (const h of foreign) {
@@ -973,13 +1037,29 @@ function placeSegmentedOnce(g: GraphLevel, base: number): PlacedLevel {
         }
         spans = next;
       }
+      // split every span at each window edge, then lower each piece under the windows covering it
+      const pieces: [number, number][] = [];
       for (const [a, e] of spans) {
+        const cutsX: number[] = [];
+        for (const w of wins) for (const v of [w[0], w[1]]) if (v > a && v < e) cutsX.push(v);
+        cutsX.sort((u, v) => u - v);
+        const edges2 = [a, ...cutsX, e];
+        for (let k = 0; k + 1 < edges2.length; k++)
+          if (edges2[k + 1] - edges2[k] >= 1e-6) pieces.push([edges2[k], edges2[k + 1]]);
+      }
+      for (const [a, e] of pieces) {
+        const mid = (a + e) / 2;
+        let top = bandTop;
+        for (const w of wins) if (mid > w[0] && mid < w[1]) top = Math.min(top, w[2]);
         const c0 = toWorldXZ(r.frame, a, zl);
         const c1 = toWorldXZ(r.frame, e, z);
-        hazards.push({
-          min: [Math.min(c0[0], c1[0]), round6(top - 8), Math.min(c0[1], c1[1])],
-          max: [Math.max(c0[0], c1[0]), round6(top), Math.max(c0[1], c1[1])],
-        });
+        const hz = {
+          min: [Math.min(c0[0], c1[0]), round6(top - 8), Math.min(c0[1], c1[1])] as P3,
+          max: [Math.max(c0[0], c1[0]), round6(top), Math.max(c0[1], c1[1])] as P3,
+        };
+        hazards.push(hz);
+        if (top < bandTop - 1e-9)
+          sunk.push({ x0: hz.min[0], x1: hz.max[0], z0: hz.min[2], z1: hz.max[2], y: hz.max[1] });
       }
     }
   }
@@ -1039,25 +1119,49 @@ function placeSegmentedOnce(g: GraphLevel, base: number): PlacedLevel {
   };
 
   // view-only ground: each run's own profile, blended by distance to the run's hazard strip
-  const field = (x: number, z: number): { h: number; d: number } => {
+  const profileField = (x: number, z: number): { h: number; d: number } => {
     for (const h of ordered)
       if (Math.abs(x - h.cx) <= HALF && Math.abs(z - h.cz) <= HALF) return { h: h.groundY, d: 0 };
     let sw = 0;
     let sh = 0;
     let dm = Infinity;
+    let own: number | null = null; // a later run owns the ground where strips overlap (as the hazards do)
     for (const st of strips) {
       const [lx, lz] = toLocalXZ(st.r.frame, x, z);
       const d = Math.hypot(
         Math.max(st.xa - lx, 0, lx - st.xb),
         Math.max(st.za - lz, 0, lz - st.zb),
       );
+      if (d < 1e-9) own = groundAt(prof, lz + st.r.zOff);
       const w = 1 / (d ** 8 + 1e-6);
       sw += w;
       sh += w * groundAt(prof, lz + st.r.zOff);
       dm = Math.min(dm, d);
     }
-    return { h: sh / sw, d: dm };
+    return { h: own ?? sh / sw, d: dm };
   };
+  // The drawn ground is the sim ground: inside every sunk hazard rect it sits at that hazard top, and
+  // inside every patch rect 0.5 m under the tile top (no z-fight). Placement owns the region; the
+  // mesh lattice gets vertices on the same edges (breaks) so no triangle straddles an edge.
+  const mergedSunk = mergeSunk(sunk);
+  const field = (x: number, z: number): { h: number; d: number } => {
+    const f = profileField(x, z);
+    let h = f.h;
+    for (const r of mergedSunk) if (inRect(r, x, z)) h = Math.min(h, r.y);
+    for (const p of patches) if (inRect(p, x, z)) h = Math.min(h, p.y - SUNK_DROP);
+    return { h, d: h < f.h ? 0 : f.d };
+  };
+  const stripRects = strips.map((st) => {
+    const c0 = toWorldXZ(st.r.frame, st.xa, st.za);
+    const c1 = toWorldXZ(st.r.frame, st.xb, st.zb);
+    return {
+      x0: Math.min(c0[0], c1[0]),
+      x1: Math.max(c0[0], c1[0]),
+      z0: Math.min(c0[1], c1[1]),
+      z1: Math.max(c0[1], c1[1]),
+    };
+  });
+  const breaks = sunkBreaks(mergedSunk, [...patches, ...stripRects]);
 
   return {
     seed: base,
@@ -1070,6 +1174,8 @@ function placeSegmentedOnce(g: GraphLevel, base: number): PlacedLevel {
     level,
     goalRot,
     field,
+    sunk: mergedSunk,
+    breaks,
   };
 }
 

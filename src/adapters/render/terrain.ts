@@ -79,6 +79,22 @@ export function setTerrainField(f: GroundField | null): void {
   fieldNow = f;
 }
 
+// Extra ground-mesh grid lines (patch and sunk-rect edges of a segmented graph level); null = none.
+interface TerrainBreaks {
+  xs: readonly number[];
+  zs: readonly number[];
+}
+let breaksNow: TerrainBreaks | null = null;
+
+/** Sets (or clears with null) the extra mesh grid lines of a segmented graph level. */
+export function setTerrainBreaks(b: TerrainBreaks | null): void {
+  breaksNow = b;
+}
+
+export function terrainBreaks(): TerrainBreaks | null {
+  return breaksNow;
+}
+
 function profileY(p: [number, number][], z: number): number {
   const n = p.length;
   if (z >= p[0][0]) return p[0][1] + ((z - p[0][0]) * (p[1][1] - p[0][1])) / (p[1][0] - p[0][0]);

@@ -5,6 +5,7 @@ import {
   TERRAIN_Z_MAX,
   TERRAIN_Z_MIN,
   planeY,
+  terrainBreaks,
   terrainValleyZ,
   terrainY,
   terrainZMin,
@@ -108,9 +109,10 @@ export function buildGroundMesh(): Mesh {
     -HILL_HALF_X,
     HILL_HALF_X,
     0,
+    ...(terrainBreaks()?.xs ?? []),
   ]);
   const zMin = terrainZMin();
-  let zs = axis(zMin, TERRAIN_Z_MAX, 3, -156, 46, 1.12, [40, terrainValleyZ(), -104, 26]);
+  let zs = axis(zMin, TERRAIN_Z_MAX, 3, -156, 46, 1.12, [40, terrainValleyZ(), -104, 26, ...(terrainBreaks()?.zs ?? [])]);
   if (zMin < TERRAIN_Z_MIN) {
     // long level (strategy maze): a coarse 12 m strip down the linear plane to the valley
     for (let z = -156; z > terrainValleyZ() - 12; z -= 12) zs.push(z);
